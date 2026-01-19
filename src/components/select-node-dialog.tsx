@@ -18,13 +18,14 @@ import {
   Calendar,
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 
 export type NodeType =
@@ -225,6 +226,22 @@ interface SelectNodeDialogProps {
   onSelectNode: (nodeType: NodeType) => void;
 }
 
+// Organize nodes into groups
+const nodeGroups = {
+  swaps: nodeTypes.filter((n) => ['swap', 'swapFromPLS', 'swapToPLS'].includes(n.type)),
+  liquidity: nodeTypes.filter((n) =>
+    ['addLiquidity', 'addLiquidityPLS', 'removeLiquidity', 'removeLiquidityPLS'].includes(n.type)
+  ),
+  transfers: nodeTypes.filter((n) => n.type === 'transfer'),
+  checks: nodeTypes.filter((n) =>
+    ['checkBalance', 'checkTokenBalance', 'checkLPTokenAmounts', 'getTokenPrice'].includes(n.type)
+  ),
+  tokenOperations: nodeTypes.filter((n) => ['burnToken', 'claimToken'].includes(n.type)),
+  controlFlow: nodeTypes.filter((n) =>
+    ['wait', 'loop', 'gasGuard', 'failureHandle', 'windowedExecution'].includes(n.type)
+  ),
+};
+
 export function SelectNodeDialog({
   open,
   onOpenChange,
@@ -235,55 +252,63 @@ export function SelectNodeDialog({
     onOpenChange(false);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Select Node Type</DialogTitle>
-          <DialogDescription>
-            Choose a node type to add to your automation flow
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 py-4">
-          {nodeTypes.map((nodeType) => {
-            const Icon = nodeType.icon;
-            const isLocked = !!nodeType.requiresPlan;
-            return (
-              <Button
-                key={nodeType.type}
-                variant="outline"
-                className={cn(
-                  'h-auto flex-col items-start gap-2 p-4',
-                  isLocked 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:bg-accent',
-                )}
-                onClick={() => !isLocked && handleSelect(nodeType.type)}
-                disabled={isLocked}
-              >
-                <div className="flex items-center gap-3 w-full">
-                  <div className={cn('rounded-xl p-1.5', nodeType.iconBg)}>
-                    <Icon className={cn('h-4 w-4', nodeType.iconColor)} />
-                  </div>
-                  <div className="flex flex-col items-start flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{nodeType.label}</span>
-                      {nodeType.requiresPlan && (
-                        <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                          {nodeType.requiresPlan}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {nodeType.description}
-                    </span>
-                  </div>
-                </div>
-              </Button>
-            );
-          })}
+  const renderNodeItem = (nodeType: NodeTypeOption) => {
+    const Icon = nodeType.icon;
+    const isLocked = !!nodeType.requiresPlan;
+    return (
+      <CommandItem
+        key={nodeType.type}
+        onSelect={() => !isLocked && handleSelect(nodeType.type)}
+        disabled={isLocked}
+        className="flex items-center gap-3"
+      >
+        <div className={cn('rounded-lg p-1.5', nodeType.iconBg)}>
+          <Icon className={cn('h-4 w-4', nodeType.iconColor)} />
         </div>
-      </DialogContent>
-    </Dialog>
+        <div className="flex flex-col flex-1">
+          <div className="flex items-center gap-2">
+            <span>{nodeType.label}</span>
+            {nodeType.requiresPlan && (
+              <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                {nodeType.requiresPlan}
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {nodeType.description}
+          </span>
+        </div>
+      </CommandItem>
+    );
+  };
+
+  const renderGroup = (heading: string, nodes: NodeTypeOption[], showSeparator = true) => (
+    <>
+      <CommandGroup heading={heading}>
+        {nodes.map(renderNodeItem)}
+      </CommandGroup>
+      {showSeparator && <CommandSeparator />}
+    </>
+  );
+
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Select Node Type"
+      description="Choose a node type to add to your automation flow"
+    >
+      <CommandInput placeholder="Search nodes..." />
+      <CommandList>
+        <CommandEmpty>No nodes found.</CommandEmpty>
+        
+        {renderGroup('Swaps', nodeGroups.swaps)}
+        {renderGroup('Liquidity', nodeGroups.liquidity)}
+        {renderGroup('Transfers', nodeGroups.transfers)}
+        {renderGroup('Checks', nodeGroups.checks)}
+        {renderGroup('Token Operations', nodeGroups.tokenOperations)}
+        {renderGroup('Control Flow', nodeGroups.controlFlow, false)}
+      </CommandList>
+    </CommandDialog>
   );
 }

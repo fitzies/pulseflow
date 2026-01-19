@@ -793,12 +793,12 @@ export function NodeConfigSheet({
           {canDelete && (
             <Button
               type="button"
-              variant="destructive"
+              variant="ghost"
               onClick={handleDelete}
               className="w-full"
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete Node
+              Delete 
             </Button>
           )}
           <SheetClose asChild>
