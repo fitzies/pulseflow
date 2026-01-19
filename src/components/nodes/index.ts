@@ -1,6 +1,7 @@
 export { StartNode } from './start-node';
 export { SwapNode } from './swap-node';
-export { SwapPLSNode } from './swap-pls-node';
+export { SwapFromPLSNode } from './swap-from-pls-node';
+export { SwapToPLSNode } from './swap-to-pls-node';
 export { TransferNode } from './transfer-node';
 export { CheckPriceNode } from './check-price-node';
 export { AddLiquidityNode } from './add-liquidity-node';
@@ -13,3 +14,8 @@ export { CheckLPTokenAmountsNode } from './check-lp-token-amounts-node';
 export { BurnTokenNode } from './burn-token-node';
 export { ClaimTokenNode } from './claim-token-node';
 export { WaitNode } from './wait-node';
+export { GetTokenPriceNode } from './get-token-price-node';
+export { LoopNode } from './loop-node';
+export { GasGuardNode } from './gas-guard-node';
+export { FailureHandleNode } from './failure-handle-node';
+export { WindowedExecutionNode } from './windowed-execution-node';

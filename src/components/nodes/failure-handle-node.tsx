@@ -1,20 +1,20 @@
 'use client';
 
 import { memo } from 'react';
-import { ArrowRightLeft, Plus } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
 
-interface SwapPLSNodeData {
+interface FailureHandleNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
 }
 
-export const SwapPLSNode = memo(({ data }: NodeProps) => {
-  const nodeData = data as SwapPLSNodeData;
+export const FailureHandleNode = memo(({ data }: NodeProps) => {
+  const nodeData = data as FailureHandleNodeData;
   const handleAddClick = () => {
     nodeData?.onAddNode?.();
   };
@@ -26,10 +26,10 @@ export const SwapPLSNode = memo(({ data }: NodeProps) => {
     <BaseNode className="w-36 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} />
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className="rounded-xl bg-amber-500/20 p-3 flex items-center justify-center">
-          <ArrowRightLeft className="h-8 w-8 text-amber-500" />
+        <div className="rounded-xl bg-red-500/20 p-3 flex items-center justify-center">
+          <AlertCircle className="h-8 w-8 text-red-500" />
         </div>
-        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap PLS</BaseNodeHeaderTitle>
+        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Failure Handle</BaseNodeHeaderTitle>
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
       {nodeData?.isLastNode && (
@@ -51,4 +51,4 @@ export const SwapPLSNode = memo(({ data }: NodeProps) => {
   );
 });
 
-SwapPLSNode.displayName = 'SwapPLSNode';
+FailureHandleNode.displayName = 'FailureHandleNode';

@@ -20,7 +20,8 @@ import { JsonRpcProvider, formatEther } from 'ethers';
 import {
   StartNode,
   SwapNode,
-  SwapPLSNode,
+  SwapFromPLSNode,
+  SwapToPLSNode,
   TransferNode,
   AddLiquidityNode,
   AddLiquidityPLSNode,
@@ -32,6 +33,11 @@ import {
   BurnTokenNode,
   ClaimTokenNode,
   WaitNode,
+  GetTokenPriceNode,
+  LoopNode,
+  GasGuardNode,
+  FailureHandleNode,
+  WindowedExecutionNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -58,7 +64,8 @@ function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentTyp
 const nodeTypes: NodeTypes = {
   start: withStatusIndicator(StartNode),
   swap: withStatusIndicator(SwapNode),
-  swapPLS: withStatusIndicator(SwapPLSNode),
+  swapFromPLS: withStatusIndicator(SwapFromPLSNode),
+  swapToPLS: withStatusIndicator(SwapToPLSNode),
   transfer: withStatusIndicator(TransferNode),
   addLiquidity: withStatusIndicator(AddLiquidityNode),
   addLiquidityPLS: withStatusIndicator(AddLiquidityPLSNode),
@@ -70,6 +77,11 @@ const nodeTypes: NodeTypes = {
   burnToken: withStatusIndicator(BurnTokenNode),
   claimToken: withStatusIndicator(ClaimTokenNode),
   wait: withStatusIndicator(WaitNode),
+  getTokenPrice: withStatusIndicator(GetTokenPriceNode),
+  loop: withStatusIndicator(LoopNode),
+  gasGuard: withStatusIndicator(GasGuardNode),
+  failureHandle: withStatusIndicator(FailureHandleNode),
+  windowedExecution: withStatusIndicator(WindowedExecutionNode),
 };
 
 const defaultStartNode: Node[] = [

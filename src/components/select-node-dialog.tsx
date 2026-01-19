@@ -12,6 +12,10 @@ import {
   Flame,
   Download,
   BarChart3,
+  RefreshCw,
+  Shield,
+  AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import {
   Dialog,
@@ -25,7 +29,8 @@ import { cn } from '@/lib/utils';
 
 export type NodeType =
   | 'swap'
-  | 'swapPLS'
+  | 'swapFromPLS'
+  | 'swapToPLS'
   | 'transfer'
   | 'addLiquidity'
   | 'addLiquidityPLS'
@@ -36,7 +41,12 @@ export type NodeType =
   | 'checkLPTokenAmounts'
   | 'burnToken'
   | 'claimToken'
-  | 'wait';
+  | 'wait'
+  | 'getTokenPrice'
+  | 'loop'
+  | 'gasGuard'
+  | 'failureHandle'
+  | 'windowedExecution';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -98,12 +108,20 @@ const nodeTypes: NodeTypeOption[] = [
     iconColor: 'text-emerald-400',
   },
   {
-    type: 'swapPLS',
-    label: 'Swap PLS',
+    type: 'swapFromPLS',
+    label: 'Swap from PLS',
     description: 'Swap PLS for tokens',
     icon: ArrowRightLeft,
     iconBg: 'bg-amber-500/20',
     iconColor: 'text-amber-500',
+  },
+  {
+    type: 'swapToPLS',
+    label: 'Swap to PLS',
+    description: 'Swap tokens for PLS',
+    icon: ArrowRightLeft,
+    iconBg: 'bg-amber-400/20',
+    iconColor: 'text-amber-400',
   },
   {
     type: 'addLiquidityPLS',
@@ -152,6 +170,51 @@ const nodeTypes: NodeTypeOption[] = [
     icon: Clock,
     iconBg: 'bg-cyan-400/20',
     iconColor: 'text-cyan-400',
+    requiresPlan: 'PRO',
+  },
+  {
+    type: 'getTokenPrice',
+    label: 'Get Token Price',
+    description: 'Get token price from DEX',
+    icon: TrendingUp,
+    iconBg: 'bg-green-400/20',
+    iconColor: 'text-green-400',
+    requiresPlan: 'PRO',
+  },
+  {
+    type: 'loop',
+    label: 'Loop',
+    description: 'Loop automation',
+    icon: RefreshCw,
+    iconBg: 'bg-violet-400/20',
+    iconColor: 'text-violet-400',
+    requiresPlan: 'PRO',
+  },
+  {
+    type: 'gasGuard',
+    label: 'Gas Guard',
+    description: 'Stop if gas too high',
+    icon: Shield,
+    iconBg: 'bg-yellow-400/20',
+    iconColor: 'text-yellow-400',
+    requiresPlan: 'PRO',
+  },
+  {
+    type: 'failureHandle',
+    label: 'Failure Handle',
+    description: 'Route on failure',
+    icon: AlertCircle,
+    iconBg: 'bg-red-500/20',
+    iconColor: 'text-red-500',
+    requiresPlan: 'PRO',
+  },
+  {
+    type: 'windowedExecution',
+    label: 'Windowed Execution',
+    description: 'Execute within time window',
+    icon: Calendar,
+    iconBg: 'bg-blue-600/20',
+    iconColor: 'text-blue-600',
     requiresPlan: 'PRO',
   },
 ];

@@ -65,14 +65,23 @@ export function NodeConfigSheet({
   const handleSave = () => {
     if (!nodeId) return;
     
-    // Auto-prepend WPLS to swapPLS path if not already present
+    // Auto-prepend WPLS to swapFromPLS path if not already present
+    // Auto-append WPLS to swapToPLS path if not already present
     let configToSave = { ...formData };
-    if (nodeType === 'swapPLS' && configToSave.path && Array.isArray(configToSave.path)) {
+    if (nodeType === 'swapFromPLS' && configToSave.path && Array.isArray(configToSave.path)) {
       const path = configToSave.path as string[];
       if (path.length === 0 || path[0]?.toLowerCase() !== CONFIG.wpls.toLowerCase()) {
         configToSave = {
           ...configToSave,
           path: [CONFIG.wpls, ...path],
+        };
+      }
+    } else if (nodeType === 'swapToPLS' && configToSave.path && Array.isArray(configToSave.path)) {
+      const path = configToSave.path as string[];
+      if (path.length === 0 || path[path.length - 1]?.toLowerCase() !== CONFIG.wpls.toLowerCase()) {
+        configToSave = {
+          ...configToSave,
+          path: [...path, CONFIG.wpls],
         };
       }
     }
@@ -169,7 +178,7 @@ export function NodeConfigSheet({
     </div>
   );
 
-  const renderSwapPLSConfig = () => (
+  const renderSwapFromPLSConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <AmountSelector
         value={formData.plsAmount}
@@ -178,7 +187,7 @@ export function NodeConfigSheet({
         previousNodeConfig={previousNodeConfig}
         label="PLS Amount"
         fieldName="plsAmount"
-        nodeType="swapPLS"
+        nodeType="swapFromPLS"
         formData={formData}
         isPLSAmount={true}
       />
@@ -186,6 +195,61 @@ export function NodeConfigSheet({
         <label className="text-sm font-medium">Token Path</label>
         <div className="text-xs text-muted-foreground mb-2">
           WPLS will be automatically added as the first token in the path
+        </div>
+        <div className="space-y-2">
+          {(formData.path || []).map((item: string, index: number) => (
+            <div key={index} className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="0x..."
+                value={item}
+                onChange={(e) => updateArrayField('path', index, e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => removeArrayItem('path', index)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => addArrayItem('path')}
+          className="w-full"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Token
+        </Button>
+      </div>
+      <SlippageSelector
+        value={formData.slippage ?? 0.01}
+        onChange={(value) => updateField('slippage', value)}
+      />
+    </div>
+  );
+
+  const renderSwapToPLSConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <AmountSelector
+        value={formData.amountIn}
+        onChange={(value) => updateField('amountIn', value)}
+        previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
+        label="Amount In"
+        fieldName="amountIn"
+        nodeType="swapToPLS"
+        formData={formData}
+      />
+      <div className="grid gap-3">
+        <label className="text-sm font-medium">Token Path</label>
+        <div className="text-xs text-muted-foreground mb-2">
+          WPLS will be automatically added as the last token in the path
         </div>
         <div className="space-y-2">
           {(formData.path || []).map((item: string, index: number) => (
@@ -531,12 +595,148 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const renderGetTokenPriceConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
+        <Input
+          id="token"
+          type="text"
+          placeholder="0x..."
+          value={formData.token || ''}
+          onChange={(e) => updateField('token', e.target.value)}
+        />
+      </div>
+      <div className="grid gap-3">
+        <label htmlFor="pairAddress" className="text-sm font-medium">Pair Address (Optional)</label>
+        <Input
+          id="pairAddress"
+          type="text"
+          placeholder="0x..."
+          value={formData.pairAddress || ''}
+          onChange={(e) => updateField('pairAddress', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Optional: Specify pair address. If not provided, will be auto-detected.</p>
+      </div>
+    </div>
+  );
+
+  const renderLoopConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="loopCount" className="text-sm font-medium">Loop Count</label>
+        <Input
+          id="loopCount"
+          type="number"
+          placeholder="1"
+          value={formData.loopCount || ''}
+          onChange={(e) => updateField('loopCount', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Number of times to loop. Leave empty for infinite loop (use with caution).</p>
+      </div>
+      <div className="grid gap-3">
+        <label htmlFor="targetNodeId" className="text-sm font-medium">Target Node ID (Optional)</label>
+        <Input
+          id="targetNodeId"
+          type="text"
+          placeholder="start-1"
+          value={formData.targetNodeId || ''}
+          onChange={(e) => updateField('targetNodeId', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Node ID to loop back to. If not specified, loops to start node.</p>
+      </div>
+    </div>
+  );
+
+  const renderGasGuardConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="maxGasPrice" className="text-sm font-medium">Max Gas Price (Gwei)</label>
+        <Input
+          id="maxGasPrice"
+          type="number"
+          placeholder="100"
+          value={formData.maxGasPrice || ''}
+          onChange={(e) => updateField('maxGasPrice', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Maximum gas price in Gwei. Automation will stop if gas exceeds this value.</p>
+      </div>
+    </div>
+  );
+
+  const renderFailureHandleConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="fallbackNodeId" className="text-sm font-medium">Fallback Node ID</label>
+        <Input
+          id="fallbackNodeId"
+          type="text"
+          placeholder="node-id"
+          value={formData.fallbackNodeId || ''}
+          onChange={(e) => updateField('fallbackNodeId', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Node ID to route to if the previous node fails or reverts.</p>
+      </div>
+    </div>
+  );
+
+  const renderWindowedExecutionConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="startTimestamp" className="text-sm font-medium">Start Timestamp</label>
+        <Input
+          id="startTimestamp"
+          type="number"
+          placeholder="1234567890"
+          value={formData.startTimestamp || ''}
+          onChange={(e) => updateField('startTimestamp', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Unix timestamp when execution window starts. Leave empty to use start block instead.</p>
+      </div>
+      <div className="grid gap-3">
+        <label htmlFor="endTimestamp" className="text-sm font-medium">End Timestamp</label>
+        <Input
+          id="endTimestamp"
+          type="number"
+          placeholder="1234567890"
+          value={formData.endTimestamp || ''}
+          onChange={(e) => updateField('endTimestamp', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Unix timestamp when execution window ends. Leave empty to use end block instead.</p>
+      </div>
+      <div className="grid gap-3">
+        <label htmlFor="startBlock" className="text-sm font-medium">Start Block (Optional)</label>
+        <Input
+          id="startBlock"
+          type="number"
+          placeholder="1000000"
+          value={formData.startBlock || ''}
+          onChange={(e) => updateField('startBlock', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Block number when execution window starts. Used if start timestamp is not provided.</p>
+      </div>
+      <div className="grid gap-3">
+        <label htmlFor="endBlock" className="text-sm font-medium">End Block (Optional)</label>
+        <Input
+          id="endBlock"
+          type="number"
+          placeholder="1000000"
+          value={formData.endBlock || ''}
+          onChange={(e) => updateField('endBlock', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">Block number when execution window ends. Used if end timestamp is not provided.</p>
+      </div>
+    </div>
+  );
+
   const renderConfig = () => {
     switch (nodeType) {
       case 'swap':
         return renderSwapConfig();
-      case 'swapPLS':
-        return renderSwapPLSConfig();
+      case 'swapFromPLS':
+        return renderSwapFromPLSConfig();
+      case 'swapToPLS':
+        return renderSwapToPLSConfig();
       case 'transfer':
         return renderTransferConfig();
       case 'addLiquidity':
@@ -557,6 +757,16 @@ export function NodeConfigSheet({
         return renderWaitConfig();
       case 'checkTokenBalance':
         return renderCheckTokenBalanceConfig();
+      case 'getTokenPrice':
+        return renderGetTokenPriceConfig();
+      case 'loop':
+        return renderLoopConfig();
+      case 'gasGuard':
+        return renderGasGuardConfig();
+      case 'failureHandle':
+        return renderFailureHandleConfig();
+      case 'windowedExecution':
+        return renderWindowedExecutionConfig();
       case 'checkBalance':
       default:
         return (
