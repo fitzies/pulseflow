@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id      String @id @default(cuid())
+  clerkId String @unique
+
+  plan        Plan?
+  trialEndsAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  workflows  Workflow[]
+  executions Execution[]
+}
+
+enum Plan {
+  BASIC
+  PRO
+  ULTRA
+}
+
+model Workflow {
+  id     String @id @default(cuid())
+  userId String
+
+  name     String
+  isActive Boolean @default(false)
+
+  // React Flow nodes + edges
+  definition Json
+
+  // One wallet per workflow
+  walletAddress String
+  walletEncKey  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id])
+  executions Execution[]
+}
+
+model Execution {
+  id         String @id @default(cuid())
+  userId     String
+  workflowId String
+
+  status ExecutionStatus
+  error  String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  user     User           @relation(fields: [userId], references: [id])
+  workflow Workflow       @relation(fields: [workflowId], references: [id])
+  logs     ExecutionLog[]
+}
+
+model ExecutionLog {
+  id          String @id @default(cuid())
+  executionId String
+
+  nodeId   String // React Flow node id
+  nodeType String // swap, condition, read_balance, etc
+  input    Json?
+  output   Json?
+  error    String?
+
+  createdAt DateTime @default(now())
+
+  execution Execution @relation(fields: [executionId], references: [id])
+}
+
+enum ExecutionStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
