@@ -1,5 +1,5 @@
 import { Wallet } from "ethers";
-import { createCipheriv, randomBytes, scryptSync } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 
 const PULSECHAIN_CHAIN_ID = 369;
 
@@ -65,6 +65,53 @@ async function encryptPrivateKey(
   ]);
 
   return combined.toString("hex");
+}
+
+/**
+ * Decrypts an encrypted private key using AES-256-GCM
+ * @param encryptedKey - The encrypted private key as hex string
+ * @param password - Password for decryption
+ * @returns Decrypted private key
+ */
+export function decryptPrivateKey(
+  encryptedKey: string,
+  password: string = process.env.WALLET_ENCRYPTION_PASSWORD || "default-password-change-in-production"
+): string {
+  // Convert hex string to buffer
+  const combined = Buffer.from(encryptedKey, "hex");
+
+  // Extract salt, iv, authTag, and encrypted data
+  const salt = combined.slice(0, 16);
+  const iv = combined.slice(16, 32);
+  const authTag = combined.slice(32, 48);
+  const encrypted = combined.slice(48);
+
+  // Derive key from password using scrypt
+  const key = scryptSync(password, salt, 32);
+
+  // Create decipher
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+
+  // Decrypt the private key
+  let decrypted = decipher.update(encrypted, undefined, "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
+}
+
+/**
+ * Gets a Wallet instance from an encrypted private key
+ * @param encryptedKey - The encrypted private key
+ * @param password - Optional password (defaults to env var)
+ * @returns Wallet instance
+ */
+export function getWalletFromEncryptedKey(
+  encryptedKey: string,
+  password?: string
+): Wallet {
+  const privateKey = decryptPrivateKey(encryptedKey, password);
+  return new Wallet(privateKey);
 }
 
 /**

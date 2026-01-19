@@ -67,3 +67,76 @@ export async function createAutomation(name: string) {
     };
   }
 }
+
+export async function updateAutomationDefinition(
+  automationId: string,
+  nodes: unknown[],
+  edges: unknown[]
+) {
+  try {
+    // Get authenticated user from Clerk
+    const user = await currentUser();
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Unauthorized. Please sign in.",
+      };
+    }
+
+    // Get user from database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return {
+        success: false,
+        error: "User not found. Please contact support.",
+      };
+    }
+
+    // Fetch automation and verify ownership
+    const automation = await prisma.automation.findUnique({
+      where: { id: automationId },
+    });
+
+    if (!automation) {
+      return {
+        success: false,
+        error: "Automation not found.",
+      };
+    }
+
+    if (automation.userId !== dbUser.id) {
+      return {
+        success: false,
+        error: "You don't have permission to update this automation.",
+      };
+    }
+
+    // Update automation definition
+    await prisma.automation.update({
+      where: { id: automationId },
+      data: {
+        definition: {
+          nodes,
+          edges,
+        },
+      },
+    });
+
+    // Revalidate the automation page
+    revalidatePath(`/automations/${automationId}`);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Error updating automation definition:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update automation definition.",
+    };
+  }
+}
