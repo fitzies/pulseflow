@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "postprisma": "node scripts/post-prisma-generate.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.36.8",

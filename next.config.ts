@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       "./src/generated/prisma/**/*",
       "./node_modules/.prisma/client/**/*",
       "./node_modules/@prisma/client/**/*",
+      "./node_modules/@prisma/engines/**/*",
     ],
   },
 };
