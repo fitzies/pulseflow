@@ -4,6 +4,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
+import { executeAutomationChain } from "@/lib/automation-runner";
+import type { Node, Edge } from "@xyflow/react";
 
 export async function createAutomation(name: string) {
   try {
@@ -137,6 +139,204 @@ export async function updateAutomationDefinition(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to update automation definition.",
+    };
+  }
+}
+
+export async function runAutomation(automationId: string) {
+  try {
+    // Get authenticated user from Clerk
+    const user = await currentUser();
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Unauthorized. Please sign in.",
+      };
+    }
+
+    // Get user from database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return {
+        success: false,
+        error: "User not found. Please contact support.",
+      };
+    }
+
+    // Fetch automation and verify ownership
+    const automation = await prisma.automation.findUnique({
+      where: { id: automationId },
+    });
+
+    if (!automation) {
+      return {
+        success: false,
+        error: "Automation not found.",
+      };
+    }
+
+    if (automation.userId !== dbUser.id) {
+      return {
+        success: false,
+        error: "You don't have permission to run this automation.",
+      };
+    }
+
+    // Parse the automation definition
+    const definition = automation.definition as { nodes?: Node[]; edges?: Edge[] } | null;
+    const nodes = definition?.nodes || [];
+    const edges = definition?.edges || [];
+
+    if (nodes.length === 0) {
+      return {
+        success: false,
+        error: "Automation has no nodes to execute.",
+      };
+    }
+
+    // Create execution record
+    const execution = await prisma.execution.create({
+      data: {
+        userId: dbUser.id,
+        automationId: automation.id,
+        status: "RUNNING",
+      },
+    });
+
+    try {
+      // Execute the automation chain
+      const { results } = await executeAutomationChain(
+        automationId,
+        nodes,
+        edges
+      );
+
+      // Helper to serialize transaction receipts (remove provider objects)
+      const serializeResult = (result: any): any => {
+        if (!result) return null;
+        
+        // If it's a transaction receipt, extract only serializable fields
+        if (result.hash && result.blockNumber !== undefined) {
+          return {
+            hash: result.hash,
+            blockHash: result.blockHash,
+            blockNumber: result.blockNumber?.toString(),
+            transactionIndex: result.transactionIndex,
+            from: result.from,
+            to: result.to,
+            gasUsed: result.gasUsed?.toString(),
+            status: result.status,
+            logs: result.logs?.map((log: any) => ({
+              transactionHash: log.transactionHash,
+              blockHash: log.blockHash,
+              blockNumber: log.blockNumber?.toString(),
+              address: log.address,
+              data: log.data,
+              topics: log.topics,
+              index: log.index,
+              transactionIndex: log.transactionIndex,
+            })) || [],
+          };
+        }
+        
+        // For other types, serialize normally
+        return JSON.parse(JSON.stringify(result, (_, v) =>
+          typeof v === "bigint" ? v.toString() : v === undefined ? null : v
+        ));
+      };
+
+      // Log each node result
+      for (const nodeResult of results) {
+        const node = nodes.find((n) => n.id === nodeResult.nodeId);
+        await prisma.executionLog.create({
+          data: {
+            executionId: execution.id,
+            nodeId: nodeResult.nodeId,
+            nodeType: node?.type || "unknown",
+            input: node?.data?.config || null,
+            output: serializeResult(nodeResult.result),
+          },
+        });
+      }
+
+      // Update execution status to SUCCESS
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: {
+          status: "SUCCESS",
+          finishedAt: new Date(),
+        },
+      });
+
+      // Serialize results before returning (remove provider objects)
+      const serializeResult = (result: any): any => {
+        if (!result) return null;
+        
+        // If it's a transaction receipt, extract only serializable fields
+        if (result.hash && result.blockNumber !== undefined) {
+          return {
+            hash: result.hash,
+            blockHash: result.blockHash,
+            blockNumber: result.blockNumber?.toString(),
+            transactionIndex: result.transactionIndex,
+            from: result.from,
+            to: result.to,
+            gasUsed: result.gasUsed?.toString(),
+            status: result.status,
+            logs: result.logs?.map((log: any) => ({
+              transactionHash: log.transactionHash,
+              blockHash: log.blockHash,
+              blockNumber: log.blockNumber?.toString(),
+              address: log.address,
+              data: log.data,
+              topics: log.topics,
+              index: log.index,
+              transactionIndex: log.transactionIndex,
+            })) || [],
+          };
+        }
+        
+        // For other types, serialize normally
+        return JSON.parse(JSON.stringify(result, (_, v) =>
+          typeof v === "bigint" ? v.toString() : v === undefined ? null : v
+        ));
+      };
+
+      return {
+        success: true,
+        executionId: execution.id,
+        results: results.map(r => ({ ...r, result: serializeResult(r.result) })),
+      };
+    } catch (executionError) {
+      // Log the error and update execution status to FAILED
+      const errorMessage = executionError instanceof Error 
+        ? executionError.message 
+        : "Unknown execution error";
+
+      await prisma.execution.update({
+        where: { id: execution.id },
+        data: {
+          status: "FAILED",
+          error: errorMessage,
+          finishedAt: new Date(),
+        },
+      });
+
+      return {
+        success: false,
+        error: errorMessage,
+        executionId: execution.id,
+      };
+    }
+  } catch (error) {
+    console.error("Error running automation:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to run automation.",
     };
   }
 }

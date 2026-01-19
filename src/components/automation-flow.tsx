@@ -26,6 +26,7 @@ import {
   RemoveLiquidityNode,
   RemoveLiquidityPLSNode,
   CheckBalanceNode,
+  CheckTokenBalanceNode,
   CheckLPTokenAmountsNode,
   BurnTokenNode,
   ClaimTokenNode,
@@ -33,8 +34,9 @@ import {
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
-import { updateAutomationDefinition } from '@/lib/actions/automations';
+import { updateAutomationDefinition, runAutomation } from '@/lib/actions/automations';
 import { Button } from '@/components/ui/button';
+import { Loader2, Play, Square } from 'lucide-react';
 
 const nodeTypes: NodeTypes = {
   start: StartNode,
@@ -46,6 +48,7 @@ const nodeTypes: NodeTypes = {
   removeLiquidity: RemoveLiquidityNode,
   removeLiquidityPLS: RemoveLiquidityPLSNode,
   checkBalance: CheckBalanceNode,
+  checkTokenBalance: CheckTokenBalanceNode,
   checkLPTokenAmounts: CheckLPTokenAmountsNode,
   burnToken: BurnTokenNode,
   claimToken: ClaimTokenNode,
@@ -93,6 +96,8 @@ export function AutomationFlow({
   const [configSheetOpen, setConfigSheetOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [executionStatus, setExecutionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   // Fetch PLS balance
   useEffect(() => {
@@ -222,6 +227,49 @@ export function AutomationFlow({
     );
   }, []);
 
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    // Remove the node
+    setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
+    
+    // Remove all edges connected to this node
+    setEdges((prevEdges) =>
+      prevEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+    );
+    
+    // Close the config sheet if it's open for this node
+    if (selectedNodeId === nodeId) {
+      setConfigSheetOpen(false);
+      setSelectedNodeId(null);
+    }
+  }, [selectedNodeId]);
+
+  const handleStart = useCallback(async () => {
+    setIsRunning(true);
+    setExecutionStatus('idle');
+    setExecutionError(null);
+
+    try {
+      const result = await runAutomation(automationId);
+      
+      if (result.success) {
+        setExecutionStatus('success');
+        // Refresh balance after execution
+        const provider = new JsonRpcProvider(PULSECHAIN_RPC);
+        const balance = await provider.getBalance(walletAddress);
+        const formattedBalance = formatEther(balance);
+        setPlsBalance(parseFloat(formattedBalance).toFixed(4));
+      } else {
+        setExecutionStatus('error');
+        setExecutionError(result.error || 'Unknown error');
+      }
+    } catch (error) {
+      setExecutionStatus('error');
+      setExecutionError(error instanceof Error ? error.message : 'Failed to run automation');
+    } finally {
+      setIsRunning(false);
+    }
+  }, [automationId, walletAddress]);
+
   const lastNodeId = useMemo(() => {
     // Find the node that has no outgoing edges (the last node in the chain)
     const nodesWithOutgoingEdges = new Set(edges.map((edge) => edge.source));
@@ -268,8 +316,9 @@ export function AutomationFlow({
           nodeType={nodes.find((n) => n.id === selectedNodeId)?.type as NodeType | null}
           open={configSheetOpen}
           onOpenChange={setConfigSheetOpen}
-          config={nodes.find((n) => n.id === selectedNodeId)?.data?.config}
+          config={(nodes.find((n) => n.id === selectedNodeId)?.data as Record<string, any> | undefined)?.config}
           onSave={handleSaveConfig}
+          onDelete={handleDeleteNode}
           nodes={nodes}
           edges={edges}
         />
@@ -304,22 +353,42 @@ export function AutomationFlow({
           )}
         </div>
 
-        <div className="flex gap-2 mt-4">
+        {executionStatus === 'success' && (
+          <div className="text-xs text-green-500 mt-3 p-2 bg-green-500/10 rounded">
+            Automation executed successfully!
+          </div>
+        )}
+        
+        {executionStatus === 'error' && executionError && (
+          <div className="text-xs text-red-500 mt-3 p-2 bg-red-500/10 rounded">
+            {executionError}
+          </div>
+        )}
+      </div>
+      
+      {/* Player Controls - Bottom Center */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+        <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">
           <Button
-            variant="default"
-            size="sm"
+            variant="ghost"
+            size="icon"
             disabled={isRunning}
-            className="flex-1"
+            onClick={handleStart}
+            className="rounded-full h-10 w-10"
           >
-            Start
+            {isRunning ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Play className="h-5 w-5" />
+            )}
           </Button>
           <Button
-            variant="destructive"
-            size="sm"
+            variant="ghost"
+            size="icon"
             disabled={!isRunning}
-            className="flex-1"
+            className="rounded-full h-10 w-10 text-destructive hover:text-destructive"
           >
-            Stop
+            <Square className="h-5 w-5" />
           </Button>
         </div>
       </div>

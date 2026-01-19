@@ -7,6 +7,7 @@ import {
   Droplet,
   DropletOff,
   Wallet,
+  Coins,
   Clock,
   Flame,
   Download,
@@ -31,6 +32,7 @@ export type NodeType =
   | 'removeLiquidity'
   | 'removeLiquidityPLS'
   | 'checkBalance'
+  | 'checkTokenBalance'
   | 'checkLPTokenAmounts'
   | 'burnToken'
   | 'claimToken'
@@ -43,6 +45,7 @@ interface NodeTypeOption {
   icon: React.ComponentType<{ className?: string }>;
   iconBg: string;
   iconColor: string;
+  requiresPlan?: 'PRO' | 'ULTRA';
 }
 
 const nodeTypes: NodeTypeOption[] = [
@@ -81,10 +84,18 @@ const nodeTypes: NodeTypeOption[] = [
   {
     type: 'checkBalance',
     label: 'Check Balance',
-    description: 'Get wallet balance',
+    description: 'Get wallet PLS balance',
     icon: Wallet,
     iconBg: 'bg-purple-400/20',
     iconColor: 'text-purple-400',
+  },
+  {
+    type: 'checkTokenBalance',
+    label: 'Check Token Balance',
+    description: 'Get token balance by address',
+    icon: Coins,
+    iconBg: 'bg-emerald-400/20',
+    iconColor: 'text-emerald-400',
   },
   {
     type: 'swapPLS',
@@ -141,6 +152,7 @@ const nodeTypes: NodeTypeOption[] = [
     icon: Clock,
     iconBg: 'bg-cyan-400/20',
     iconColor: 'text-cyan-400',
+    requiresPlan: 'PRO',
   },
 ];
 
@@ -172,21 +184,33 @@ export function SelectNodeDialog({
         <div className="grid grid-cols-2 gap-3 py-4">
           {nodeTypes.map((nodeType) => {
             const Icon = nodeType.icon;
+            const isLocked = !!nodeType.requiresPlan;
             return (
               <Button
                 key={nodeType.type}
                 variant="outline"
                 className={cn(
-                  'h-auto flex-col items-start gap-2 p-4 hover:bg-accent',
+                  'h-auto flex-col items-start gap-2 p-4',
+                  isLocked 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'hover:bg-accent',
                 )}
-                onClick={() => handleSelect(nodeType.type)}
+                onClick={() => !isLocked && handleSelect(nodeType.type)}
+                disabled={isLocked}
               >
                 <div className="flex items-center gap-3 w-full">
                   <div className={cn('rounded-xl p-1.5', nodeType.iconBg)}>
                     <Icon className={cn('h-4 w-4', nodeType.iconColor)} />
                   </div>
                   <div className="flex flex-col items-start flex-1">
-                    <span className="font-semibold text-sm">{nodeType.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">{nodeType.label}</span>
+                      {nodeType.requiresPlan && (
+                        <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                          {nodeType.requiresPlan}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground">
                       {nodeType.description}
                     </span>

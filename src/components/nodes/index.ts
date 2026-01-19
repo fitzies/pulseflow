@@ -8,6 +8,7 @@ export { AddLiquidityPLSNode } from './add-liquidity-pls-node';
 export { RemoveLiquidityNode } from './remove-liquidity-node';
 export { RemoveLiquidityPLSNode } from './remove-liquidity-pls-node';
 export { CheckBalanceNode } from './check-balance-node';
+export { CheckTokenBalanceNode } from './check-token-balance-node';
 export { CheckLPTokenAmountsNode } from './check-lp-token-amounts-node';
 export { BurnTokenNode } from './burn-token-node';
 export { ClaimTokenNode } from './claim-token-node';

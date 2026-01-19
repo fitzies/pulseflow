@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Trash2 } from 'lucide-react';
 import type { NodeType } from '@/components/select-node-dialog';
 import { SlippageSelector } from '@/components/slippage-selector';
 import { AmountSelector } from '@/components/amount-selector';
 import type { Node, Edge } from '@xyflow/react';
+import { CONFIG } from '@/lib/config';
 
 interface NodeConfigSheetProps {
   nodeId: string | null;
@@ -25,6 +26,7 @@ interface NodeConfigSheetProps {
   onOpenChange: (open: boolean) => void;
   config: Record<string, any> | undefined;
   onSave: (nodeId: string, config: Record<string, any>) => void;
+  onDelete?: (nodeId: string) => void;
   nodes: Node[];
   edges: Edge[];
 }
@@ -36,6 +38,7 @@ export function NodeConfigSheet({
   onOpenChange,
   config,
   onSave,
+  onDelete,
   nodes,
   edges,
 }: NodeConfigSheetProps) {
@@ -48,6 +51,7 @@ export function NodeConfigSheet({
   })();
 
   const previousNodeType = previousNode?.type || null;
+  const previousNodeConfig = previousNode?.data?.config || {};
   const [formData, setFormData] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -60,9 +64,30 @@ export function NodeConfigSheet({
 
   const handleSave = () => {
     if (!nodeId) return;
-    onSave(nodeId, formData);
+    
+    // Auto-prepend WPLS to swapPLS path if not already present
+    let configToSave = { ...formData };
+    if (nodeType === 'swapPLS' && configToSave.path && Array.isArray(configToSave.path)) {
+      const path = configToSave.path as string[];
+      if (path.length === 0 || path[0]?.toLowerCase() !== CONFIG.wpls.toLowerCase()) {
+        configToSave = {
+          ...configToSave,
+          path: [CONFIG.wpls, ...path],
+        };
+      }
+    }
+    
+    onSave(nodeId, configToSave);
     onOpenChange(false);
   };
+
+  const handleDelete = () => {
+    if (!nodeId || !onDelete) return;
+    onDelete(nodeId);
+    onOpenChange(false);
+  };
+
+  const canDelete = nodeType !== 'start' && onDelete;
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -98,6 +123,7 @@ export function NodeConfigSheet({
         value={formData.amountIn}
         onChange={(value) => updateField('amountIn', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Amount In"
         fieldName="amountIn"
         nodeType="swap"
@@ -149,13 +175,18 @@ export function NodeConfigSheet({
         value={formData.plsAmount}
         onChange={(value) => updateField('plsAmount', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="PLS Amount"
         fieldName="plsAmount"
         nodeType="swapPLS"
         formData={formData}
+        isPLSAmount={true}
       />
       <div className="grid gap-3">
         <label className="text-sm font-medium">Token Path</label>
+        <div className="text-xs text-muted-foreground mb-2">
+          WPLS will be automatically added as the first token in the path
+        </div>
         <div className="space-y-2">
           {(formData.path || []).map((item: string, index: number) => (
             <div key={index} className="flex gap-2">
@@ -220,6 +251,7 @@ export function NodeConfigSheet({
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Amount"
         fieldName="amount"
         nodeType="transfer"
@@ -254,12 +286,27 @@ export function NodeConfigSheet({
         value={formData.amountADesired}
         onChange={(value) => updateField('amountADesired', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Amount A"
         fieldName="amountADesired"
         nodeType="addLiquidity"
         formData={formData}
       />
-      <p className="text-xs text-muted-foreground px-4">Amount B will be calculated automatically.</p>
+      <AmountSelector
+        value={formData.amountBDesired}
+        onChange={(value) => updateField('amountBDesired', value)}
+        previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
+        label="Amount B"
+        fieldName="amountBDesired"
+        nodeType="addLiquidity"
+        formData={formData}
+        lpRatioConfig={{
+          baseTokenField: 'tokenA',
+          baseAmountField: 'amountADesired',
+          pairedTokenField: 'tokenB',
+        }}
+      />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
         onChange={(value) => updateField('slippage', value)}
@@ -283,19 +330,34 @@ export function NodeConfigSheet({
         value={formData.amountTokenDesired}
         onChange={(value) => updateField('amountTokenDesired', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Token Amount"
         fieldName="amountTokenDesired"
         nodeType="addLiquidityPLS"
         formData={formData}
+        lpRatioConfig={{
+          baseTokenField: 'token',
+          baseAmountField: 'plsAmount',
+          pairedTokenField: 'token',
+          isPLS: true,
+        }}
       />
       <AmountSelector
         value={formData.plsAmount}
         onChange={(value) => updateField('plsAmount', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="PLS Amount"
         fieldName="plsAmount"
         nodeType="addLiquidityPLS"
         formData={formData}
+        isPLSAmount={true}
+        lpRatioConfig={{
+          baseTokenField: 'token',
+          baseAmountField: 'amountTokenDesired',
+          pairedTokenField: 'token',
+          isPLS: true,
+        }}
       />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
@@ -330,6 +392,7 @@ export function NodeConfigSheet({
         value={formData.liquidity}
         onChange={(value) => updateField('liquidity', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="LP Token Amount"
         fieldName="liquidity"
         nodeType="removeLiquidity"
@@ -358,6 +421,7 @@ export function NodeConfigSheet({
         value={formData.liquidity}
         onChange={(value) => updateField('liquidity', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="LP Token Amount"
         fieldName="liquidity"
         nodeType="removeLiquidityPLS"
@@ -386,6 +450,7 @@ export function NodeConfigSheet({
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Amount"
         fieldName="amount"
         nodeType="burnToken"
@@ -410,6 +475,7 @@ export function NodeConfigSheet({
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
         previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
         label="Amount"
         fieldName="amount"
         nodeType="claimToken"
@@ -449,6 +515,22 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const renderCheckTokenBalanceConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="token" className="text-sm font-medium">Token Contract Address</label>
+        <Input
+          id="token"
+          type="text"
+          placeholder="0x..."
+          value={formData.token || ''}
+          onChange={(e) => updateField('token', e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">The ERC20 token contract address to check balance for</p>
+      </div>
+    </div>
+  );
+
   const renderConfig = () => {
     switch (nodeType) {
       case 'swap':
@@ -473,6 +555,8 @@ export function NodeConfigSheet({
         return renderCheckLPTokenAmountsConfig();
       case 'wait':
         return renderWaitConfig();
+      case 'checkTokenBalance':
+        return renderCheckTokenBalanceConfig();
       case 'checkBalance':
       default:
         return (
@@ -495,11 +579,22 @@ export function NodeConfigSheet({
           </SheetDescription>
         </SheetHeader>
         {renderConfig()}
-        <SheetFooter>
+        <SheetFooter className="flex-col gap-2">
+          {canDelete && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              className="w-full"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Node
+            </Button>
+          )}
           <SheetClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="outline" className="w-full">Cancel</Button>
           </SheetClose>
-          <Button type="submit" onClick={handleSave}>
+          <Button type="submit" onClick={handleSave} className="w-full">
             Save changes
           </Button>
         </SheetFooter>

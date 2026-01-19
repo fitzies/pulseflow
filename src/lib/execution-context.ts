@@ -1,5 +1,5 @@
 import { Contract, parseEther } from 'ethers';
-import { erc20ABI } from './abis';
+import { erc20ABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from './abis';
 import { getProvider } from './blockchain-functions';
 import { prisma } from './prisma';
 import { getWalletFromEncryptedKey } from './wallet-generation';
@@ -10,7 +10,8 @@ import { getWalletFromEncryptedKey } from './wallet-generation';
 export type AmountValue =
   | { type: 'static'; value: string } // User-entered value
   | { type: 'previousOutput'; field: string; percentage: number } // Use output from previous node
-  | { type: 'currentBalance'; token: string; percentage: number }; // Use current wallet balance
+  | { type: 'currentBalance'; token: string; percentage: number } // Use current wallet balance
+  | { type: 'lpRatio'; baseToken: string; baseAmount: AmountValue; pairedToken: string }; // Auto-calculate from LP ratio
 
 /**
  * Execution context that tracks outputs from executed nodes
@@ -86,34 +87,60 @@ export async function resolveAmount(
     return (value * BigInt(Math.floor(percentage * 10000))) / 10000n;
   }
 
-  // Handle current balance
+  // Handle current balance (legacy - no longer used in UI but kept for backward compatibility)
   if (amountConfig.type === 'currentBalance') {
-    // Get wallet from automation
-    const automation = await prisma.automation.findUnique({
-      where: { id: automationId },
-    });
+    throw new Error('Wallet balance option has been removed. Use "Custom Amount" or "Previous Output" instead.');
+  }
 
-    if (!automation) {
-      throw new Error(`Automation ${automationId} not found`);
-    }
-
-    const wallet = await getWalletFromEncryptedKey(automation.walletEncKey);
+  // Handle LP ratio calculation
+  if (amountConfig.type === 'lpRatio') {
     const provider = getProvider();
-
-    let balance: bigint;
-
-    // Empty token means PLS, but we don't allow empty for non-PLS nodes
-    // (PLS operations have separate nodes)
-    if (!amountConfig.token || amountConfig.token === '') {
-      throw new Error('Token address is required for wallet balance (use separate PLS nodes for PLS operations)');
-    }
     
-    const tokenContract = new Contract(amountConfig.token, erc20ABI, provider);
-    balance = await tokenContract.balanceOf(wallet.address);
+    // First resolve the base amount
+    const baseAmount = await resolveAmount(amountConfig.baseAmount, context, automationId);
+    if (baseAmount === 0n) {
+      return 0n;
+    }
 
-    // Apply percentage
-    const percentage = amountConfig.percentage / 100;
-    return (balance * BigInt(Math.floor(percentage * 10000))) / 10000n;
+    // Determine token addresses
+    const baseToken = amountConfig.baseToken;
+    const pairedToken = amountConfig.pairedToken === 'PLS' ? WPLS : amountConfig.pairedToken;
+
+    if (!baseToken || !pairedToken) {
+      throw new Error('LP ratio calculation requires both tokens to be specified');
+    }
+
+    try {
+      // Get pair address from factory
+      const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+      const factoryAddress = await routerContract.factory();
+      const factoryContract = new Contract(factoryAddress, [
+        "function getPair(address tokenA, address tokenB) external view returns (address pair)",
+      ], provider);
+      
+      const pairAddress = await factoryContract.getPair(baseToken, pairedToken);
+      if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
+        throw new Error('No LP exists between the specified tokens');
+      }
+
+      // Get reserves from pair
+      const pairContract = new Contract(pairAddress, pairABI, provider);
+      const reserves = await pairContract.getReserves();
+      const token0 = await pairContract.token0();
+      
+      // Determine which reserve is which
+      const isBaseToken0 = token0.toLowerCase() === baseToken.toLowerCase();
+      const reserveBase = isBaseToken0 ? reserves[0] : reserves[1];
+      const reservePaired = isBaseToken0 ? reserves[1] : reserves[0];
+
+      // Use quote to calculate the paired amount
+      const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
+      
+      return pairedAmount;
+    } catch (error) {
+      console.error('Error calculating LP ratio amount:', error);
+      throw new Error(`Failed to calculate amount from LP ratio: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   throw new Error(`Unknown amount config type: ${(amountConfig as any).type}`);

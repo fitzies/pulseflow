@@ -49,6 +49,10 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     token0Amount: 'bigint',
     token1Amount: 'bigint',
   },
+  checkTokenBalance: {
+    balance: 'bigint',
+    token: 'address',
+  },
   wait: null, // no output
   start: null, // no output
 };
@@ -60,6 +64,18 @@ export function getNodeOutputFields(nodeType: string): string[] {
   const outputs = NODE_OUTPUTS[nodeType];
   if (!outputs) return [];
   return Object.keys(outputs);
+}
+
+/**
+ * Get only numeric (bigint) output fields for a node type
+ * Used for amount fields - excludes addresses and other non-numeric types
+ */
+export function getNumericOutputFields(nodeType: string): string[] {
+  const outputs = NODE_OUTPUTS[nodeType];
+  if (!outputs) return [];
+  return Object.entries(outputs)
+    .filter(([_, type]) => type === 'bigint')
+    .map(([field, _]) => field);
 }
 
 /**

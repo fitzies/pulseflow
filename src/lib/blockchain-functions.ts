@@ -1,8 +1,8 @@
-import { 
-  Contract, 
-  JsonRpcProvider, 
-  Wallet, 
-  parseEther, 
+import {
+  Contract,
+  JsonRpcProvider,
+  Wallet,
+  parseEther,
   formatEther,
   type ContractTransactionReceipt,
   type ContractTransactionResponse
@@ -60,7 +60,10 @@ export function getAutomationContract(
   contractAddress?: string
 ): Contract {
   const address = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  return new Contract(address, AUTOMATION_CONTRACT_ABI, wallet);
+  const provider = getProvider();
+  // Connect wallet to provider if not already connected
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  return new Contract(address, AUTOMATION_CONTRACT_ABI, connectedWallet);
 }
 
 /**
@@ -69,7 +72,7 @@ export function getAutomationContract(
 export async function checkIsPlaygroundToken(tokenAddress: string): Promise<boolean> {
   const provider = getProvider();
   const tokenContract = new Contract(tokenAddress, playgroundTokenABI, provider);
-  
+
   try {
     const parent = await tokenContract.parent();
     return parent !== "0x0000000000000000000000000000000000000000";
@@ -107,7 +110,7 @@ export async function swapTokens(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   const tx: ContractTransactionResponse = await contract.swapExactTokensForTokens(
     amountIn,
     amountOutMin,
@@ -116,7 +119,7 @@ export async function swapTokens(
     deadline,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -138,10 +141,10 @@ export async function swapPLSForTokens(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Total value = execution fee + PLS amount for swap
   const totalValue = EXECUTION_FEE + plsAmount;
-  
+
   const tx: ContractTransactionResponse = await contract.swapExactPLSForTokens(
     amountOutMin,
     path,
@@ -149,7 +152,7 @@ export async function swapPLSForTokens(
     deadline,
     { value: totalValue }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -174,16 +177,17 @@ export async function addLiquidity(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Approve tokens first
   const provider = getProvider();
-  const tokenAContract = new Contract(tokenA, erc20ABI, wallet);
-  const tokenBContract = new Contract(tokenB, erc20ABI, wallet);
-  
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const tokenAContract = new Contract(tokenA, erc20ABI, connectedWallet);
+  const tokenBContract = new Contract(tokenB, erc20ABI, connectedWallet);
+
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
   await tokenAContract.approve(contractAddr, amountADesired);
   await tokenBContract.approve(contractAddr, amountBDesired);
-  
+
   const tx: ContractTransactionResponse = await contract.addLiquidity(
     tokenA,
     tokenB,
@@ -195,7 +199,7 @@ export async function addLiquidity(
     deadline,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -219,28 +223,29 @@ export async function removeLiquidity(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Get pair address and approve LP tokens
   const provider = getProvider();
   const routerContract = new Contract(PulseXRouter, [
     "function factory() external pure returns (address)",
     "function getPair(address tokenA, address tokenB) external view returns (address pair)",
   ], provider);
-  
+
   const factoryAddress = await routerContract.factory();
   const factoryContract = new Contract(factoryAddress, [
     "function getPair(address tokenA, address tokenB) external view returns (address pair)",
   ], provider);
-  
+
   const pairAddress = await factoryContract.getPair(tokenA, tokenB);
   if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
     throw new Error("Pair does not exist");
   }
-  
-  const pairContract = new Contract(pairAddress, erc20ABI, wallet);
+
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const pairContract = new Contract(pairAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
   await pairContract.approve(contractAddr, liquidity);
-  
+
   const tx: ContractTransactionResponse = await contract.removeLiquidity(
     tokenA,
     tokenB,
@@ -251,7 +256,7 @@ export async function removeLiquidity(
     deadline,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -274,28 +279,29 @@ export async function removeLiquidityPLS(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Get pair address and approve LP tokens
   const provider = getProvider();
   const routerContract = new Contract(PulseXRouter, [
     "function factory() external pure returns (address)",
   ], provider);
-  
+
   const factoryAddress = await routerContract.factory();
   const factoryContract = new Contract(factoryAddress, [
     "function getPair(address tokenA, address tokenB) external view returns (address pair)",
   ], provider);
-  
+
   const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
   const pairAddress = await factoryContract.getPair(token, WPLS_ADDRESS);
   if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
     throw new Error("Pair does not exist");
   }
-  
-  const pairContract = new Contract(pairAddress, erc20ABI, wallet);
+
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const pairContract = new Contract(pairAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
   await pairContract.approve(contractAddr, liquidity);
-  
+
   const tx: ContractTransactionResponse = await contract.removeLiquidityPLS(
     token,
     liquidity,
@@ -305,7 +311,7 @@ export async function removeLiquidityPLS(
     deadline,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -325,19 +331,21 @@ export async function transferTokens(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Approve token first
-  const tokenContract = new Contract(token, erc20ABI, wallet);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const tokenContract = new Contract(token, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
   await tokenContract.approve(contractAddr, amount);
-  
+
   const tx: ContractTransactionResponse = await contract.transferToken(
     token,
     to,
     amount,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -356,24 +364,26 @@ export async function burnTokens(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Verify it's a playground token
   const isPlayground = await checkIsPlaygroundToken(token);
   if (!isPlayground) {
     throw new Error("Token is not a playground token");
   }
-  
+
   // Approve token first
-  const tokenContract = new Contract(token, erc20ABI, wallet);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const tokenContract = new Contract(token, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
   await tokenContract.approve(contractAddr, amount);
-  
+
   const tx: ContractTransactionResponse = await contract.burnToken(
     token,
     amount,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -392,19 +402,19 @@ export async function claimTokens(
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   // Verify it's a playground token
   const isPlayground = await checkIsPlaygroundToken(token);
   if (!isPlayground) {
     throw new Error("Token is not a playground token");
   }
-  
+
   const tx: ContractTransactionResponse = await contract.claimToken(
     token,
     amount,
     { value: EXECUTION_FEE }
   );
-  
+
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Transaction receipt is null");
@@ -428,9 +438,9 @@ export async function checkLPTokenAmounts(
 }> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
-  
+
   const result = await contract.checkLPTokenAmounts(pairAddress, wallet.address);
-  
+
   return {
     lpBalance: result[0],
     token0: result[1],
@@ -451,7 +461,7 @@ async function resolveAmountField(
   nodeType?: string
 ): Promise<bigint> {
   const amountConfig = nodeData[field];
-  
+
   // For swap nodes using wallet balance, use first token in path
   if (
     amountConfig &&
@@ -465,7 +475,7 @@ async function resolveAmountField(
       amountConfig.token = path[0];
     }
   }
-  
+
   return resolveAmount(amountConfig, context, automationId);
 }
 
@@ -478,15 +488,15 @@ async function extractSwapOutput(
   provider: JsonRpcProvider
 ): Promise<{ amountOut: bigint; tokenOut: string } | null> {
   if (!path || path.length === 0) return null;
-  
+
   const tokenOut = path[path.length - 1];
-  
+
   // Parse Swap event from router
   // Event: Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)
   try {
     const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
     const iface = routerContract.interface;
-    
+
     // Find Swap event in logs
     for (const log of receipt.logs) {
       try {
@@ -494,12 +504,12 @@ async function extractSwapOutput(
           topics: log.topics as string[],
           data: log.data,
         });
-        
+
         if (parsed && parsed.name === 'Swap') {
           const amount0Out = parsed.args.amount0Out as bigint;
           const amount1Out = parsed.args.amount1Out as bigint;
           const amountOut = amount0Out > 0n ? amount0Out : amount1Out;
-          
+
           return {
             amountOut,
             tokenOut,
@@ -513,7 +523,7 @@ async function extractSwapOutput(
   } catch (error) {
     console.warn("Could not parse swap output from receipt:", error);
   }
-  
+
   // Fallback: return tokenOut address (amountOut will be 0, but at least we know the token)
   return {
     amountOut: BigInt(0),
@@ -534,13 +544,13 @@ export async function executeNode(
   // Get wallet for to address and calculations
   const wallet = await getWalletFromAutomation(automationId);
   const provider = getProvider();
-  
+
   // Calculate deadline: 20 minutes from now
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
-  
+
   // Default to automation wallet address
   const to = nodeData.to || wallet.address;
-  
+
   // Default slippage: 1%
   const slippage = nodeData.slippage ?? 0.01;
 
@@ -550,7 +560,7 @@ export async function executeNode(
       if (nodeData.usePLS && nodeData.usePLS === true) {
         const plsAmount = await resolveAmountField('plsAmount', nodeData, context, automationId);
         const path = nodeData.path || [];
-        
+
         // Calculate amountOutMin from slippage
         let amountOutMin = BigInt(0);
         if (path.length > 0 && plsAmount > 0n) {
@@ -560,7 +570,7 @@ export async function executeNode(
           // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
           amountOutMin = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
         }
-        
+
         const receipt = await swapPLSForTokens(
           automationId,
           amountOutMin,
@@ -570,16 +580,16 @@ export async function executeNode(
           plsAmount,
           contractAddress
         );
-        
+
         // Extract output
         const output = await extractSwapOutput(receipt, path, provider);
         const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
-        
+
         return { result: receipt, context: updatedContext };
       } else {
         const amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
         const path = nodeData.path || [];
-        
+
         // Calculate amountOutMin from slippage
         let amountOutMin = BigInt(0);
         if (path.length > 0 && amountIn > 0n) {
@@ -589,7 +599,7 @@ export async function executeNode(
           // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
           amountOutMin = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
         }
-        
+
         const receipt = await swapTokens(
           automationId,
           amountIn,
@@ -599,24 +609,24 @@ export async function executeNode(
           deadline,
           contractAddress
         );
-        
+
         // Extract output
         const output = await extractSwapOutput(receipt, path, provider);
         const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
-        
+
         return { result: receipt, context: updatedContext };
       }
-    
+
     case "addLiquidity":
       // Check if adding liquidity with PLS (native) or tokens
       if (nodeData.usePLS && nodeData.usePLS === true) {
         const amountTokenDesired = await resolveAmountField('amountTokenDesired', nodeData, context, automationId, nodeType);
         const plsAmount = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
-        
+
         // Calculate min amounts from slippage
         const amountTokenMin = (amountTokenDesired * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
         const amountPLSMin = (plsAmount * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
-        
+
         const receiptAddLP = await addLiquidityPLS(
           automationId,
           nodeData.token || "",
@@ -628,11 +638,11 @@ export async function executeNode(
           plsAmount,
           contractAddress
         );
-        
+
         // Extract output (liquidity, amounts)
         const outputAddLP = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLP);
         const updatedContextAddLP = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLP);
-        
+
         return { result: receiptAddLP, context: updatedContextAddLP };
       } else {
         const amountADesired = await resolveAmountField('amountADesired', nodeData, context, automationId, nodeType);
@@ -660,11 +670,11 @@ export async function executeNode(
             console.warn("Could not calculate amountBDesired from quote:", error);
           }
         }
-        
+
         // Calculate min amounts from slippage
         const amountAMin = (amountADesired * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
         const amountBMin = (amountBDesired * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
-        
+
         const receiptAddLiquidity = await addLiquidity(
           automationId,
           nodeData.tokenA || "",
@@ -677,22 +687,22 @@ export async function executeNode(
           deadline,
           contractAddress
         );
-        
+
         // Extract output
         const outputAddLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidity);
         const updatedContextAddLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidity);
-        
+
         return { result: receiptAddLiquidity, context: updatedContextAddLiquidity };
       }
-    
+
     case "addLiquidityPLS":
       const amountTokenDesiredPLS = await resolveAmountField('amountTokenDesired', nodeData, context, automationId, nodeType);
       const plsAmountPLS = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
-      
+
       // Calculate min amounts from slippage
       const amountTokenMinPLS = (amountTokenDesiredPLS * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
       const amountPLSMinPLS = (plsAmountPLS * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
-      
+
       return addLiquidityPLS(
         automationId,
         nodeData.token || "",
@@ -704,11 +714,16 @@ export async function executeNode(
         plsAmountPLS,
         contractAddress
       );
-    
+
     case "swapPLS":
       const plsAmountSwap = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
-      const pathSwap = nodeData.path || [];
+      let pathSwap = nodeData.path || [];
       
+      // Auto-prepend WPLS if path doesn't start with it
+      if (pathSwap.length === 0 || pathSwap[0]?.toLowerCase() !== WPLS.toLowerCase()) {
+        pathSwap = [WPLS, ...pathSwap];
+      }
+
       // Calculate amountOutMin from slippage
       let amountOutMinSwap = BigInt(0);
       if (pathSwap.length > 0 && plsAmountSwap > 0n) {
@@ -718,7 +733,7 @@ export async function executeNode(
         // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
         amountOutMinSwap = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
       }
-      
+
       const receiptSwap = await swapPLSForTokens(
         automationId,
         amountOutMinSwap,
@@ -728,23 +743,23 @@ export async function executeNode(
         plsAmountSwap,
         contractAddress
       );
-      
+
       // Extract output
       const outputSwap = await extractSwapOutput(receiptSwap, pathSwap, provider);
       const updatedContextSwap = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputSwap);
-      
+
       return { result: receiptSwap, context: updatedContextSwap };
-    
+
     case "removeLiquidity":
       const liquidity = await resolveAmountField('liquidity', nodeData, context, automationId, nodeType);
-      
+
       // For remove liquidity, we need to estimate expected amounts from LP tokens
       // This is more complex, so we'll use a conservative approach
       // In practice, DEX routers handle this, but we need min amounts
       // We'll calculate based on current reserves and apply slippage
       let amountAMinRemove = BigInt(0);
       let amountBMinRemove = BigInt(0);
-      
+
       if (liquidity > 0n && nodeData.tokenA && nodeData.tokenB) {
         try {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
@@ -753,21 +768,21 @@ export async function executeNode(
             "function getPair(address tokenA, address tokenB) external view returns (address pair)",
           ], provider);
           const pairAddress = await factoryContract.getPair(nodeData.tokenA, nodeData.tokenB);
-          
+
           if (pairAddress && pairAddress !== "0x0000000000000000000000000000000000000000") {
             const pairContract = new Contract(pairAddress, pairABI, provider);
             const reserves = await pairContract.getReserves();
             const totalSupply = await new Contract(pairAddress, erc20ABI, provider).totalSupply();
-            
+
             if (totalSupply > 0n) {
               // Estimate amounts based on LP share
               const token0 = await pairContract.token0();
               const reserveA = token0.toLowerCase() === nodeData.tokenA.toLowerCase() ? reserves[0] : reserves[1];
               const reserveB = token0.toLowerCase() === nodeData.tokenA.toLowerCase() ? reserves[1] : reserves[0];
-              
+
               const expectedAmountA = (reserveA * liquidity) / totalSupply;
               const expectedAmountB = (reserveB * liquidity) / totalSupply;
-              
+
               // Apply slippage
               amountAMinRemove = (expectedAmountA * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
               amountBMinRemove = (expectedAmountB * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
@@ -780,7 +795,7 @@ export async function executeNode(
           amountBMinRemove = BigInt(0);
         }
       }
-      
+
       const receiptRemoveLiquidity = await removeLiquidity(
         automationId,
         nodeData.tokenA || "",
@@ -792,20 +807,20 @@ export async function executeNode(
         deadline,
         contractAddress
       );
-      
+
       // Extract output
       const outputRemoveLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidity);
       const updatedContextRemoveLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidity);
-      
+
       return { result: receiptRemoveLiquidity, context: updatedContextRemoveLiquidity };
-    
+
     case "removeLiquidityPLS":
       const liquidityPLS = await resolveAmountField('liquidity', nodeData, context, automationId, nodeType);
-      
+
       // Calculate min amounts from expected outputs with slippage
       let amountTokenMinRemovePLS = BigInt(0);
       let amountPLSMinRemovePLS = BigInt(0);
-      
+
       if (liquidityPLS > 0n && nodeData.token) {
         try {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
@@ -815,20 +830,20 @@ export async function executeNode(
           ], provider);
           const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
           const pairAddress = await factoryContract.getPair(nodeData.token, WPLS_ADDRESS);
-          
+
           if (pairAddress && pairAddress !== "0x0000000000000000000000000000000000000000") {
             const pairContract = new Contract(pairAddress, pairABI, provider);
             const reserves = await pairContract.getReserves();
             const totalSupply = await new Contract(pairAddress, erc20ABI, provider).totalSupply();
-            
+
             if (totalSupply > 0n) {
               const token0 = await pairContract.token0();
               const reserveToken = token0.toLowerCase() === nodeData.token.toLowerCase() ? reserves[0] : reserves[1];
               const reservePLS = token0.toLowerCase() === nodeData.token.toLowerCase() ? reserves[1] : reserves[0];
-              
+
               const expectedAmountToken = (reserveToken * liquidityPLS) / totalSupply;
               const expectedAmountPLS = (reservePLS * liquidityPLS) / totalSupply;
-              
+
               // Apply slippage
               amountTokenMinRemovePLS = (expectedAmountToken * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
               amountPLSMinRemovePLS = (expectedAmountPLS * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
@@ -840,7 +855,7 @@ export async function executeNode(
           amountPLSMinRemovePLS = BigInt(0);
         }
       }
-      
+
       const receiptRemoveLiquidityPLS = await removeLiquidityPLS(
         automationId,
         nodeData.token || "",
@@ -851,13 +866,13 @@ export async function executeNode(
         deadline,
         contractAddress
       );
-      
+
       // Extract output
       const outputRemoveLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidityPLS);
       const updatedContextRemoveLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidityPLS);
-      
+
       return { result: receiptRemoveLiquidityPLS, context: updatedContextRemoveLiquidityPLS };
-    
+
     case "transfer":
       const transferAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
       const receiptTransfer = await transferTokens(
@@ -867,12 +882,12 @@ export async function executeNode(
         transferAmount,
         contractAddress
       );
-      
+
       // Transfer has no meaningful output
       const updatedContextTransfer = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
-      
+
       return { result: receiptTransfer, context: updatedContextTransfer };
-    
+
     case "burn":
     case "burnToken":
       const burnAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
@@ -882,11 +897,11 @@ export async function executeNode(
         burnAmount,
         contractAddress
       );
-      
+
       const updatedContextBurn = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
-      
+
       return { result: receiptBurn, context: updatedContextBurn };
-    
+
     case "claim":
     case "claimToken":
       const claimAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
@@ -896,11 +911,11 @@ export async function executeNode(
         claimAmount,
         contractAddress
       );
-      
+
       const updatedContextClaim = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
-      
+
       return { result: receiptClaim, context: updatedContextClaim };
-    
+
     case "checkBalance":
       // This is a read operation, no transaction needed
       const walletCheck = await getWalletFromAutomation(automationId);
@@ -914,32 +929,58 @@ export async function executeNode(
         const balance = await providerCheck.getBalance(walletCheck.address);
         outputCheckBalance = { balance: balance.toString(), token: "PLS" };
       }
-      
+
       const updatedContextCheckBalance = updateContextWithOutput(
         context,
         nodeData.nodeId || 'unknown',
         nodeType,
         outputCheckBalance
       );
-      
+
       return { result: outputCheckBalance, context: updatedContextCheckBalance };
-    
+
     case "checkLPTokenAmounts":
       const resultLP = await checkLPTokenAmounts(
         automationId,
         nodeData.pairAddress || "",
         contractAddress
       );
-      
+
       const updatedContextLP = updateContextWithOutput(
         context,
         nodeData.nodeId || 'unknown',
         nodeType,
         resultLP
       );
-      
+
       return { result: resultLP, context: updatedContextLP };
-    
+
+    case "checkTokenBalance":
+      // Read-only operation - get token balance for a specific ERC20 token
+      const walletCheckToken = await getWalletFromAutomation(automationId);
+      const providerCheckToken = getProvider();
+
+      if (!nodeData.token) {
+        throw new Error("Token address is required for checkTokenBalance");
+      }
+
+      const tokenContractCheck = new Contract(nodeData.token, erc20ABI, providerCheckToken);
+      const tokenBalance = await tokenContractCheck.balanceOf(walletCheckToken.address);
+
+      const outputCheckTokenBalance = {
+        balance: tokenBalance,
+        token: nodeData.token,
+      };
+
+      const updatedContextCheckTokenBalance = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        outputCheckTokenBalance
+      );
+
+      return { result: outputCheckTokenBalance, context: updatedContextCheckTokenBalance };
+
     default:
       throw new Error(`Unknown node type: ${nodeType}`);
   }
