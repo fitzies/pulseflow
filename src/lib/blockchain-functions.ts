@@ -208,6 +208,51 @@ export async function addLiquidity(
 }
 
 /**
+ * Executes add liquidity with PLS operation
+ */
+export async function addLiquidityPLS(
+  automationId: string,
+  token: string,
+  amountTokenDesired: bigint,
+  amountTokenMin: bigint,
+  amountPLSMin: bigint,
+  to: string,
+  deadline: bigint,
+  plsAmount: bigint,
+  contractAddress?: string
+): Promise<ContractTransactionReceipt> {
+  const wallet = await getWalletFromAutomation(automationId);
+  const contract = getAutomationContract(wallet, contractAddress);
+
+  // Approve token first (PLS is native, no approval needed)
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const tokenContract = new Contract(token, erc20ABI, connectedWallet);
+
+  const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
+  await tokenContract.approve(contractAddr, amountTokenDesired);
+
+  // Total value = execution fee + PLS amount for liquidity
+  const totalValue = EXECUTION_FEE + plsAmount;
+
+  const tx: ContractTransactionResponse = await contract.addLiquidityPLS(
+    token,
+    amountTokenDesired,
+    amountTokenMin,
+    amountPLSMin,
+    to,
+    deadline,
+    { value: totalValue }
+  );
+
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error("Transaction receipt is null");
+  }
+  return receipt as ContractTransactionReceipt;
+}
+
+/**
  * Executes remove liquidity operation
  */
 export async function removeLiquidity(
@@ -703,7 +748,7 @@ export async function executeNode(
       const amountTokenMinPLS = (amountTokenDesiredPLS * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
       const amountPLSMinPLS = (plsAmountPLS * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
 
-      return addLiquidityPLS(
+      const receiptAddLiquidityPLS = await addLiquidityPLS(
         automationId,
         nodeData.token || "",
         amountTokenDesiredPLS,
@@ -715,10 +760,16 @@ export async function executeNode(
         contractAddress
       );
 
+      // Extract output
+      const outputAddLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidityPLS);
+      const updatedContextAddLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidityPLS);
+
+      return { result: receiptAddLiquidityPLS, context: updatedContextAddLiquidityPLS };
+
     case "swapPLS":
       const plsAmountSwap = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
       let pathSwap = nodeData.path || [];
-      
+
       // Auto-prepend WPLS if path doesn't start with it
       if (pathSwap.length === 0 || pathSwap[0]?.toLowerCase() !== WPLS.toLowerCase()) {
         pathSwap = [WPLS, ...pathSwap];

@@ -87,7 +87,7 @@ export function NodeConfigSheet({
     onOpenChange(false);
   };
 
-  const canDelete = nodeType !== 'start' && onDelete;
+  const canDelete = nodeType !== null && onDelete;
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

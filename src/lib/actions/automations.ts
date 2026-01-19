@@ -124,7 +124,7 @@ export async function updateAutomationDefinition(
         definition: {
           nodes,
           edges,
-        },
+        } as any,
       },
     });
 
@@ -208,17 +208,10 @@ export async function runAutomation(automationId: string) {
     });
 
     try {
-      // Execute the automation chain
-      const { results } = await executeAutomationChain(
-        automationId,
-        nodes,
-        edges
-      );
-
       // Helper to serialize transaction receipts (remove provider objects)
       const serializeResult = (result: any): any => {
         if (!result) return null;
-        
+
         // If it's a transaction receipt, extract only serializable fields
         if (result.hash && result.blockNumber !== undefined) {
           return {
@@ -242,12 +235,19 @@ export async function runAutomation(automationId: string) {
             })) || [],
           };
         }
-        
+
         // For other types, serialize normally
         return JSON.parse(JSON.stringify(result, (_, v) =>
           typeof v === "bigint" ? v.toString() : v === undefined ? null : v
         ));
       };
+
+      // Execute the automation chain
+      const { results } = await executeAutomationChain(
+        automationId,
+        nodes,
+        edges
+      );
 
       // Log each node result
       for (const nodeResult of results) {
@@ -257,7 +257,7 @@ export async function runAutomation(automationId: string) {
             executionId: execution.id,
             nodeId: nodeResult.nodeId,
             nodeType: node?.type || "unknown",
-            input: node?.data?.config || null,
+            input: node?.data?.config ?? undefined,
             output: serializeResult(nodeResult.result),
           },
         });
@@ -272,40 +272,6 @@ export async function runAutomation(automationId: string) {
         },
       });
 
-      // Serialize results before returning (remove provider objects)
-      const serializeResult = (result: any): any => {
-        if (!result) return null;
-        
-        // If it's a transaction receipt, extract only serializable fields
-        if (result.hash && result.blockNumber !== undefined) {
-          return {
-            hash: result.hash,
-            blockHash: result.blockHash,
-            blockNumber: result.blockNumber?.toString(),
-            transactionIndex: result.transactionIndex,
-            from: result.from,
-            to: result.to,
-            gasUsed: result.gasUsed?.toString(),
-            status: result.status,
-            logs: result.logs?.map((log: any) => ({
-              transactionHash: log.transactionHash,
-              blockHash: log.blockHash,
-              blockNumber: log.blockNumber?.toString(),
-              address: log.address,
-              data: log.data,
-              topics: log.topics,
-              index: log.index,
-              transactionIndex: log.transactionIndex,
-            })) || [],
-          };
-        }
-        
-        // For other types, serialize normally
-        return JSON.parse(JSON.stringify(result, (_, v) =>
-          typeof v === "bigint" ? v.toString() : v === undefined ? null : v
-        ));
-      };
-
       return {
         success: true,
         executionId: execution.id,
@@ -313,8 +279,8 @@ export async function runAutomation(automationId: string) {
       };
     } catch (executionError) {
       // Log the error and update execution status to FAILED
-      const errorMessage = executionError instanceof Error 
-        ? executionError.message 
+      const errorMessage = executionError instanceof Error
+        ? executionError.message
         : "Unknown execution error";
 
       await prisma.execution.update({

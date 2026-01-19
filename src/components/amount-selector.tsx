@@ -18,10 +18,12 @@ interface AmountSelectorProps {
   value: AmountValue | string | undefined;
   onChange: (value: AmountValue) => void;
   previousNodeType?: string | null;
+  previousNodeConfig?: Record<string, any>; // Config from previous node
   label?: string;
   fieldName: string;
   nodeType?: string | null; // Current node type (for swap nodes to use path)
   formData?: Record<string, any>; // Full form data (to access path for swap nodes)
+  isPLSAmount?: boolean; // Whether this is a PLS amount field
   // For LP ratio calculation
   lpRatioConfig?: {
     baseTokenField: string; // e.g., 'tokenA'
