@@ -19,7 +19,7 @@ interface Execution {
   error: string | null;
   startedAt: string; // Serialized as ISO string from server
   finishedAt: string | null;
-  workflow: {
+  automation: {
     id: string;
     name: string;
   };
@@ -99,7 +99,7 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
           executions.map((execution) => (
             <Link
               key={execution.id}
-              href={`/automations/${execution.workflow.id}`}
+              href={`/automations/${execution.automation.id}`}
               className="block rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
             >
               <div className="relative flex items-start gap-2 pe-3">
@@ -108,7 +108,7 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
                 </div>
                 <div className="flex-1 space-y-1 min-w-0">
                   <div className="text-foreground">
-                    <span className="font-medium">{execution.workflow.name}</span>
+                    <span className="font-medium">{execution.automation.name}</span>
                     {execution.status === "FAILED" && execution.error && (
                       <span className="text-muted-foreground"> - {execution.error}</span>
                     )}

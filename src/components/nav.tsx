@@ -38,8 +38,8 @@ export default async function Nav() {
     return null;
   }
 
-  // Get user's workflows
-  const workflows = await prisma.workflow.findMany({
+  // Get user's automations
+  const automations = await prisma.automation.findMany({
     where: { userId: dbUser.id },
     orderBy: { createdAt: "desc" },
   });
@@ -48,7 +48,7 @@ export default async function Nav() {
   const executionsData = await prisma.execution.findMany({
     where: { userId: dbUser.id },
     include: {
-      workflow: {
+      automation: {
         select: {
           id: true,
           name: true,
@@ -97,7 +97,7 @@ export default async function Nav() {
                       <a href="#">{userDisplayName}</a>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <a href="#">Automations</a>
+                    <Link href={"/automations"}>Automations</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -110,9 +110,11 @@ export default async function Nav() {
                 /{" "}
               </BreadcrumbSeparator>
               <BreadcrumbItem className="max-md:hidden">
-                <BreadcrumbLink href="#">Automations</BreadcrumbLink>
+                <BreadcrumbLink asChild>
+                  <Link href="/automations">Automations</Link>
+                </BreadcrumbLink>
               </BreadcrumbItem>
-              <AutomationSelect workflows={workflows} />
+              <AutomationSelect automations={automations} />
             </BreadcrumbList>
           </Breadcrumb>
         </div>

@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/select";
 
 interface AutomationSelectProps {
-  workflows: Array<{ id: string; name: string }>;
+  automations: Array<{ id: string; name: string }>;
 }
 
-export default function AutomationSelect({ workflows }: AutomationSelectProps) {
+export default function AutomationSelect({ automations }: AutomationSelectProps) {
   const pathname = usePathname();
   const router = useRouter();
   
@@ -35,7 +35,7 @@ export default function AutomationSelect({ workflows }: AutomationSelectProps) {
     return null;
   }
   
-  const selectedAutomationId = currentAutomationId || workflows[0]?.id;
+  const selectedAutomationId = currentAutomationId || automations[0]?.id;
   
   const handleValueChange = (value: string) => {
     router.push(`/automations/${value}`);
@@ -61,11 +61,11 @@ export default function AutomationSelect({ workflows }: AutomationSelectProps) {
               />
             </Button>
           </SelectPrimitive.SelectTrigger>
-          {workflows.length > 0 && (
+          {automations.length > 0 && (
             <SelectContent className="[&_*[role=option]>span]:start-auto [&_*[role=option]>span]:end-2 [&_*[role=option]]:ps-2 [&_*[role=option]]:pe-8">
-              {workflows.map((workflow) => (
-                <SelectItem key={workflow.id} value={workflow.id}>
-                  {workflow.name}
+              {automations.map((automation) => (
+                <SelectItem key={automation.id} value={automation.id}>
+                  {automation.name}
                 </SelectItem>
               ))}
             </SelectContent>

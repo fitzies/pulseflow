@@ -18,8 +18,8 @@ model User {
 
   createdAt DateTime @default(now())
 
-  workflows  Workflow[]
-  executions Execution[]
+  automations Automation[]
+  executions  Execution[]
 }
 
 enum Plan {
@@ -28,7 +28,7 @@ enum Plan {
   ULTRA
 }
 
-model Workflow {
+model Automation {
   id     String @id @default(cuid())
   userId String
 
@@ -38,7 +38,7 @@ model Workflow {
   // React Flow nodes + edges
   definition Json
 
-  // One wallet per workflow
+  // One wallet per automation
   walletAddress String
   walletEncKey  String
 
@@ -50,9 +50,9 @@ model Workflow {
 }
 
 model Execution {
-  id         String @id @default(cuid())
-  userId     String
-  workflowId String
+  id           String @id @default(cuid())
+  userId       String
+  automationId String
 
   status ExecutionStatus
   error  String?
@@ -60,9 +60,9 @@ model Execution {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
 
-  user     User           @relation(fields: [userId], references: [id])
-  workflow Workflow       @relation(fields: [workflowId], references: [id])
-  logs     ExecutionLog[]
+  user       User           @relation(fields: [userId], references: [id])
+  automation Automation     @relation(fields: [automationId], references: [id])
+  logs       ExecutionLog[]
 }
 
 model ExecutionLog {
