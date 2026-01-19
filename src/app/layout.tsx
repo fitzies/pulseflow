@@ -4,6 +4,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import HomeNavWrapper from "@/components/home-nav-wrapper";
+import HomeNav from "@/components/home-nav";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -41,6 +43,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <HomeNavWrapper>
+              <HomeNav />
+            </HomeNavWrapper>
             <Toaster />
           {children}
           </ThemeProvider>

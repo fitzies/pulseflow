@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const isPublicRoute = createRouteMatcher([
@@ -7,6 +8,11 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
+  // Add pathname header for server components
+  const pathname = new URL(request.url).pathname;
+  const response = NextResponse.next();
+  response.headers.set("x-pathname", pathname);
+
   if (!isPublicRoute(request)) {
     const { userId } = await auth.protect();
 
@@ -26,6 +32,8 @@ export default clerkMiddleware(async (auth, request) => {
       }
     }
   }
+
+  return response;
 });
 
 export const config = {
