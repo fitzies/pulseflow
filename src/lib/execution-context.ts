@@ -11,7 +11,7 @@ export type AmountValue =
   | { type: 'static'; value: string } // User-entered value
   | { type: 'previousOutput'; field: string; percentage: number } // Use output from previous node
   | { type: 'currentBalance'; token: string; percentage: number } // Use current wallet balance
-  | { type: 'lpRatio'; baseToken: string; baseAmount: AmountValue; pairedToken: string }; // Auto-calculate from LP ratio
+  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string }; // Auto-calculate from LP ratio (field reference)
 
 /**
  * Execution context that tracks outputs from executed nodes
@@ -92,58 +92,86 @@ export async function resolveAmount(
     throw new Error('Wallet balance option has been removed. Use "Custom Amount" or "Previous Output" instead.');
   }
 
-  // Handle LP ratio calculation
+  // Handle LP ratio calculation - requires nodeData context
   if (amountConfig.type === 'lpRatio') {
-    const provider = getProvider();
-    
-    // First resolve the base amount
-    const baseAmount = await resolveAmount(amountConfig.baseAmount, context, automationId);
-    if (baseAmount === 0n) {
-      return 0n;
-    }
-
-    // Determine token addresses
-    const baseToken = amountConfig.baseToken;
-    const pairedToken = amountConfig.pairedToken === 'PLS' ? WPLS : amountConfig.pairedToken;
-
-    if (!baseToken || !pairedToken) {
-      throw new Error('LP ratio calculation requires both tokens to be specified');
-    }
-
-    try {
-      // Get pair address from factory
-      const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
-      const factoryAddress = await routerContract.factory();
-      const factoryContract = new Contract(factoryAddress, [
-        "function getPair(address tokenA, address tokenB) external view returns (address pair)",
-      ], provider);
-      
-      const pairAddress = await factoryContract.getPair(baseToken, pairedToken);
-      if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
-        throw new Error('No LP exists between the specified tokens');
-      }
-
-      // Get reserves from pair
-      const pairContract = new Contract(pairAddress, pairABI, provider);
-      const reserves = await pairContract.getReserves();
-      const token0 = await pairContract.token0();
-      
-      // Determine which reserve is which
-      const isBaseToken0 = token0.toLowerCase() === baseToken.toLowerCase();
-      const reserveBase = isBaseToken0 ? reserves[0] : reserves[1];
-      const reservePaired = isBaseToken0 ? reserves[1] : reserves[0];
-
-      // Use quote to calculate the paired amount
-      const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
-      
-      return pairedAmount;
-    } catch (error) {
-      console.error('Error calculating LP ratio amount:', error);
-      throw new Error(`Failed to calculate amount from LP ratio: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error('lpRatio type requires nodeData context - use resolveLpRatioAmount instead');
   }
 
   throw new Error(`Unknown amount config type: ${(amountConfig as any).type}`);
+}
+
+/**
+ * Resolve an amount value that may be lpRatio type (requires nodeData context)
+ */
+export async function resolveAmountWithNodeData(
+  amountConfig: AmountValue | string | undefined,
+  nodeData: Record<string, any>,
+  context: ExecutionContext,
+  automationId: string
+): Promise<bigint> {
+  // Handle non-lpRatio types with standard resolver
+  if (!amountConfig || typeof amountConfig === 'string') {
+    return resolveAmount(amountConfig, context, automationId);
+  }
+
+  if (amountConfig.type !== 'lpRatio') {
+    return resolveAmount(amountConfig, context, automationId);
+  }
+
+  // Handle LP ratio calculation with nodeData context
+  const provider = getProvider();
+  
+  // Resolve the base amount from the referenced field in nodeData
+  const baseAmountConfig = nodeData[amountConfig.baseAmountField];
+  if (!baseAmountConfig) {
+    throw new Error(`LP ratio base amount field '${amountConfig.baseAmountField}' not found in nodeData`);
+  }
+  
+  // Recursively resolve (but baseAmountConfig shouldn't be lpRatio to avoid circular)
+  const baseAmount = await resolveAmountWithNodeData(baseAmountConfig, nodeData, context, automationId);
+  if (baseAmount === 0n) {
+    return 0n;
+  }
+
+  // Determine token addresses
+  const baseToken = amountConfig.baseToken;
+  const pairedToken = amountConfig.pairedToken === 'PLS' ? WPLS : amountConfig.pairedToken;
+
+  if (!baseToken || !pairedToken) {
+    throw new Error('LP ratio calculation requires both tokens to be specified');
+  }
+
+  try {
+    // Get pair address from factory
+    const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+    const factoryAddress = await routerContract.factory();
+    const factoryContract = new Contract(factoryAddress, [
+      "function getPair(address tokenA, address tokenB) external view returns (address pair)",
+    ], provider);
+    
+    const pairAddress = await factoryContract.getPair(baseToken, pairedToken);
+    if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error('No LP exists between the specified tokens');
+    }
+
+    // Get reserves from pair
+    const pairContract = new Contract(pairAddress, pairABI, provider);
+    const reserves = await pairContract.getReserves();
+    const token0 = await pairContract.token0();
+    
+    // Determine which reserve is which
+    const isBaseToken0 = token0.toLowerCase() === baseToken.toLowerCase();
+    const reserveBase = isBaseToken0 ? reserves[0] : reserves[1];
+    const reservePaired = isBaseToken0 ? reserves[1] : reserves[0];
+
+    // Use quote to calculate the paired amount
+    const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
+    
+    return pairedAmount;
+  } catch (error) {
+    console.error('Error calculating LP ratio amount:', error);
+    throw new Error(`Failed to calculate amount from LP ratio: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**

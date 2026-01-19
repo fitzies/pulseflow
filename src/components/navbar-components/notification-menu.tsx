@@ -1,8 +1,15 @@
 "use client";
 
-import { ActivityIcon, CheckCircle2Icon, XCircleIcon, Loader2Icon } from "lucide-react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  ActivityIcon,
+  CheckCircle2Icon,
+  XCircleIcon,
+  Loader2Icon,
+  CopyIcon,
+  CheckIcon,
+} from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +17,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED";
 
@@ -23,6 +37,20 @@ interface Execution {
     id: string;
     name: string;
   };
+}
+
+interface ExecutionLog {
+  id: string;
+  nodeId: string;
+  nodeType: string;
+  input: any;
+  output: any;
+  error: string | null;
+  createdAt: string;
+}
+
+interface ExecutionDetails extends Execution {
+  logs: ExecutionLog[];
 }
 
 interface RecentExecutionsProps {
@@ -60,74 +88,310 @@ function formatTimestamp(dateString: string): string {
   return formatDistanceToNow(new Date(dateString), { addSuffix: true });
 }
 
-export default function RecentExecutions({ executions }: RecentExecutionsProps) {
-  const runningCount = executions.filter((e) => e.status === "RUNNING").length;
+function formatFullDate(dateString: string): string {
+  return format(new Date(dateString), "PPpp");
+}
+
+function JsonPreview({
+  label,
+  value,
+  maxLines = 8,
+}: {
+  label: string;
+  value: unknown;
+  maxLines?: number;
+}) {
+  const json = useMemo(() => JSON.stringify(value, null, 2), [value]);
+  const previewText = useMemo(() => {
+    const lines = json.split("\n");
+    if (lines.length <= maxLines) return json;
+    return `${lines.slice(0, maxLines).join("\n")}\n…`;
+  }, [json, maxLines]);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(json);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // If clipboard is unavailable, at least keep the preview readable.
+    }
+  };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <div className="space-y-1 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-muted-foreground">{label}</div>
         <Button
-          aria-label="View recent executions"
-          className="relative size-8 rounded-full text-muted-foreground shadow-none"
-          size="icon"
+          type="button"
           variant="ghost"
+          size="sm"
+          onClick={copy}
+          className="h-7 px-2"
         >
-          <ActivityIcon aria-hidden="true" size={16} />
-          {runningCount > 0 && (
-            <div
-              aria-hidden="true"
-              className="absolute top-0.5 right-0.5 size-1 rounded-full bg-primary"
-            />
-          )}
+          {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+          <span className="ml-1">{copied ? "Copied" : "Copy"}</span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-1">
-        <div className="flex items-baseline justify-between gap-4 px-3 py-2">
-          <div className="font-semibold text-sm">Recent Executions</div>
-        </div>
-        <div
-          aria-orientation="horizontal"
-          className="-mx-1 my-1 h-px bg-border"
-          role="separator"
-          tabIndex={-1}
-        />
-        {executions.length === 0 ? (
-          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            No executions yet
+      </div>
+      <div
+        className={[
+          "w-full max-w-full rounded bg-muted p-2 font-mono text-xs",
+          "whitespace-pre-wrap wrap-break-word break-all",
+          "overflow-hidden",
+        ].join(" ")}
+      >
+        {previewText}
+      </div>
+    </div>
+  );
+}
+
+function ExecutionDialog({
+  executionId,
+  open,
+  onOpenChange,
+}: {
+  executionId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [executionDetails, setExecutionDetails] = useState<ExecutionDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExecutionDetails = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/executions/${id}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch execution details");
+      }
+      const data = await response.json();
+      setExecutionDetails(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load execution details");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch details when dialog opens and executionId changes
+  useEffect(() => {
+    if (open && executionId) {
+      fetchExecutionDetails(executionId);
+    } else {
+      setExecutionDetails(null);
+      setError(null);
+    }
+  }, [open, executionId, fetchExecutionDetails]);
+
+  if (!executionId) return null;
+
+  const duration = executionDetails?.finishedAt && executionDetails?.startedAt
+    ? Math.round((new Date(executionDetails.finishedAt).getTime() - new Date(executionDetails.startedAt).getTime()) / 1000)
+    : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-full max-w-2xl sm:min-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {executionDetails && getStatusIcon(executionDetails.status)}
+            <span>Execution Details</span>
+          </DialogTitle>
+          <DialogDescription className="wrap-break-word">
+            {executionDetails?.automation.name}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2Icon className="animate-spin text-muted-foreground" size={24} />
           </div>
-        ) : (
-          executions.map((execution) => (
-            <Link
-              key={execution.id}
-              href={`/automations/${execution.automation.id}`}
-              className="block rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
-            >
-              <div className="relative flex items-start gap-2 pe-3">
-                <div className="mt-0.5 shrink-0">
-                  {getStatusIcon(execution.status)}
+        )}
+
+        {error && (
+          <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive wrap-break-word break-all whitespace-pre-wrap">
+            {error}
+          </div>
+        )}
+
+        {executionDetails && !loading && (
+          <div className="space-y-6">
+            {/* Metadata */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Status</span>
+                <span className={`font-medium ${
+                  executionDetails.status === "SUCCESS" ? "text-green-600" :
+                  executionDetails.status === "FAILED" ? "text-red-600" :
+                  "text-blue-600"
+                }`}>
+                  {executionDetails.status}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Started</span>
+                <span className="font-medium">{formatFullDate(executionDetails.startedAt)}</span>
+              </div>
+              {executionDetails.finishedAt && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Finished</span>
+                  <span className="font-medium">{formatFullDate(executionDetails.finishedAt)}</span>
                 </div>
-                <div className="flex-1 space-y-1 min-w-0">
-                  <div className="text-foreground">
-                    <span className="font-medium">{execution.automation.name}</span>
-                    {execution.status === "FAILED" && execution.error && (
-                      <span className="text-muted-foreground"> - {execution.error}</span>
+              )}
+              {duration !== null && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-medium">{duration}s</span>
+                </div>
+              )}
+            </div>
+
+            {/* Error Section */}
+            {executionDetails.status === "FAILED" && executionDetails.error && (
+              <div className="rounded-md bg-destructive/10 p-4">
+                <div className="text-sm font-semibold text-destructive mb-1">Error</div>
+                <div className="text-sm text-destructive wrap-break-word break-all whitespace-pre-wrap">
+                  {executionDetails.error}
+                </div>
+              </div>
+            )}
+
+            {/* Logs Section */}
+            {executionDetails.logs.length > 0 && (
+              <div className="space-y-4">
+                <div className="text-sm font-semibold">Execution Logs</div>
+                <div className={executionDetails.status === "SUCCESS" ? "max-h-[400px] overflow-y-auto space-y-3" : "space-y-3"}>
+                  {executionDetails.logs.map((log, index) => (
+                    <div key={log.id} className="rounded-md border p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-muted-foreground">#{index + 1}</span>
+                          <span className="text-sm font-medium">{log.nodeType}</span>
+                          <span className="text-xs text-muted-foreground font-mono">({log.nodeId})</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimestamp(log.createdAt)}
+                        </span>
+                      </div>
+                      {log.input && <JsonPreview label="Input" value={log.input} maxLines={6} />}
+                      {log.output && <JsonPreview label="Output" value={log.output} maxLines={8} />}
+                      {log.error && (
+                        <div className="rounded-md bg-destructive/10 p-2">
+                          <div className="text-xs font-semibold text-destructive mb-1">Error</div>
+                          <div className="text-xs text-destructive wrap-break-word break-all whitespace-pre-wrap">
+                            {log.error}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {executionDetails.logs.length === 0 && (
+              <div className="text-center text-sm text-muted-foreground py-4">
+                No logs available for this execution
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function RecentExecutions({ executions }: RecentExecutionsProps) {
+  const runningCount = executions.filter((e) => e.status === "RUNNING").length;
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleExecutionClick = (executionId: string) => {
+    setSelectedExecutionId(executionId);
+    setDialogOpen(true);
+  };
+
+  return (
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            aria-label="View recent executions"
+            className="relative size-8 rounded-full text-muted-foreground shadow-none"
+            size="icon"
+            variant="ghost"
+          >
+            <ActivityIcon aria-hidden="true" size={16} />
+            {runningCount > 0 && (
+              <div
+                aria-hidden="true"
+                className="absolute top-0.5 right-0.5 size-1 rounded-full bg-primary"
+              />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-1">
+          <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+            <div className="font-semibold text-sm">Recent Executions</div>
+          </div>
+          <div
+            aria-orientation="horizontal"
+            className="-mx-1 my-1 h-px bg-border"
+            role="separator"
+            tabIndex={-1}
+          />
+          {executions.length === 0 ? (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              No executions yet
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-y-auto">
+              {executions.map((execution) => (
+                <Button
+                  key={execution.id}
+                  variant="ghost"
+                  onClick={() => handleExecutionClick(execution.id)}
+                  className="w-full justify-start rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent h-auto"
+                >
+                  <div className="relative flex items-start gap-2 pe-3 w-full">
+                    <div className="mt-0.5 shrink-0">
+                      {getStatusIcon(execution.status)}
+                    </div>
+                    <div className="flex-1 space-y-1 min-w-0 text-left">
+                      <div className="text-foreground line-clamp-2">
+                        <span className="font-medium truncate block">{execution.automation.name}</span>
+                        {execution.status === "FAILED" && execution.error && (
+                          <span className="text-muted-foreground text-xs line-clamp-1 block mt-0.5">
+                            {execution.error}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        {formatTimestamp(execution.startedAt)}
+                      </div>
+                    </div>
+                    {execution.status === "RUNNING" && (
+                      <div className="absolute end-0 self-center">
+                        <span className="sr-only">Running</span>
+                        <Dot className="text-blue-500" />
+                      </div>
                     )}
                   </div>
-                  <div className="text-muted-foreground text-xs">
-                    {formatTimestamp(execution.startedAt)}
-                  </div>
-                </div>
-                {execution.status === "RUNNING" && (
-                  <div className="absolute end-0 self-center">
-                    <span className="sr-only">Running</span>
-                    <Dot className="text-blue-500" />
-                  </div>
-                )}
-              </div>
-            </Link>
-          ))
-        )}
-      </PopoverContent>
-    </Popover>
+                </Button>
+              ))}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+      <ExecutionDialog
+        executionId={selectedExecutionId}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
   );
 }

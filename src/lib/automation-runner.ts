@@ -2,6 +2,18 @@ import type { Node, Edge } from '@xyflow/react';
 import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
 
+export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error';
+
+export interface ProgressEvent {
+  type: ProgressEventType;
+  nodeId: string;
+  nodeType: string;
+  data?: any;
+  error?: string;
+}
+
+export type ProgressCallback = (event: ProgressEvent) => void;
+
 /**
  * Execute an automation chain of nodes sequentially
  * Passes execution context between nodes for variable resolution
@@ -10,7 +22,8 @@ export async function executeAutomationChain(
   automationId: string,
   nodes: Node[],
   edges: Edge[],
-  contractAddress?: string
+  contractAddress?: string,
+  onProgress?: ProgressCallback
 ): Promise<{ results: Array<{ nodeId: string; result: any }>; context: ExecutionContext }> {
   // Build execution order from edges (topological sort)
   const executionOrder = getExecutionOrder(nodes, edges);
@@ -32,6 +45,13 @@ export async function executeAutomationChain(
       nodeId: node.id,
     };
     
+    // Notify: node starting
+    onProgress?.({
+      type: 'node_start',
+      nodeId: node.id,
+      nodeType: node.type,
+    });
+    
     try {
       // Execute node with current context
       const { result, context: updatedContext } = await executeNode(
@@ -49,10 +69,28 @@ export async function executeAutomationChain(
         nodeId: node.id,
         result,
       });
+      
+      // Notify: node completed
+      onProgress?.({
+        type: 'node_complete',
+        nodeId: node.id,
+        nodeType: node.type,
+        data: result,
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Notify: node error
+      onProgress?.({
+        type: 'node_error',
+        nodeId: node.id,
+        nodeType: node.type,
+        error: errorMessage,
+      });
+      
       // If a node fails, stop execution
       throw new Error(
-        `Node ${nodeId} (${node.type}) failed: ${error instanceof Error ? error.message : String(error)}`
+        `Node ${nodeId} (${node.type}) failed: ${errorMessage}`
       );
     }
   }

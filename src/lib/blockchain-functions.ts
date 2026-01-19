@@ -12,7 +12,7 @@ import { getWalletFromEncryptedKey } from "./wallet-generation";
 import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from "./abis";
 import { CONFIG } from "./config";
 import type { ExecutionContext, AmountValue } from "./execution-context";
-import { resolveAmount, extractNodeOutput, updateContextWithOutput } from "./execution-context";
+import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput } from "./execution-context";
 
 // Automation Contract ABI - extracted from automation-contract.sol
 const AUTOMATION_CONTRACT_ABI = [
@@ -497,6 +497,7 @@ export async function checkLPTokenAmounts(
 
 /**
  * Helper to resolve amount field from nodeData
+ * Uses resolveAmountWithNodeData to support lpRatio field references
  */
 async function resolveAmountField(
   field: string,
@@ -521,47 +522,49 @@ async function resolveAmountField(
     }
   }
 
-  return resolveAmount(amountConfig, context, automationId);
+  // Use resolveAmountWithNodeData to support lpRatio field references
+  return resolveAmountWithNodeData(amountConfig, nodeData, context, automationId);
 }
 
 /**
- * Extract output from swap transaction
+ * Extract output from swap transaction using ERC20 Transfer events
  */
 async function extractSwapOutput(
   receipt: ContractTransactionReceipt,
   path: string[],
-  provider: JsonRpcProvider
+  provider: JsonRpcProvider,
+  recipientAddress: string
 ): Promise<{ amountOut: bigint; tokenOut: string } | null> {
   if (!path || path.length === 0) return null;
 
   const tokenOut = path[path.length - 1];
 
-  // Parse Swap event from router
-  // Event: Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)
   try {
-    const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
-    const iface = routerContract.interface;
-
-    // Find Swap event in logs
+    // Use ERC20 Transfer event to detect output amount
+    // Transfer event: Transfer(address indexed from, address indexed to, uint256 value)
+    const erc20Interface = new Contract(tokenOut, erc20ABI, provider).interface;
+    
     for (const log of receipt.logs) {
+      // Only check logs from the output token contract
+      if (log.address.toLowerCase() !== tokenOut.toLowerCase()) continue;
+      
       try {
-        const parsed = iface.parseLog({
+        const parsed = erc20Interface.parseLog({
           topics: log.topics as string[],
           data: log.data,
         });
 
-        if (parsed && parsed.name === 'Swap') {
-          const amount0Out = parsed.args.amount0Out as bigint;
-          const amount1Out = parsed.args.amount1Out as bigint;
-          const amountOut = amount0Out > 0n ? amount0Out : amount1Out;
-
-          return {
-            amountOut,
-            tokenOut,
-          };
+        if (parsed && parsed.name === 'Transfer') {
+          const to = parsed.args.to as string;
+          const value = parsed.args.value as bigint;
+          
+          // Check if this transfer is TO the recipient (automation wallet or specified address)
+          if (to.toLowerCase() === recipientAddress.toLowerCase()) {
+            return { amountOut: value, tokenOut };
+          }
         }
       } catch {
-        // Not a Swap event, continue
+        // Not a Transfer event from this contract, continue
         continue;
       }
     }
@@ -569,7 +572,7 @@ async function extractSwapOutput(
     console.warn("Could not parse swap output from receipt:", error);
   }
 
-  // Fallback: return tokenOut address (amountOut will be 0, but at least we know the token)
+  // Fallback: return 0 if we couldn't find the transfer
   return {
     amountOut: BigInt(0),
     tokenOut,
@@ -627,7 +630,7 @@ export async function executeNode(
         );
 
         // Extract output
-        const output = await extractSwapOutput(receipt, path, provider);
+        const output = await extractSwapOutput(receipt, path, provider, to);
         const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
 
         return { result: receipt, context: updatedContext };
@@ -656,7 +659,7 @@ export async function executeNode(
         );
 
         // Extract output
-        const output = await extractSwapOutput(receipt, path, provider);
+        const output = await extractSwapOutput(receipt, path, provider, to);
         const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
 
         return { result: receipt, context: updatedContext };
@@ -796,7 +799,7 @@ export async function executeNode(
       );
 
       // Extract output
-      const outputSwap = await extractSwapOutput(receiptSwap, pathSwap, provider);
+      const outputSwap = await extractSwapOutput(receiptSwap, pathSwap, provider, to);
       const updatedContextSwap = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputSwap);
 
       return { result: receiptSwap, context: updatedContextSwap };

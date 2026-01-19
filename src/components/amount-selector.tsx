@@ -68,9 +68,24 @@ export function AmountSelector({
   const availableFields = previousNodeType ? getNumericOutputFields(previousNodeType) : [];
   // Check if LP ratio option should be available
   const canUseLPRatio = !!lpRatioConfig && !!formData;
-  const hasValidLPConfig = canUseLPRatio && 
-    formData[lpRatioConfig.baseTokenField] && 
+  const hasTokensForLPConfig =
+    canUseLPRatio &&
+    formData[lpRatioConfig.baseTokenField] &&
     (lpRatioConfig.isPLS || formData[lpRatioConfig.pairedTokenField]);
+
+  const baseAmountConfig = canUseLPRatio ? formData[lpRatioConfig.baseAmountField] : undefined;
+  const baseAmountIsLpRatio =
+    !!baseAmountConfig &&
+    typeof baseAmountConfig === 'object' &&
+    'type' in baseAmountConfig &&
+    (baseAmountConfig as any).type === 'lpRatio';
+
+  const hasValidLPConfig = hasTokensForLPConfig && !baseAmountIsLpRatio;
+  const lpRatioDisabledReason = !hasTokensForLPConfig
+    ? '(enter tokens first)'
+    : baseAmountIsLpRatio
+      ? '(choose base amount first)'
+      : '';
 
   // Normalize value to AmountValue type
   const normalizedValue: AmountValue = (() => {
@@ -94,11 +109,14 @@ export function AmountSelector({
     if (mode === 'static') {
       onChange({ type: 'static', value: '' });
     } else if (mode === 'lpRatio' && lpRatioConfig && formData) {
-      const baseAmount = formData[lpRatioConfig.baseAmountField];
+      if (baseAmountIsLpRatio) {
+        return;
+      }
+      // Store field REFERENCE instead of value - will be resolved dynamically at execution time
       onChange({
         type: 'lpRatio',
         baseToken: formData[lpRatioConfig.baseTokenField] || '',
-        baseAmount: baseAmount || { type: 'static', value: '' },
+        baseAmountField: lpRatioConfig.baseAmountField, // Field name, not value!
         pairedToken: lpRatioConfig.isPLS ? 'PLS' : (formData[lpRatioConfig.pairedTokenField] || ''),
       });
     } else {
@@ -170,7 +188,7 @@ export function AmountSelector({
               value="lpRatio"
               disabled={!hasValidLPConfig}
             >
-              Auto from LP Ratio {!hasValidLPConfig ? '(enter tokens first)' : ''}
+              Auto from LP Ratio {!hasValidLPConfig ? lpRatioDisabledReason : ''}
             </SelectItem>
           )}
         </SelectContent>
@@ -254,9 +272,16 @@ export function AmountSelector({
 
       {/* LP Ratio */}
       {normalizedValue.type === 'lpRatio' && (
-        <p className="text-xs text-muted-foreground">
-          Amount will be auto-calculated based on the current LP pool ratio to match the other token amount.
-        </p>
+        <div className="grid gap-2">
+          <p className="text-xs text-muted-foreground">
+            Amount will be auto-calculated based on the current LP pool ratio to match the other token amount.
+          </p>
+          {baseAmountIsLpRatio && (
+            <p className="text-xs text-muted-foreground">
+              LP Ratio can’t be calculated from another LP Ratio amount. Switch one side to Custom Amount or Previous Output.
+            </p>
+          )}
+        </div>
       )}
 
     </div>

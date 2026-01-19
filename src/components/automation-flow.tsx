@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, ComponentType } from 'react';
 import {
   ReactFlow,
   applyNodeChanges,
@@ -13,6 +13,7 @@ import {
   type Node,
   type Edge,
   type NodeTypes,
+  type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { JsonRpcProvider, formatEther } from 'ethers';
@@ -34,25 +35,41 @@ import {
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
-import { updateAutomationDefinition, runAutomation } from '@/lib/actions/automations';
+import { updateAutomationDefinition } from '@/lib/actions/automations';
 import { Button } from '@/components/ui/button';
 import { Loader2, Play, Square } from 'lucide-react';
+import { toast } from 'sonner';
+import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
+
+// Higher-order component to wrap nodes with status indicator
+function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
+  const WithStatusIndicator = (props: P) => {
+    const status = (props.data as { status?: NodeStatus })?.status || 'initial';
+    return (
+      <NodeStatusIndicator status={status}>
+        <WrappedComponent {...props} />
+      </NodeStatusIndicator>
+    );
+  };
+  WithStatusIndicator.displayName = `WithStatusIndicator(${WrappedComponent.displayName || WrappedComponent.name || 'Component'})`;
+  return WithStatusIndicator;
+}
 
 const nodeTypes: NodeTypes = {
-  start: StartNode,
-  swap: SwapNode,
-  swapPLS: SwapPLSNode,
-  transfer: TransferNode,
-  addLiquidity: AddLiquidityNode,
-  addLiquidityPLS: AddLiquidityPLSNode,
-  removeLiquidity: RemoveLiquidityNode,
-  removeLiquidityPLS: RemoveLiquidityPLSNode,
-  checkBalance: CheckBalanceNode,
-  checkTokenBalance: CheckTokenBalanceNode,
-  checkLPTokenAmounts: CheckLPTokenAmountsNode,
-  burnToken: BurnTokenNode,
-  claimToken: ClaimTokenNode,
-  wait: WaitNode,
+  start: withStatusIndicator(StartNode),
+  swap: withStatusIndicator(SwapNode),
+  swapPLS: withStatusIndicator(SwapPLSNode),
+  transfer: withStatusIndicator(TransferNode),
+  addLiquidity: withStatusIndicator(AddLiquidityNode),
+  addLiquidityPLS: withStatusIndicator(AddLiquidityPLSNode),
+  removeLiquidity: withStatusIndicator(RemoveLiquidityNode),
+  removeLiquidityPLS: withStatusIndicator(RemoveLiquidityPLSNode),
+  checkBalance: withStatusIndicator(CheckBalanceNode),
+  checkTokenBalance: withStatusIndicator(CheckTokenBalanceNode),
+  checkLPTokenAmounts: withStatusIndicator(CheckLPTokenAmountsNode),
+  burnToken: withStatusIndicator(BurnTokenNode),
+  claimToken: withStatusIndicator(ClaimTokenNode),
+  wait: withStatusIndicator(WaitNode),
 };
 
 const defaultStartNode: Node[] = [
@@ -96,8 +113,7 @@ export function AutomationFlow({
   const [configSheetOpen, setConfigSheetOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [executionStatus, setExecutionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [executionError, setExecutionError] = useState<string | null>(null);
+  const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
 
   // Fetch PLS balance
   useEffect(() => {
@@ -245,26 +261,75 @@ export function AutomationFlow({
 
   const handleStart = useCallback(async () => {
     setIsRunning(true);
-    setExecutionStatus('idle');
-    setExecutionError(null);
+    // Reset all node statuses
+    setNodeStatuses({});
 
     try {
-      const result = await runAutomation(automationId);
-      
-      if (result.success) {
-        setExecutionStatus('success');
-        // Refresh balance after execution
-        const provider = new JsonRpcProvider(PULSECHAIN_RPC);
-        const balance = await provider.getBalance(walletAddress);
-        const formattedBalance = formatEther(balance);
-        setPlsBalance(parseFloat(formattedBalance).toFixed(4));
-      } else {
-        setExecutionStatus('error');
-        setExecutionError(result.error || 'Unknown error');
+      const response = await fetch(`/api/automations/${automationId}/run`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to start automation');
+        setIsRunning(false);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        toast.error('Failed to read response stream');
+        setIsRunning(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'node_start') {
+              setNodeStatuses((prev) => ({
+                ...prev,
+                [data.nodeId]: 'loading',
+              }));
+            } else if (data.type === 'node_complete') {
+              setNodeStatuses((prev) => ({
+                ...prev,
+                [data.nodeId]: 'success',
+              }));
+            } else if (data.type === 'node_error') {
+              setNodeStatuses((prev) => ({
+                ...prev,
+                [data.nodeId]: 'error',
+              }));
+            } else if (data.type === 'done') {
+              if (data.success) {
+                toast.success('Automation executed successfully!');
+                // Refresh balance after execution
+                const provider = new JsonRpcProvider(PULSECHAIN_RPC);
+                const balance = await provider.getBalance(walletAddress);
+                const formattedBalance = formatEther(balance);
+                setPlsBalance(parseFloat(formattedBalance).toFixed(4));
+              } else {
+                toast.error(data.error || 'Automation failed');
+              }
+            }
+          }
+        }
       }
     } catch (error) {
-      setExecutionStatus('error');
-      setExecutionError(error instanceof Error ? error.message : 'Failed to run automation');
+      toast.error(error instanceof Error ? error.message : 'Failed to run automation');
     } finally {
       setIsRunning(false);
     }
@@ -280,6 +345,7 @@ export function AutomationFlow({
   const nodesWithHandlers = useMemo(() => {
     return nodes.map((node) => {
       const isLastNode = node.id === lastNodeId;
+      const status = nodeStatuses[node.id] || 'initial';
       return {
         ...node,
         data: {
@@ -287,10 +353,11 @@ export function AutomationFlow({
           onAddNode: isLastNode ? () => handleOpenDialog(node.id) : undefined,
           onNodeClick: () => handleNodeClick(node.id),
           isLastNode,
+          status,
         },
       };
     });
-  }, [nodes, handleOpenDialog, lastNodeId, handleNodeClick]);
+  }, [nodes, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses]);
 
   return (
     <div className="w-full h-screen dark relative">
@@ -344,26 +411,8 @@ export function AutomationFlow({
 
         <div className="text-xs text-muted-foreground mt-3 mb-1">Balance</div>
         <div className="text-sm font-mono">
-          {isLoadingBalance ? (
-            'Loading...'
-          ) : (
-            <>
-              {plsBalance} PLS <span className="text-xs text-muted-foreground">($0.00 USD)</span>
-            </>
-          )}
+          {isLoadingBalance ? 'Loading...' : `${plsBalance} PLS`}
         </div>
-
-        {executionStatus === 'success' && (
-          <div className="text-xs text-green-500 mt-3 p-2 bg-green-500/10 rounded">
-            Automation executed successfully!
-          </div>
-        )}
-        
-        {executionStatus === 'error' && executionError && (
-          <div className="text-xs text-red-500 mt-3 p-2 bg-red-500/10 rounded">
-            {executionError}
-          </div>
-        )}
       </div>
       
       {/* Player Controls - Bottom Center */}

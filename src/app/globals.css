@@ -191,3 +191,43 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+/* Node Status Indicator - Loading Animation */
+.node-status-loading {
+  --border-width: 2px;
+  --gradient-angle: 0deg;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.node-status-loading::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--border-width) * -1);
+  border-radius: calc(var(--radius) - 2px);
+  background: conic-gradient(
+    from var(--gradient-angle),
+    transparent 0%,
+    oklch(0.6568 0.1425 295.5098) 10%,
+    oklch(0.6568 0.1425 295.5098) 50%,
+    transparent 60%
+  );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  padding: var(--border-width);
+  animation: node-status-spin 1.5s linear infinite;
+}
+
+@keyframes node-status-spin {
+  from {
+    --gradient-angle: 0deg;
+  }
+  to {
+    --gradient-angle: 360deg;
+  }
+}
+
+@property --gradient-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
