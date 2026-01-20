@@ -23,6 +23,7 @@ import {
   SwapFromPLSNode,
   SwapToPLSNode,
   TransferNode,
+  TransferPLSNode,
   AddLiquidityNode,
   AddLiquidityPLSNode,
   RemoveLiquidityNode,
@@ -68,6 +69,7 @@ const nodeTypes: NodeTypes = {
   swapFromPLS: withStatusIndicator(SwapFromPLSNode),
   swapToPLS: withStatusIndicator(SwapToPLSNode),
   transfer: withStatusIndicator(TransferNode),
+  transferPLS: withStatusIndicator(TransferPLSNode),
   addLiquidity: withStatusIndicator(AddLiquidityNode),
   addLiquidityPLS: withStatusIndicator(AddLiquidityPLSNode),
   removeLiquidity: withStatusIndicator(RemoveLiquidityNode),
@@ -132,6 +134,7 @@ export function AutomationFlow({
   const [edges, setEdges] = useState<Edge[]>(initialEdges || []);
   const [plsBalance, setPlsBalance] = useState<string>('0');
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sourceNodeId, setSourceNodeId] = useState<string | null>(null);
@@ -148,23 +151,30 @@ export function AutomationFlow({
   const [currentDefaultSlippage, setCurrentDefaultSlippage] = useState(defaultSlippage);
 
   // Fetch PLS balance
-  useEffect(() => {
-    async function fetchBalance() {
-      try {
-        const provider = new JsonRpcProvider(currentRpcEndpoint);
-        const balance = await provider.getBalance(walletAddress);
-        const formattedBalance = formatEther(balance);
-        setPlsBalance(parseFloat(formattedBalance).toFixed(4));
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-        setPlsBalance('0');
-      } finally {
-        setIsLoadingBalance(false);
-      }
+  const fetchBalance = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setIsRefreshingBalance(true);
+    } else {
+      setIsLoadingBalance(true);
     }
-
-    fetchBalance();
+    
+    try {
+      const provider = new JsonRpcProvider(currentRpcEndpoint);
+      const balance = await provider.getBalance(walletAddress);
+      const formattedBalance = formatEther(balance);
+      setPlsBalance(parseFloat(formattedBalance).toFixed(4));
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      setPlsBalance('0');
+    } finally {
+      setIsLoadingBalance(false);
+      setIsRefreshingBalance(false);
+    }
   }, [walletAddress, currentRpcEndpoint]);
+
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
 
   // Poll for execution status when reconnecting to a running automation
   useEffect(() => {
@@ -489,6 +499,7 @@ export function AutomationFlow({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSelectNode={handleAddNode}
+        userPlan={userPlan}
       />
       {selectedNodeId && (
         <NodeConfigSheet
@@ -506,24 +517,36 @@ export function AutomationFlow({
       <div className="absolute top-4 left-4 z-10 rounded-lg bg-card border p-3 shadow-lg min-w-[280px]">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs text-muted-foreground">Automation</div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSettingsDialogOpen(true)}
-            className="h-6 w-6"
-          >
-            <Cog6ToothIcon className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fetchBalance(true)}
+              disabled={isRefreshingBalance}
+              className="h-6 w-6"
+              title="Refresh balance"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${isRefreshingBalance ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSettingsDialogOpen(true)}
+              className="h-6 w-6"
+            >
+              <Cog6ToothIcon className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="text-sm font-semibold mb-3">{currentName}</div>
         
         <div className="text-xs text-muted-foreground mb-1">Automation ID</div>
-        <div className="text-sm font-mono">{automationId}</div>
+        <div className="text-sm">{automationId}</div>
         
         <div className="text-xs text-muted-foreground mt-3 mb-1">Wallet Address</div>
         <button
           onClick={copyToClipboard}
-          className="text-sm font-mono hover:text-foreground transition-colors cursor-pointer text-left w-full"
+          className="text-sm hover:text-foreground transition-colors cursor-pointer text-left w-full"
           title="Click to copy"
         >
           {copied ? (
@@ -536,7 +559,7 @@ export function AutomationFlow({
         </button>
 
         <div className="text-xs text-muted-foreground mt-3 mb-1">Balance</div>
-        <div className="text-sm font-mono">
+        <div className="text-sm">
           {isLoadingBalance ? 'Loading...' : `${plsBalance} PLS`}
         </div>
       </div>

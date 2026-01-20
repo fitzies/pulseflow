@@ -190,6 +190,17 @@
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
   }
+  
+  /* Hide chevrons on number inputs */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
 }
 
 /* Node Status Indicator - Loading Animation */

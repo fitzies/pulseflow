@@ -17,6 +17,7 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     tokenOut: 'address',
   },
   transfer: null, // no meaningful output
+  transferPLS: null, // no meaningful output
   checkBalance: {
     balance: 'bigint',
     token: 'address',

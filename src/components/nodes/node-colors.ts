@@ -11,6 +11,7 @@ export type NodeType =
   | 'swapFromPLS'
   | 'swapToPLS'
   | 'transfer'
+  | 'transferPLS'
   | 'addLiquidity'
   | 'addLiquidityPLS'
   | 'removeLiquidity'
@@ -40,6 +41,7 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   swapFromPLS: { background: 'bg-indigo-400/20', text: 'text-indigo-400' },
   swapToPLS: { background: 'bg-indigo-400/20', text: 'text-indigo-400' },
   transfer: { background: 'bg-fuchsia-500/20', text: 'text-fuchsia-500' },
+  transferPLS: { background: 'bg-fuchsia-400/20', text: 'text-fuchsia-400' },
   addLiquidity: { background: 'bg-blue-400/20', text: 'text-blue-400' },
   addLiquidityPLS: { background: 'bg-blue-500/20', text: 'text-blue-500' },
   removeLiquidity: { background: 'bg-purple-500/20', text: 'text-purple-500' },

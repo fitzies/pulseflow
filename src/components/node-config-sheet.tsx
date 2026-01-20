@@ -324,6 +324,32 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const renderTransferPLSConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label htmlFor="to" className="text-sm font-medium">To Address</label>
+        <Input
+          id="to"
+          type="text"
+          placeholder="0x..."
+          value={formData.to || ''}
+          onChange={(e) => updateField('to', e.target.value)}
+        />
+      </div>
+      <AmountSelector
+        value={formData.plsAmount}
+        onChange={(value) => updateField('plsAmount', value)}
+        previousNodeType={previousNodeType}
+        previousNodeConfig={previousNodeConfig}
+        label="PLS Amount"
+        fieldName="plsAmount"
+        nodeType="transferPLS"
+        formData={formData}
+        isPLSAmount={true}
+      />
+    </div>
+  );
+
   const renderAddLiquidityConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <div className="grid gap-3">
@@ -571,10 +597,12 @@ export function NodeConfigSheet({
           id="delay"
           type="number"
           placeholder="0"
+          min={1}
+          max={10}
           value={formData.delay || ''}
-          onChange={(e) => updateField('delay', e.target.value)}
+          onChange={(e) => updateField('delay', Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
         />
-        <p className="text-xs text-muted-foreground">Delay in seconds before executing next node</p>
+        <p className="text-xs text-muted-foreground">Delay in seconds (max 10 seconds)</p>
       </div>
     </div>
   );
@@ -739,6 +767,8 @@ export function NodeConfigSheet({
         return renderSwapToPLSConfig();
       case 'transfer':
         return renderTransferConfig();
+      case 'transferPLS':
+        return renderTransferPLSConfig();
       case 'addLiquidity':
         return renderAddLiquidityConfig();
       case 'addLiquidityPLS':

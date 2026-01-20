@@ -24,6 +24,7 @@ const AUTOMATION_CONTRACT_ABI = [
   "function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountAMin, uint256 amountBMin, address to, uint256 deadline) external payable returns (uint256 amountA, uint256 amountB)",
   "function removeLiquidityPLS(address token, uint256 liquidity, uint256 amountTokenMin, uint256 amountPLSMin, address to, uint256 deadline) external payable returns (uint256 amountToken, uint256 amountPLS)",
   "function transferToken(address token, address to, uint256 amount) external payable",
+  "function transferPLS(address to, uint256 amount) external payable",
   "function burnToken(address token, uint256 amount) external payable",
   "function claimToken(address token, uint256 amount) external payable",
   "function checkLPTokenAmounts(address pairAddress, address user) external view returns (uint256 lpBalance, address token0, address token1, uint256 token0Amount, uint256 token1Amount)",
@@ -451,6 +452,34 @@ export async function transferTokens(
     to,
     amount,
     { value: EXECUTION_FEE }
+  );
+
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error("Transaction receipt is null");
+  }
+  return receipt as ContractTransactionReceipt;
+}
+
+/**
+ * Executes transfer PLS operation
+ */
+export async function transferPLS(
+  automationId: string,
+  to: string,
+  amount: bigint,
+  contractAddress?: string
+): Promise<ContractTransactionReceipt> {
+  const wallet = await getWalletFromAutomation(automationId);
+  const contract = getAutomationContract(wallet, contractAddress);
+
+  // Total value = execution fee + PLS amount to transfer
+  const totalValue = EXECUTION_FEE + amount;
+
+  const tx: ContractTransactionResponse = await contract.transferPLS(
+    to,
+    amount,
+    { value: totalValue }
   );
 
   const receipt = await tx.wait();
@@ -1040,6 +1069,20 @@ export async function executeNode(
 
       return { result: receiptTransfer, context: updatedContextTransfer };
 
+    case "transferPLS":
+      const plsTransferAmount = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
+      const receiptTransferPLS = await transferPLS(
+        automationId,
+        nodeData.to || to, // Use provided to or default to automation wallet
+        plsTransferAmount,
+        contractAddress
+      );
+
+      // Transfer PLS has no meaningful output
+      const updatedContextTransferPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
+
+      return { result: receiptTransferPLS, context: updatedContextTransferPLS };
+
     case "burn":
     case "burnToken":
       const burnAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
@@ -1132,6 +1175,19 @@ export async function executeNode(
       );
 
       return { result: outputCheckTokenBalance, context: updatedContextCheckTokenBalance };
+
+    case "wait":
+      const delaySeconds = Math.min(10, Math.max(1, parseInt(nodeData.delay) || 10));
+      await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+
+      const updatedContextWait = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        { delaySeconds }
+      );
+
+      return { result: { delaySeconds }, context: updatedContextWait };
 
     default:
       throw new Error(`Unknown node type: ${nodeType}`);

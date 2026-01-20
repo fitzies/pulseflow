@@ -3,6 +3,7 @@ export { SwapNode } from './swap-node';
 export { SwapFromPLSNode } from './swap-from-pls-node';
 export { SwapToPLSNode } from './swap-to-pls-node';
 export { TransferNode } from './transfer-node';
+export { TransferPLSNode } from './transfer-pls-node';
 export { CheckPriceNode } from './check-price-node';
 export { AddLiquidityNode } from './add-liquidity-node';
 export { AddLiquidityPLSNode } from './add-liquidity-pls-node';

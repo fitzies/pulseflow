@@ -33,6 +33,7 @@ export type NodeType =
   | 'swapFromPLS'
   | 'swapToPLS'
   | 'transfer'
+  | 'transferPLS'
   | 'addLiquidity'
   | 'addLiquidityPLS'
   | 'removeLiquidity'
@@ -75,6 +76,14 @@ const nodeTypes: NodeTypeOption[] = [
     icon: PaperAirplaneIcon,
     iconBg: getNodeBackgroundColor('transfer'),
     iconColor: getNodeTextColor('transfer'),
+  },
+  {
+    type: 'transferPLS',
+    label: 'Transfer PLS',
+    description: 'Send PLS to address',
+    icon: PaperAirplaneIcon,
+    iconBg: getNodeBackgroundColor('transferPLS'),
+    iconColor: getNodeTextColor('transferPLS'),
   },
   {
     type: 'addLiquidity',
@@ -224,6 +233,7 @@ interface SelectNodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectNode: (nodeType: NodeType) => void;
+  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
 }
 
 // Organize nodes into groups
@@ -232,7 +242,7 @@ const nodeGroups = {
   liquidity: nodeTypes.filter((n) =>
     ['addLiquidity', 'addLiquidityPLS', 'removeLiquidity', 'removeLiquidityPLS'].includes(n.type)
   ),
-  transfers: nodeTypes.filter((n) => n.type === 'transfer'),
+  transfers: nodeTypes.filter((n) => n.type === 'transfer' || n.type === 'transferPLS'),
   checks: nodeTypes.filter((n) =>
     ['checkBalance', 'checkTokenBalance', 'checkLPTokenAmounts', 'getTokenPrice'].includes(n.type)
   ),
@@ -242,10 +252,23 @@ const nodeGroups = {
   ),
 };
 
+const planHierarchy: Record<string, number> = {
+  BASIC: 1,
+  PRO: 2,
+  ULTRA: 3,
+};
+
+function hasRequiredPlan(userPlan: string | null, requiredPlan: string | undefined): boolean {
+  if (!requiredPlan) return true;
+  if (!userPlan) return false;
+  return (planHierarchy[userPlan] || 0) >= (planHierarchy[requiredPlan] || 0);
+}
+
 export function SelectNodeDialog({
   open,
   onOpenChange,
   onSelectNode,
+  userPlan,
 }: SelectNodeDialogProps) {
   const handleSelect = (nodeType: NodeType) => {
     onSelectNode(nodeType);
@@ -254,7 +277,7 @@ export function SelectNodeDialog({
 
   const renderNodeItem = (nodeType: NodeTypeOption) => {
     const Icon = nodeType.icon;
-    const isLocked = !!nodeType.requiresPlan;
+    const isLocked = !hasRequiredPlan(userPlan, nodeType.requiresPlan);
     return (
       <CommandItem
         key={nodeType.type}
