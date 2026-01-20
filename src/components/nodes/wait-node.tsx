@@ -1,16 +1,18 @@
 'use client';
 
 import { memo } from 'react';
-import { Clock, Plus } from 'lucide-react';
+import { ClockIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
+import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
 
 interface WaitNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
+  showNodeLabels?: boolean;
 }
 
 export const WaitNode = memo(({ data }: NodeProps) => {
@@ -26,10 +28,12 @@ export const WaitNode = memo(({ data }: NodeProps) => {
     <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} />
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className="rounded-xl bg-cyan-400/20 p-3 flex items-center justify-center">
-          <Clock className="h-8 w-8 text-cyan-400" />
+        <div className={`rounded-xl ${getNodeBackgroundColor('wait')} p-3 flex items-center justify-center`}>
+          <ClockIcon className={`h-8 w-8 ${getNodeTextColor('wait')}`} />
         </div>
-        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Wait</BaseNodeHeaderTitle>
+        {nodeData?.showNodeLabels !== false && (
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Wait</BaseNodeHeaderTitle>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
       {nodeData?.isLastNode && (
@@ -43,7 +47,7 @@ export const WaitNode = memo(({ data }: NodeProps) => {
             variant="secondary"
             className="rounded-full"
           >
-            <Plus size={10} />
+            <PlusIcon className="h-2.5 w-2.5" />
           </Button>
         </div>
       )}

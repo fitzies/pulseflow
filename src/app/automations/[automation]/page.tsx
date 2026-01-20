@@ -54,6 +54,15 @@ export default async function Page({ params }: PageProps) {
     );
   }
 
+  // Check for any active (RUNNING) execution
+  const activeExecution = await prisma.execution.findFirst({
+    where: {
+      automationId: automationId,
+      status: 'RUNNING',
+    },
+    orderBy: { startedAt: 'desc' },
+  });
+
   // Parse definition JSON for nodes and edges
   let initialNodes: Node[] = [];
   let initialEdges: Edge[] = [];
@@ -70,6 +79,12 @@ export default async function Page({ params }: PageProps) {
       initialEdges={initialEdges}
       automationId={automation.id}
       walletAddress={automation.walletAddress}
+      automationName={automation.name}
+      userPlan={dbUser.plan}
+      defaultSlippage={automation.defaultSlippage ?? 0.01}
+      rpcEndpoint={automation.rpcEndpoint}
+      showNodeLabels={automation.showNodeLabels ?? true}
+      activeExecution={activeExecution ? { id: activeExecution.id, status: activeExecution.status } : null}
     />
   );
 }

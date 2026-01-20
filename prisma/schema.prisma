@@ -42,6 +42,11 @@ model Automation {
   walletAddress String
   walletEncKey  String
 
+  // Settings
+  defaultSlippage Float?  @default(0.01)
+  rpcEndpoint    String?
+  showNodeLabels  Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

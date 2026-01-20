@@ -1,16 +1,18 @@
 'use client';
 
 import { memo } from 'react';
-import { DropletOff, Plus } from 'lucide-react';
+import { BeakerIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
+import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
 
 interface RemoveLiquidityPLSNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
+  showNodeLabels?: boolean;
 }
 
 export const RemoveLiquidityPLSNode = memo(({ data }: NodeProps) => {
@@ -26,10 +28,12 @@ export const RemoveLiquidityPLSNode = memo(({ data }: NodeProps) => {
     <BaseNode className="w-44 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} />
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className="rounded-xl bg-orange-500/20 p-3 flex items-center justify-center">
-          <DropletOff className="h-8 w-8 text-orange-500" />
+        <div className={`rounded-xl ${getNodeBackgroundColor('removeLiquidityPLS')} p-3 flex items-center justify-center`}>
+          <BeakerIcon className={`h-8 w-8 ${getNodeTextColor('removeLiquidityPLS')}`} />
         </div>
-        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Remove Liquidity PLS</BaseNodeHeaderTitle>
+        {nodeData?.showNodeLabels !== false && (
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Remove Liquidity PLS</BaseNodeHeaderTitle>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
       {nodeData?.isLastNode && (
@@ -43,7 +47,7 @@ export const RemoveLiquidityPLSNode = memo(({ data }: NodeProps) => {
             variant="secondary"
             className="rounded-full"
           >
-            <Plus size={10} />
+            <PlusIcon className="h-2.5 w-2.5" />
           </Button>
         </div>
       )}

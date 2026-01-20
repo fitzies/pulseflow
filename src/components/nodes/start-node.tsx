@@ -1,16 +1,18 @@
 'use client';
 
 import { memo } from 'react';
-import { Play, Plus } from 'lucide-react';
+import { PlayIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
+import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
 
 interface StartNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
+  showNodeLabels?: boolean;
 }
 
 export const StartNode = memo(({ data }: NodeProps) => {
@@ -25,10 +27,12 @@ export const StartNode = memo(({ data }: NodeProps) => {
   return (
     <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className="rounded-xl bg-green-400/20 p-3 flex items-center justify-center">
-          <Play className="h-8 w-8 text-green-400" />
+        <div className={`rounded-xl ${getNodeBackgroundColor('start')} p-3 flex items-center justify-center`}>
+          <PlayIcon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
         </div>
-        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Start</BaseNodeHeaderTitle>
+        {nodeData?.showNodeLabels !== false && (
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Start</BaseNodeHeaderTitle>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} id="start-output" className="opacity-0" />
       {nodeData?.isLastNode && (
@@ -42,7 +46,7 @@ export const StartNode = memo(({ data }: NodeProps) => {
             variant="secondary"
             className="rounded-full"
           >
-            <Plus size={10} />
+            <PlusIcon className="h-2.5 w-2.5" />
           </Button>
         </div>
       )}

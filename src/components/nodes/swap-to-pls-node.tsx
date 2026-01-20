@@ -1,16 +1,18 @@
 'use client';
 
 import { memo } from 'react';
-import { ArrowRightLeft, Plus } from 'lucide-react';
+import { ArrowsRightLeftIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
+import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
 
 interface SwapToPLSNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
+  showNodeLabels?: boolean;
 }
 
 export const SwapToPLSNode = memo(({ data }: NodeProps) => {
@@ -26,10 +28,12 @@ export const SwapToPLSNode = memo(({ data }: NodeProps) => {
     <BaseNode className="w-36 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} />
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className="rounded-xl bg-amber-400/20 p-3 flex items-center justify-center">
-          <ArrowRightLeft className="h-8 w-8 text-amber-400" />
+        <div className={`rounded-xl ${getNodeBackgroundColor('swapToPLS')} p-3 flex items-center justify-center`}>
+          <ArrowsRightLeftIcon className={`h-8 w-8 ${getNodeTextColor('swapToPLS')}`} />
         </div>
-        <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap to PLS</BaseNodeHeaderTitle>
+        {nodeData?.showNodeLabels !== false && (
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap to PLS</BaseNodeHeaderTitle>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
       {nodeData?.isLastNode && (
@@ -43,7 +47,7 @@ export const SwapToPLSNode = memo(({ data }: NodeProps) => {
             variant="secondary"
             className="rounded-full"
           >
-            <Plus size={10} />
+            <PlusIcon className="h-2.5 w-2.5" />
           </Button>
         </div>
       )}

@@ -76,11 +76,19 @@ export async function POST(
 
   // Create a stream for SSE
   const encoder = new TextEncoder();
+  let isControllerClosed = false;
   const stream = new ReadableStream({
     async start(controller) {
+      // Gracefully handle client disconnection - execution continues even if client closes
       const sendEvent = (event: Record<string, any>) => {
-        const data = `data: ${JSON.stringify(event)}\n\n`;
-        controller.enqueue(encoder.encode(data));
+        if (isControllerClosed) return;
+        try {
+          const data = `data: ${JSON.stringify(event)}\n\n`;
+          controller.enqueue(encoder.encode(data));
+        } catch {
+          // Client disconnected - continue execution silently
+          isControllerClosed = true;
+        }
       };
 
       // Helper to serialize transaction receipts
@@ -176,7 +184,13 @@ export async function POST(
           executionId: execution.id,
         });
       } finally {
-        controller.close();
+        if (!isControllerClosed) {
+          try {
+            controller.close();
+          } catch {
+            // Already closed
+          }
+        }
       }
     },
   });

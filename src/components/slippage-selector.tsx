@@ -40,7 +40,7 @@ export function SlippageSelector({ value, onChange }: SlippageSelectorProps) {
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Your transaction will revert if the price changes unfavorably by more than this percentage.
+      Your transaction will be reverted if the price moves against you by more than this percentage. Note that your node settings will take precedence over this value.
       </p>
     </div>
   );

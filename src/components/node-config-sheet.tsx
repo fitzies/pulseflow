@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, X, Trash2 } from 'lucide-react';
+import { PlusIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type { NodeType } from '@/components/select-node-dialog';
 import { SlippageSelector } from '@/components/slippage-selector';
 import { AmountSelector } from '@/components/amount-selector';
@@ -155,7 +155,7 @@ export function NodeConfigSheet({
                 size="icon"
                 onClick={() => removeArrayItem('path', index)}
               >
-                <X className="h-4 w-4" />
+                <XMarkIcon className="h-4 w-4" />
               </Button>
             </div>
           ))}
@@ -167,7 +167,7 @@ export function NodeConfigSheet({
           onClick={() => addArrayItem('path')}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-4 w-4 mr-2" />
           Add Token
         </Button>
       </div>
@@ -211,7 +211,7 @@ export function NodeConfigSheet({
                 size="icon"
                 onClick={() => removeArrayItem('path', index)}
               >
-                <X className="h-4 w-4" />
+                <XMarkIcon className="h-4 w-4" />
               </Button>
             </div>
           ))}
@@ -223,7 +223,7 @@ export function NodeConfigSheet({
           onClick={() => addArrayItem('path')}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-4 w-4 mr-2" />
           Add Token
         </Button>
       </div>
@@ -266,7 +266,7 @@ export function NodeConfigSheet({
                 size="icon"
                 onClick={() => removeArrayItem('path', index)}
               >
-                <X className="h-4 w-4" />
+                <XMarkIcon className="h-4 w-4" />
               </Button>
             </div>
           ))}
@@ -278,7 +278,7 @@ export function NodeConfigSheet({
           onClick={() => addArrayItem('path')}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-4 w-4 mr-2" />
           Add Token
         </Button>
       </div>
@@ -797,7 +797,7 @@ export function NodeConfigSheet({
               onClick={handleDelete}
               className="w-full"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <TrashIcon className="h-4 w-4 mr-2" />
               Delete 
             </Button>
           )}

@@ -38,10 +38,16 @@ export default async function Page() {
   // Check plan status
   const hasPlan = dbUser.plan !== null;
 
-  // Get user's automations
+  // Get user's automations with running execution status
   const automations = await prisma.automation.findMany({
     where: { userId: dbUser.id },
     orderBy: { createdAt: "desc" },
+    include: {
+      executions: {
+        where: { status: "RUNNING" },
+        take: 1,
+      },
+    },
   });
 
   return (
@@ -80,43 +86,57 @@ export default async function Page() {
       ) : (
         /* Grid Layout */
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {automations.map((automation) => (
-            <Link
-              key={automation.id}
-              href={`/automations/${automation.id}`}
-              className="transition-transform hover:scale-[1.02]"
-            >
-              <Card className="h-full cursor-pointer">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        automation.isActive ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                      title={automation.isActive ? "Active" : "Inactive"}
-                    />
-                  </div>
-                  <CardDescription>
-                    Created {new Date(automation.createdAt).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        automation.isActive
-                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                          : "bg-gray-500/10 text-gray-600 dark:text-gray-400"
-                      }`}
-                    >
-                      {automation.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {automations.map((automation) => {
+            const isRunning = automation.executions.length > 0;
+            return (
+              <Link
+                key={automation.id}
+                href={`/automations/${automation.id}`}
+                className="transition-transform hover:scale-[1.02]"
+              >
+                <Card className="h-full cursor-pointer">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
+                      <div
+                        className={`h-2 w-2 rounded-full ${
+                          isRunning
+                            ? "bg-blue-500 animate-pulse"
+                            : automation.isActive
+                              ? "bg-green-500"
+                              : "bg-gray-400"
+                        }`}
+                        title={isRunning ? "Running" : automation.isActive ? "Active" : "Inactive"}
+                      />
+                    </div>
+                    <CardDescription>
+                      Created {new Date(automation.createdAt).toLocaleDateString()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2 text-sm">
+                      {isRunning ? (
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Running
+                        </span>
+                      ) : (
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            automation.isActive
+                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                              : "bg-gray-500/10 text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          {automation.isActive ? "Active" : "Inactive"}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
 
