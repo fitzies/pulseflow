@@ -773,17 +773,39 @@ export async function executeNode(
 
         return { result: receipt, context: updatedContext };
       } else {
-        const amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
         const path = nodeData.path || [];
-
-        // Calculate amountOutMin from slippage
+        const swapMode = nodeData.swapMode || 'exactIn';
+        
+        let amountIn: bigint;
         let amountOutMin = BigInt(0);
-        if (path.length > 0 && amountIn > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
-          const amountsOut = await routerContract.getAmountsOut(amountIn, path);
-          const expectedOut = amountsOut[amountsOut.length - 1];
-          // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
-          amountOutMin = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+        
+        if (swapMode === 'exactOut') {
+          // User specified desired output, calculate required input
+          const amountOut = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
+          
+          if (path.length > 0 && amountOut > 0n) {
+            const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+            const amountsIn = await routerContract.getAmountsIn(amountOut, path);
+            const calculatedAmountIn = amountsIn[0];
+            // Apply slippage: amountIn = calculatedAmountIn * (1 + slippage) - user willing to spend up to this
+            amountIn = (calculatedAmountIn * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
+            // amountOutMin is the user's desired output (what they want to receive at minimum)
+            amountOutMin = amountOut;
+          } else {
+            amountIn = BigInt(0);
+          }
+        } else {
+          // Default: exactIn mode - user specified input amount
+          amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+          
+          // Calculate amountOutMin from slippage
+          if (path.length > 0 && amountIn > 0n) {
+            const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+            const amountsOut = await routerContract.getAmountsOut(amountIn, path);
+            const expectedOut = amountsOut[amountsOut.length - 1];
+            // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
+            amountOutMin = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+          }
         }
 
         const receipt = await swapTokens(
@@ -912,22 +934,44 @@ export async function executeNode(
 
     case "swapFromPLS":
     case "swapPLS": // Keep for backward compatibility
-      const plsAmountSwap = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
       let pathSwap = nodeData.path || [];
+      const swapModeFromPLS = nodeData.swapMode || 'exactIn';
 
       // Auto-prepend WPLS if path doesn't start with it
       if (pathSwap.length === 0 || pathSwap[0]?.toLowerCase() !== WPLS.toLowerCase()) {
         pathSwap = [WPLS, ...pathSwap];
       }
 
-      // Calculate amountOutMin from slippage
+      let plsAmountSwap: bigint;
       let amountOutMinSwap = BigInt(0);
-      if (pathSwap.length > 0 && plsAmountSwap > 0n) {
-        const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
-        const amountsOut = await routerContract.getAmountsOut(plsAmountSwap, pathSwap);
-        const expectedOut = amountsOut[amountsOut.length - 1];
-        // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
-        amountOutMinSwap = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+
+      if (swapModeFromPLS === 'exactOut') {
+        // User specified desired token output, calculate required PLS input
+        const amountOutSwap = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
+        
+        if (pathSwap.length > 0 && amountOutSwap > 0n) {
+          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const amountsIn = await routerContract.getAmountsIn(amountOutSwap, pathSwap);
+          const calculatedPlsAmount = amountsIn[0];
+          // Apply slippage: plsAmount = calculatedPlsAmount * (1 + slippage) - user willing to spend up to this
+          plsAmountSwap = (calculatedPlsAmount * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
+          // amountOutMin is the user's desired output
+          amountOutMinSwap = amountOutSwap;
+        } else {
+          plsAmountSwap = BigInt(0);
+        }
+      } else {
+        // Default: exactIn mode - user specified PLS input amount
+        plsAmountSwap = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
+        
+        // Calculate amountOutMin from slippage
+        if (pathSwap.length > 0 && plsAmountSwap > 0n) {
+          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const amountsOut = await routerContract.getAmountsOut(plsAmountSwap, pathSwap);
+          const expectedOut = amountsOut[amountsOut.length - 1];
+          // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
+          amountOutMinSwap = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+        }
       }
 
       const receiptSwap = await swapPLSForTokens(
@@ -947,22 +991,44 @@ export async function executeNode(
       return { result: receiptSwap, context: updatedContextSwap };
 
     case "swapToPLS":
-      const amountInSwapToPLS = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
       let pathSwapToPLS = nodeData.path || [];
+      const swapModeToPLS = nodeData.swapMode || 'exactIn';
 
       // Auto-append WPLS if path doesn't end with it
       if (pathSwapToPLS.length === 0 || pathSwapToPLS[pathSwapToPLS.length - 1]?.toLowerCase() !== WPLS.toLowerCase()) {
         pathSwapToPLS = [...pathSwapToPLS, WPLS];
       }
 
-      // Calculate amountOutMin from slippage
+      let amountInSwapToPLS: bigint;
       let amountOutMinSwapToPLS = BigInt(0);
-      if (pathSwapToPLS.length > 0 && amountInSwapToPLS > 0n) {
-        const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
-        const amountsOut = await routerContract.getAmountsOut(amountInSwapToPLS, pathSwapToPLS);
-        const expectedOut = amountsOut[amountsOut.length - 1];
-        // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
-        amountOutMinSwapToPLS = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+
+      if (swapModeToPLS === 'exactOut') {
+        // User specified desired PLS output, calculate required token input
+        const plsAmountOut = await resolveAmountField('plsAmountOut', nodeData, context, automationId, nodeType);
+        
+        if (pathSwapToPLS.length > 0 && plsAmountOut > 0n) {
+          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const amountsIn = await routerContract.getAmountsIn(plsAmountOut, pathSwapToPLS);
+          const calculatedAmountIn = amountsIn[0];
+          // Apply slippage: amountIn = calculatedAmountIn * (1 + slippage) - user willing to spend up to this
+          amountInSwapToPLS = (calculatedAmountIn * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
+          // amountOutMin is the user's desired PLS output
+          amountOutMinSwapToPLS = plsAmountOut;
+        } else {
+          amountInSwapToPLS = BigInt(0);
+        }
+      } else {
+        // Default: exactIn mode - user specified token input amount
+        amountInSwapToPLS = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+        
+        // Calculate amountOutMin from slippage
+        if (pathSwapToPLS.length > 0 && amountInSwapToPLS > 0n) {
+          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const amountsOut = await routerContract.getAmountsOut(amountInSwapToPLS, pathSwapToPLS);
+          const expectedOut = amountsOut[amountsOut.length - 1];
+          // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
+          amountOutMinSwapToPLS = (expectedOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+        }
       }
 
       const receiptSwapToPLS = await swapTokensForPLS(

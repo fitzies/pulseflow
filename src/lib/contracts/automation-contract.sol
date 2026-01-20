@@ -111,22 +111,11 @@ interface IPlaygroundToken {
 
 contract AutomationContract {
     address public immutable pulseXRouter;
-    address public immutable devWallet;
-    uint256 public constant executionFee = 100 * 10 ** 18; // 100 PLS
     address public constant WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27;
 
-    constructor(address _pulseXRouter, address _devWallet) {
+    constructor(address _pulseXRouter) {
         require(_pulseXRouter != address(0), "Invalid router address");
-        require(_devWallet != address(0), "Invalid dev wallet address");
         pulseXRouter = _pulseXRouter;
-        devWallet = _devWallet;
-    }
-
-    modifier chargeFee() {
-        require(msg.value >= executionFee, "Insufficient fee");
-        payable(devWallet).transfer(executionFee);
-        // Note: Remaining PLS (msg.value - executionFee) will be used by the function
-        _;
     }
 
     function swapExactTokensForTokens(
@@ -135,7 +124,7 @@ contract AutomationContract {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable chargeFee returns (uint[] memory amounts) {
+    ) external payable returns (uint[] memory amounts) {
         require(path.length >= 2, "Invalid path");
         require(to != address(0), "Invalid recipient");
         require(deadline >= block.timestamp, "Expired deadline");
@@ -161,14 +150,13 @@ contract AutomationContract {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable chargeFee returns (uint[] memory amounts) {
+    ) external payable returns (uint[] memory amounts) {
         require(path.length >= 2, "Invalid path");
         require(path[0] == WPLS, "Path must start with WPLS");
         require(to != address(0), "Invalid recipient");
         require(deadline >= block.timestamp, "Expired deadline");
-        require(msg.value > executionFee, "Insufficient PLS amount");
 
-        uint256 plsAmount = msg.value - executionFee;
+        uint256 plsAmount = msg.value;
 
         amounts = IUniswapV2Router02(pulseXRouter).swapExactETHForTokens{
             value: plsAmount
@@ -181,7 +169,7 @@ contract AutomationContract {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external payable chargeFee returns (uint[] memory amounts) {
+    ) external payable returns (uint[] memory amounts) {
         require(path.length >= 2, "Invalid path");
         require(path[path.length - 1] == WPLS, "Path must end with WPLS");
         require(to != address(0), "Invalid recipient");
@@ -215,7 +203,6 @@ contract AutomationContract {
     )
         external
         payable
-        chargeFee
         returns (uint256 amountA, uint256 amountB, uint256 liquidity)
     {
         require(
@@ -285,15 +272,13 @@ contract AutomationContract {
     )
         external
         payable
-        chargeFee
         returns (uint256 amountToken, uint256 amountPLS, uint256 liquidity)
     {
         require(token != address(0), "Invalid token address");
         require(to != address(0), "Invalid recipient");
         require(deadline >= block.timestamp, "Expired deadline");
-        require(msg.value > executionFee, "Insufficient PLS amount");
 
-        uint256 plsAmount = msg.value - executionFee;
+        uint256 plsAmount = msg.value;
 
         IERC20 tokenContract = IERC20(token);
         require(
@@ -336,7 +321,7 @@ contract AutomationContract {
         uint256 amountBMin,
         address to,
         uint256 deadline
-    ) external payable chargeFee returns (uint256 amountA, uint256 amountB) {
+    ) external payable returns (uint256 amountA, uint256 amountB) {
         require(
             tokenA != address(0) && tokenB != address(0),
             "Invalid token addresses"
@@ -373,12 +358,7 @@ contract AutomationContract {
         uint256 amountPLSMin,
         address to,
         uint256 deadline
-    )
-        external
-        payable
-        chargeFee
-        returns (uint256 amountToken, uint256 amountPLS)
-    {
+    ) external payable returns (uint256 amountToken, uint256 amountPLS) {
         require(token != address(0), "Invalid token address");
         require(to != address(0), "Invalid recipient");
         require(deadline >= block.timestamp, "Expired deadline");
@@ -406,7 +386,7 @@ contract AutomationContract {
         address token,
         address to,
         uint256 amount
-    ) external payable chargeFee {
+    ) external payable {
         require(token != address(0), "Invalid token address");
         require(to != address(0), "Invalid recipient");
         require(amount > 0, "Invalid amount");
@@ -418,10 +398,7 @@ contract AutomationContract {
         );
     }
 
-    function burnToken(
-        address token,
-        uint256 amount
-    ) external payable chargeFee {
+    function burnToken(address token, uint256 amount) external payable {
         require(isPlaygroundToken(token), "Not a playground token");
         require(amount > 0, "Invalid amount");
 
@@ -452,10 +429,7 @@ contract AutomationContract {
         }
     }
 
-    function claimToken(
-        address token,
-        uint256 amount
-    ) external payable chargeFee {
+    function claimToken(address token, uint256 amount) external payable {
         require(isPlaygroundToken(token), "Not a playground token");
         require(amount > 0, "Invalid amount");
 

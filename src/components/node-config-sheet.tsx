@@ -12,6 +12,13 @@ import {
 } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PlusIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type { NodeType } from '@/components/select-node-dialog';
 import { SlippageSelector } from '@/components/slippage-selector';
@@ -126,168 +133,238 @@ export function NodeConfigSheet({
     });
   };
 
-  const renderSwapConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <AmountSelector
-        value={formData.amountIn}
-        onChange={(value) => updateField('amountIn', value)}
-        previousNodeType={previousNodeType}
-        previousNodeConfig={previousNodeConfig}
-        label="Amount In"
-        fieldName="amountIn"
-        nodeType="swap"
-        formData={formData}
-      />
-      <div className="grid gap-3">
-        <label className="text-sm font-medium">Token Path</label>
-        <div className="space-y-2">
-          {(formData.path || []).map((item: string, index: number) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="0x..."
-                value={item}
-                onChange={(e) => updateArrayField('path', index, e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => removeArrayItem('path', index)}
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+  const renderSwapConfig = () => {
+    const swapMode = formData.swapMode || 'exactIn';
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Swap Mode</label>
+          <Select
+            value={swapMode}
+            onValueChange={(value) => updateField('swapMode', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="exactIn">Amount In (specify input)</SelectItem>
+              <SelectItem value="exactOut">Amount Out (specify desired output)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {swapMode === 'exactIn' 
+              ? 'Specify how many tokens to swap' 
+              : 'Specify how many tokens you want to receive'}
+          </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('path')}
-          className="w-full"
-        >
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Token
-        </Button>
+        <AmountSelector
+          value={swapMode === 'exactOut' ? formData.amountOut : formData.amountIn}
+          onChange={(value) => updateField(swapMode === 'exactOut' ? 'amountOut' : 'amountIn', value)}
+          previousNodeType={previousNodeType}
+          previousNodeConfig={previousNodeConfig}
+          label={swapMode === 'exactOut' ? 'Amount Out' : 'Amount In'}
+          fieldName={swapMode === 'exactOut' ? 'amountOut' : 'amountIn'}
+          nodeType="swap"
+          formData={formData}
+        />
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Token Path</label>
+          <div className="space-y-2">
+            {(formData.path || []).map((item: string, index: number) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="0x..."
+                  value={item}
+                  onChange={(e) => updateArrayField('path', index, e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeArrayItem('path', index)}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem('path')}
+            className="w-full"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Token
+          </Button>
+        </div>
+        <SlippageSelector
+          value={formData.slippage ?? 0.01}
+          onChange={(value) => updateField('slippage', value)}
+        />
       </div>
-      <SlippageSelector
-        value={formData.slippage ?? 0.01}
-        onChange={(value) => updateField('slippage', value)}
-      />
-    </div>
-  );
+    );
+  };
 
-  const renderSwapFromPLSConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <AmountSelector
-        value={formData.plsAmount}
-        onChange={(value) => updateField('plsAmount', value)}
-        previousNodeType={previousNodeType}
-        previousNodeConfig={previousNodeConfig}
-        label="PLS Amount"
-        fieldName="plsAmount"
-        nodeType="swapFromPLS"
-        formData={formData}
-        isPLSAmount={true}
-      />
-      <div className="grid gap-3">
-        <label className="text-sm font-medium">Token Path</label>
-        <div className="text-xs text-muted-foreground mb-2">
-          WPLS will be automatically added as the first token in the path
+  const renderSwapFromPLSConfig = () => {
+    const swapMode = formData.swapMode || 'exactIn';
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Swap Mode</label>
+          <Select
+            value={swapMode}
+            onValueChange={(value) => updateField('swapMode', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="exactIn">Amount In (specify PLS input)</SelectItem>
+              <SelectItem value="exactOut">Amount Out (specify desired tokens)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {swapMode === 'exactIn' 
+              ? 'Specify how much PLS to swap' 
+              : 'Specify how many tokens you want to receive'}
+          </p>
         </div>
-        <div className="space-y-2">
-          {(formData.path || []).map((item: string, index: number) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="0x..."
-                value={item}
-                onChange={(e) => updateArrayField('path', index, e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => removeArrayItem('path', index)}
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+        <AmountSelector
+          value={swapMode === 'exactOut' ? formData.amountOut : formData.plsAmount}
+          onChange={(value) => updateField(swapMode === 'exactOut' ? 'amountOut' : 'plsAmount', value)}
+          previousNodeType={previousNodeType}
+          previousNodeConfig={previousNodeConfig}
+          label={swapMode === 'exactOut' ? 'Amount Out (Tokens)' : 'PLS Amount'}
+          fieldName={swapMode === 'exactOut' ? 'amountOut' : 'plsAmount'}
+          nodeType="swapFromPLS"
+          formData={formData}
+          isPLSAmount={swapMode !== 'exactOut'}
+        />
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Token Path</label>
+          <div className="text-xs text-muted-foreground mb-2">
+            WPLS will be automatically added as the first token in the path
+          </div>
+          <div className="space-y-2">
+            {(formData.path || []).map((item: string, index: number) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="0x..."
+                  value={item}
+                  onChange={(e) => updateArrayField('path', index, e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeArrayItem('path', index)}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem('path')}
+            className="w-full"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Token
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('path')}
-          className="w-full"
-        >
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Token
-        </Button>
+        <SlippageSelector
+          value={formData.slippage ?? 0.01}
+          onChange={(value) => updateField('slippage', value)}
+        />
       </div>
-      <SlippageSelector
-        value={formData.slippage ?? 0.01}
-        onChange={(value) => updateField('slippage', value)}
-      />
-    </div>
-  );
+    );
+  };
 
-  const renderSwapToPLSConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <AmountSelector
-        value={formData.amountIn}
-        onChange={(value) => updateField('amountIn', value)}
-        previousNodeType={previousNodeType}
-        previousNodeConfig={previousNodeConfig}
-        label="Amount In"
-        fieldName="amountIn"
-        nodeType="swapToPLS"
-        formData={formData}
-      />
-      <div className="grid gap-3">
-        <label className="text-sm font-medium">Token Path</label>
-        <div className="text-xs text-muted-foreground mb-2">
-          WPLS will be automatically added as the last token in the path
+  const renderSwapToPLSConfig = () => {
+    const swapMode = formData.swapMode || 'exactIn';
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Swap Mode</label>
+          <Select
+            value={swapMode}
+            onValueChange={(value) => updateField('swapMode', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="exactIn">Amount In (specify token input)</SelectItem>
+              <SelectItem value="exactOut">Amount Out (specify desired PLS)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {swapMode === 'exactIn' 
+              ? 'Specify how many tokens to swap' 
+              : 'Specify how much PLS you want to receive'}
+          </p>
         </div>
-        <div className="space-y-2">
-          {(formData.path || []).map((item: string, index: number) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="0x..."
-                value={item}
-                onChange={(e) => updateArrayField('path', index, e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => removeArrayItem('path', index)}
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+        <AmountSelector
+          value={swapMode === 'exactOut' ? formData.plsAmountOut : formData.amountIn}
+          onChange={(value) => updateField(swapMode === 'exactOut' ? 'plsAmountOut' : 'amountIn', value)}
+          previousNodeType={previousNodeType}
+          previousNodeConfig={previousNodeConfig}
+          label={swapMode === 'exactOut' ? 'PLS Amount Out' : 'Amount In'}
+          fieldName={swapMode === 'exactOut' ? 'plsAmountOut' : 'amountIn'}
+          nodeType="swapToPLS"
+          formData={formData}
+          isPLSAmount={swapMode === 'exactOut'}
+        />
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Token Path</label>
+          <div className="text-xs text-muted-foreground mb-2">
+            WPLS will be automatically added as the last token in the path
+          </div>
+          <div className="space-y-2">
+            {(formData.path || []).map((item: string, index: number) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="0x..."
+                  value={item}
+                  onChange={(e) => updateArrayField('path', index, e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeArrayItem('path', index)}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem('path')}
+            className="w-full"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Token
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('path')}
-          className="w-full"
-        >
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Token
-        </Button>
+        <SlippageSelector
+          value={formData.slippage ?? 0.01}
+          onChange={(value) => updateField('slippage', value)}
+        />
       </div>
-      <SlippageSelector
-        value={formData.slippage ?? 0.01}
-        onChange={(value) => updateField('slippage', value)}
-      />
-    </div>
-  );
+    );
+  };
 
   const renderTransferConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">

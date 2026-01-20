@@ -11,6 +11,7 @@ interface SlippageSelectorProps {
 const PRESETS = [
   { label: '1%', value: 0.01 },
   { label: '3%', value: 0.03 },
+  { label: '5%', value: 0.05 },
   { label: '10%', value: 0.1 },
 ];
 
