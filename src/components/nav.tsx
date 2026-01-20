@@ -2,7 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 import Link from "next/link";
-import Logo from "@/components/navbar-components/logo";
+import Logo from "@/components/logo";
 import RecentExecutions from "@/components/navbar-components/notification-menu";
 import UserMenu from "@/components/navbar-components/user-menu";
 import AutomationSelect from "@/components/navbar-components/automation-select";
@@ -24,7 +24,7 @@ import {
 
 export default async function Nav() {
   const user = await currentUser();
-  
+
   if (!user) {
     return null;
   }
@@ -71,7 +71,7 @@ export default async function Nav() {
     : user.username || user.emailAddresses[0]?.emailAddress || "Account";
 
   const userEmail = user.emailAddresses[0]?.emailAddress || "";
-  
+
   const hasPlan = dbUser.plan !== null;
   return (
     <header className="border-b px-4 md:px-6">
@@ -83,6 +83,7 @@ export default async function Nav() {
               <BreadcrumbItem>
                 <BreadcrumbLink className="text-foreground" href="#">
                   <Logo />
+
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator> / </BreadcrumbSeparator>
@@ -97,7 +98,7 @@ export default async function Nav() {
                       <a href="#">{userDisplayName}</a>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                    <Link href={"/automations"}>Automations</Link>
+                      <Link href={"/automations"}>Automations</Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -129,7 +130,7 @@ export default async function Nav() {
             </Button>
           )}
           {/* User menu */}
-          <UserMenu 
+          <UserMenu
             user={{
               id: user.id,
               firstName: user.firstName,

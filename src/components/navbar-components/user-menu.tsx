@@ -3,9 +3,12 @@
 import {
   BoltIcon,
   BookOpenIcon,
+  Globe,
   Layers2Icon,
   LogOutIcon,
+  PaperclipIcon,
   PinIcon,
+  User,
   UserPenIcon,
 } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
@@ -25,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PaperClipIcon } from "@heroicons/react/24/solid";
 
 interface UserMenuProps {
   user: {
@@ -39,18 +43,18 @@ interface UserMenuProps {
 
 export default function UserMenu({ user }: UserMenuProps) {
   const { signOut } = useClerk();
-  
+
   const displayName = user.firstName && user.lastName
     ? `${user.firstName} ${user.lastName}`
     : user.username || user.email || "User";
-  
+
   const initials = user.firstName && user.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`
     : user.username
-    ? user.username.slice(0, 2).toUpperCase()
-    : user.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "U";
+      ? user.username.slice(0, 2).toUpperCase()
+      : user.email
+        ? user.email.slice(0, 2).toUpperCase()
+        : "U";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -73,27 +77,16 @@ export default function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <BoltIcon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Option 1</span>
+            <User aria-hidden="true" className="opacity-60" size={16} />
+            <span>Account</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Layers2Icon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Option 2</span>
+            <PaperclipIcon aria-hidden="true" className="opacity-60" size={16} />
+            <span>Billing</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <BookOpenIcon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Option 3</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <PinIcon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Option 4</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <UserPenIcon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Option 5</span>
+            <Globe aria-hidden="true" className="opacity-60" size={16} />
+            <span>Plans</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

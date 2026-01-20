@@ -12,12 +12,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import UserMenu from "@/components/navbar-components/user-menu";
+import Logo from "./logo";
 
 // Navigation links array to be used in both desktop and mobile menus
 const navigationLinks = [
   { active: true, href: "/", label: "Home" },
   { href: "/", label: "Features" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/plans", label: "Plans" },
   // { href: "#", label: "About" },
 ];
 
@@ -27,6 +28,7 @@ export default async function HomeNav() {
     <header className="border-b px-4 md:px-6">
       <div className="flex h-16 items-center justify-between gap-4">
         {/* Left side */}
+
         <div className="flex items-center gap-2">
           {/* Mobile menu trigger */}
           <Popover>
@@ -83,9 +85,8 @@ export default async function HomeNav() {
           </Popover>
           {/* Main nav */}
           <div className="flex items-center gap-6">
-            {/* <a className="text-primary hover:text-primary/90" href="#">
-              <Logo />
-            </a> */}
+            <Logo />
+
             {/* Navigation menu */}
             <NavigationMenu className="max-md:hidden">
               <NavigationMenuList className="gap-2">
