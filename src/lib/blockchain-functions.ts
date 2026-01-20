@@ -119,7 +119,7 @@ export async function swapTokens(
     const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
     const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
     const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-    
+
     // Check current allowance
     const allowance = await tokenContract.allowance(wallet.address, contractAddr);
     if (allowance < amountIn) {
@@ -198,7 +198,7 @@ export async function swapTokensForPLS(
     const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
     const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
     const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-    
+
     // Check current allowance
     const allowance = await tokenContract.allowance(wallet.address, contractAddr);
     if (allowance < amountIn) {
@@ -507,12 +507,20 @@ export async function burnTokens(
     throw new Error("Token is not a playground token");
   }
 
-  // Approve token first
+  // Get parent token and approve it (contract transfers parent tokens, not playground tokens)
   const provider = getProvider();
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
-  const tokenContract = new Contract(token, erc20ABI, connectedWallet);
+  const playgroundToken = new Contract(token, playgroundTokenABI, provider);
+  const parentTokenAddress = await playgroundToken.parent();
+
+  const parentTokenContract = new Contract(parentTokenAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await tokenContract.approve(contractAddr, amount);
+
+  const allowance = await parentTokenContract.allowance(wallet.address, contractAddr);
+  if (allowance < amount) {
+    const approveTx = await parentTokenContract.approve(contractAddr, amount);
+    await approveTx.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.burnToken(
     token,
@@ -543,6 +551,18 @@ export async function claimTokens(
   const isPlayground = await checkIsPlaygroundToken(token);
   if (!isPlayground) {
     throw new Error("Token is not a playground token");
+  }
+
+  // Approve playground token first
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+  const tokenContract = new Contract(token, erc20ABI, connectedWallet);
+  const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
+
+  const allowance = await tokenContract.allowance(wallet.address, contractAddr);
+  if (allowance < amount) {
+    const approveTx = await tokenContract.approve(contractAddr, amount);
+    await approveTx.wait();
   }
 
   const tx: ContractTransactionResponse = await contract.claimToken(
@@ -649,11 +669,11 @@ async function extractSwapOutput(
     // Use ERC20 Transfer event to detect output amount
     // Transfer event: Transfer(address indexed from, address indexed to, uint256 value)
     const erc20Interface = new Contract(tokenOut, erc20ABI, provider).interface;
-    
+
     for (const log of receipt.logs) {
       // Only check logs from the output token contract
       if (log.address.toLowerCase() !== tokenOut.toLowerCase()) continue;
-      
+
       try {
         const parsed = erc20Interface.parseLog({
           topics: log.topics as string[],
@@ -663,7 +683,7 @@ async function extractSwapOutput(
         if (parsed && parsed.name === 'Transfer') {
           const to = parsed.args.to as string;
           const value = parsed.args.value as bigint;
-          
+
           // Check if this transfer is TO the recipient (automation wallet or specified address)
           if (to.toLowerCase() === recipientAddress.toLowerCase()) {
             return { amountOut: value, tokenOut, gasPrice, gasUsed };
@@ -1228,8 +1248,8 @@ export async function executeNode(
     case "loop":
       // Loop node - signals automation runner to restart from beginning
       const loopCount = Math.min(3, Math.max(1, parseInt(nodeData.loopCount) || 1));
-      const loopOutput = { 
-        loopCount, 
+      const loopOutput = {
+        loopCount,
         shouldLoop: true,
         currentIteration: (context as any).currentIteration || 0,
       };
@@ -1246,7 +1266,7 @@ export async function executeNode(
     case "gasGuard":
       // Gas Guard - checks if previous transaction's gas price exceeded threshold
       const maxGasGwei = parseFloat(nodeData.maxGasPrice) || 100;
-      
+
       // Get previous node's output which should contain gasPrice
       if (!context.previousNodeId) {
         throw new Error("Gas Guard: No previous node to check gas from");
@@ -1265,8 +1285,8 @@ export async function executeNode(
         throw new Error(`Gas Guard stopped automation: Gas price was ${gasPriceGwei.toFixed(2)} gwei, threshold was ${maxGasGwei} gwei`);
       }
 
-      const gasGuardOutput = { 
-        passed: true, 
+      const gasGuardOutput = {
+        passed: true,
         gasPriceGwei,
         threshold: maxGasGwei,
       };
