@@ -23,11 +23,8 @@ export type NodeType =
   | 'burnToken'
   | 'claimToken'
   | 'wait'
-  | 'getTokenPrice'
   | 'loop'
-  | 'gasGuard'
-  | 'failureHandle'
-  | 'windowedExecution';
+  | 'gasGuard';
 
 interface NodeColorClasses {
   background: string;
@@ -53,11 +50,8 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   burnToken: { background: 'bg-fuchsia-600/20', text: 'text-fuchsia-600' },
   claimToken: { background: 'bg-indigo-500/20', text: 'text-indigo-500' },
   wait: { background: 'bg-blue-500/20', text: 'text-blue-500' },
-  getTokenPrice: { background: 'bg-violet-500/20', text: 'text-violet-500' },
   loop: { background: 'bg-violet-400/20', text: 'text-violet-400' },
   gasGuard: { background: 'bg-purple-500/20', text: 'text-purple-500' },
-  failureHandle: { background: 'bg-fuchsia-600/20', text: 'text-fuchsia-600' },
-  windowedExecution: { background: 'bg-blue-600/20', text: 'text-blue-600' },
 };
 
 /**

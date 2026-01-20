@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
+import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 import type { Node, Edge } from "@xyflow/react";
 
 export async function createAutomation(name: string) {
@@ -36,6 +37,24 @@ export async function createAutomation(name: string) {
       return {
         success: false,
         error: "You need to upgrade to a plan to create automations.",
+      };
+    }
+
+    // Check automation limit
+    const currentCount = await prisma.automation.count({
+      where: { userId: dbUser.id },
+    });
+
+    const planLimit = getPlanLimit(dbUser.plan);
+    
+    if (!canCreateAutomation(currentCount, dbUser.plan)) {
+      const limitMessage = planLimit === null 
+        ? "You've reached your automation limit."
+        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? 's' : ''}. Upgrade to create more.`;
+      
+      return {
+        success: false,
+        error: limitMessage,
       };
     }
 

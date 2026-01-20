@@ -5,11 +5,9 @@ import {
   ReactFlow,
   applyNodeChanges,
   applyEdgeChanges,
-  addEdge,
   Background,
   type OnNodesChange,
   type OnEdgesChange,
-  type OnConnect,
   type Node,
   type Edge,
   type NodeTypes,
@@ -34,16 +32,23 @@ import {
   BurnTokenNode,
   ClaimTokenNode,
   WaitNode,
-  GetTokenPriceNode,
   LoopNode,
   GasGuardNode,
-  FailureHandleNode,
-  WindowedExecutionNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
 import { updateAutomationDefinition } from '@/lib/actions/automations';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ArrowPathIcon, PlayIcon, StopIcon, Cog6ToothIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
 import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
@@ -80,11 +85,8 @@ const nodeTypes: NodeTypes = {
   burnToken: withStatusIndicator(BurnTokenNode),
   claimToken: withStatusIndicator(ClaimTokenNode),
   wait: withStatusIndicator(WaitNode),
-  getTokenPrice: withStatusIndicator(GetTokenPriceNode),
   loop: withStatusIndicator(LoopNode),
   gasGuard: withStatusIndicator(GasGuardNode),
-  failureHandle: withStatusIndicator(FailureHandleNode),
-  windowedExecution: withStatusIndicator(WindowedExecutionNode),
 };
 
 const defaultStartNode: Node[] = [
@@ -149,6 +151,9 @@ export function AutomationFlow({
   const [currentRpcEndpoint, setCurrentRpcEndpoint] = useState(rpcEndpoint || PULSECHAIN_RPC);
   const [currentName, setCurrentName] = useState(automationName);
   const [currentDefaultSlippage, setCurrentDefaultSlippage] = useState(defaultSlippage);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [nodeToDelete, setNodeToDelete] = useState<string | null>(null);
+  const [nodesToDeleteCount, setNodesToDeleteCount] = useState(0);
 
   // Fetch PLS balance
   const fetchBalance = useCallback(async (isRefresh = false) => {
@@ -300,11 +305,6 @@ export function AutomationFlow({
     [],
   );
 
-  const onConnect: OnConnect = useCallback(
-    (params) => setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
-    [],
-  );
-
   const handleOpenDialog = useCallback((nodeId: string) => {
     setSourceNodeId(nodeId);
     setDialogOpen(true);
@@ -359,21 +359,57 @@ export function AutomationFlow({
     );
   }, []);
 
-  const handleDeleteNode = useCallback((nodeId: string) => {
-    // Remove the node
-    setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeId));
+  // Get all nodes that come after a given node in the chain
+  const getNodesAfter = useCallback((nodeId: string): string[] => {
+    const result: string[] = [];
+    let currentId = nodeId;
     
-    // Remove all edges connected to this node
+    while (currentId) {
+      const outgoingEdge = edges.find((e) => e.source === currentId);
+      if (outgoingEdge) {
+        result.push(outgoingEdge.target);
+        currentId = outgoingEdge.target;
+      } else {
+        break;
+      }
+    }
+    
+    return result;
+  }, [edges]);
+
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    const nodesAfter = getNodesAfter(nodeId);
+    setNodeToDelete(nodeId);
+    setNodesToDeleteCount(nodesAfter.length + 1); // +1 for the node itself
+    setDeleteDialogOpen(true);
+  }, [getNodesAfter]);
+
+  const confirmDeleteNode = useCallback(() => {
+    if (!nodeToDelete) return;
+
+    // Get all nodes to delete (the node + all nodes after it)
+    const nodesAfter = getNodesAfter(nodeToDelete);
+    const nodeIdsToDelete = new Set([nodeToDelete, ...nodesAfter]);
+
+    // Remove all nodes
+    setNodes((prevNodes) => prevNodes.filter((node) => !nodeIdsToDelete.has(node.id)));
+    
+    // Remove all edges connected to deleted nodes
     setEdges((prevEdges) =>
-      prevEdges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+      prevEdges.filter((edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target))
     );
     
-    // Close the config sheet if it's open for this node
-    if (selectedNodeId === nodeId) {
+    // Close the config sheet if it's open for a deleted node
+    if (selectedNodeId && nodeIdsToDelete.has(selectedNodeId)) {
       setConfigSheetOpen(false);
       setSelectedNodeId(null);
     }
-  }, [selectedNodeId]);
+
+    // Reset dialog state
+    setDeleteDialogOpen(false);
+    setNodeToDelete(null);
+    setNodesToDeleteCount(0);
+  }, [nodeToDelete, getNodesAfter, selectedNodeId]);
 
   const handleStart = useCallback(async () => {
     setIsRunning(true);
@@ -482,6 +518,48 @@ export function AutomationFlow({
     window.location.reload();
   }, []);
 
+  const handleReset = useCallback(() => {
+    // Keep only the start node(s)
+    const startNodes = nodes.filter((node) => node.type === 'start');
+    
+    // If no start node exists, create a default one
+    if (startNodes.length === 0) {
+      setNodes(defaultStartNode);
+    } else {
+      // Keep only the first start node (or all if multiple exist)
+      setNodes(startNodes.length === 1 ? startNodes : [startNodes[0]]);
+    }
+    
+    // Clear all edges
+    setEdges([]);
+    
+    // Close config sheet if open
+    setConfigSheetOpen(false);
+    setSelectedNodeId(null);
+    
+    toast.success('Automation reset - all nodes except start node removed');
+  }, [nodes]);
+
+  const handleDelete = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/automations/${automationId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to delete automation');
+        return;
+      }
+
+      toast.success('Automation deleted successfully');
+      // Redirect to automations list
+      window.location.href = '/automations';
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete automation');
+    }
+  }, [automationId]);
+
   return (
     <div className="w-full h-screen dark relative">
       <ReactFlow
@@ -490,7 +568,7 @@ export function AutomationFlow({
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        nodesConnectable={false}
         fitView
       >
         <Background />
@@ -574,7 +652,28 @@ export function AutomationFlow({
         initialShowNodeLabels={showNodeLabels}
         userPlan={userPlan}
         onSettingsUpdate={handleSettingsUpdate}
+        onReset={handleReset}
+        onDelete={handleDelete}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Node</AlertDialogTitle>
+            <AlertDialogDescription>
+              {nodesToDeleteCount > 1
+                ? `This will delete this node and ${nodesToDeleteCount - 1} node${nodesToDeleteCount - 1 === 1 ? '' : 's'} that come after it. This action cannot be undone.`
+                : 'This will delete this node. This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteNode} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {/* Player Controls - Bottom Center */}
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">

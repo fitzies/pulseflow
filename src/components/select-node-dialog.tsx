@@ -3,7 +3,6 @@
 import {
   ArrowsRightLeftIcon,
   PaperAirplaneIcon,
-  ArrowTrendingUpIcon,
   BeakerIcon,
   WalletIcon,
   CurrencyDollarIcon,
@@ -13,8 +12,6 @@ import {
   ChartBarIcon,
   ArrowPathIcon,
   ShieldCheckIcon,
-  ExclamationCircleIcon,
-  CalendarIcon,
 } from '@heroicons/react/24/solid';
 import {
   CommandDialog,
@@ -44,11 +41,8 @@ export type NodeType =
   | 'burnToken'
   | 'claimToken'
   | 'wait'
-  | 'getTokenPrice'
   | 'loop'
-  | 'gasGuard'
-  | 'failureHandle'
-  | 'windowedExecution';
+  | 'gasGuard';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -183,18 +177,9 @@ const nodeTypes: NodeTypeOption[] = [
     requiresPlan: 'PRO',
   },
   {
-    type: 'getTokenPrice',
-    label: 'Get Token Price',
-    description: 'Get token price from DEX',
-    icon: ArrowTrendingUpIcon,
-    iconBg: getNodeBackgroundColor('getTokenPrice'),
-    iconColor: getNodeTextColor('getTokenPrice'),
-    requiresPlan: 'PRO',
-  },
-  {
     type: 'loop',
     label: 'Loop',
-    description: 'Loop automation',
+    description: 'Restart automation (1-3 times)',
     icon: ArrowPathIcon,
     iconBg: getNodeBackgroundColor('loop'),
     iconColor: getNodeTextColor('loop'),
@@ -203,28 +188,10 @@ const nodeTypes: NodeTypeOption[] = [
   {
     type: 'gasGuard',
     label: 'Gas Guard',
-    description: 'Stop if gas too high',
+    description: 'Stop if gas price too high',
     icon: ShieldCheckIcon,
     iconBg: getNodeBackgroundColor('gasGuard'),
     iconColor: getNodeTextColor('gasGuard'),
-    requiresPlan: 'PRO',
-  },
-  {
-    type: 'failureHandle',
-    label: 'Failure Handle',
-    description: 'Route on failure',
-    icon: ExclamationCircleIcon,
-    iconBg: getNodeBackgroundColor('failureHandle'),
-    iconColor: getNodeTextColor('failureHandle'),
-    requiresPlan: 'PRO',
-  },
-  {
-    type: 'windowedExecution',
-    label: 'Windowed Execution',
-    description: 'Execute within time window',
-    icon: CalendarIcon,
-    iconBg: getNodeBackgroundColor('windowedExecution'),
-    iconColor: getNodeTextColor('windowedExecution'),
     requiresPlan: 'PRO',
   },
 ];
@@ -244,11 +211,11 @@ const nodeGroups = {
   ),
   transfers: nodeTypes.filter((n) => n.type === 'transfer' || n.type === 'transferPLS'),
   checks: nodeTypes.filter((n) =>
-    ['checkBalance', 'checkTokenBalance', 'checkLPTokenAmounts', 'getTokenPrice'].includes(n.type)
+    ['checkBalance', 'checkTokenBalance', 'checkLPTokenAmounts'].includes(n.type)
   ),
   tokenOperations: nodeTypes.filter((n) => ['burnToken', 'claimToken'].includes(n.type)),
   controlFlow: nodeTypes.filter((n) =>
-    ['wait', 'loop', 'gasGuard', 'failureHandle', 'windowedExecution'].includes(n.type)
+    ['wait', 'loop', 'gasGuard'].includes(n.type)
   ),
 };
 

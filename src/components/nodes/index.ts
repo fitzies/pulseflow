@@ -15,8 +15,5 @@ export { CheckLPTokenAmountsNode } from './check-lp-token-amounts-node';
 export { BurnTokenNode } from './burn-token-node';
 export { ClaimTokenNode } from './claim-token-node';
 export { WaitNode } from './wait-node';
-export { GetTokenPriceNode } from './get-token-price-node';
 export { LoopNode } from './loop-node';
 export { GasGuardNode } from './gas-guard-node';
-export { FailureHandleNode } from './failure-handle-node';
-export { WindowedExecutionNode } from './windowed-execution-node';

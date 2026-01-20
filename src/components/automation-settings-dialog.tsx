@@ -36,6 +36,8 @@ interface AutomationSettingsDialogProps {
   initialShowNodeLabels: boolean;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
   onSettingsUpdate?: () => void;
+  onReset?: () => void;
+  onDelete?: () => void;
 }
 
 export function AutomationSettingsDialog({
@@ -48,6 +50,8 @@ export function AutomationSettingsDialog({
   initialShowNodeLabels,
   userPlan,
   onSettingsUpdate,
+  onReset,
+  onDelete,
 }: AutomationSettingsDialogProps) {
   const [name, setName] = useState(initialName);
   const [defaultSlippage, setDefaultSlippage] = useState(initialDefaultSlippage);
@@ -57,6 +61,8 @@ export function AutomationSettingsDialog({
   const [showPrivateKeyDialog, setShowPrivateKeyDialog] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [isLoadingPrivateKey, setIsLoadingPrivateKey] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -168,9 +174,9 @@ export function AutomationSettingsDialog({
                 disabled={!isProUser}
               />
               {!isProUser && (
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   Upgrade to PRO to use custom RPC endpoints
-                </p>
+                </div>
               )}
             </div>
 
@@ -180,9 +186,9 @@ export function AutomationSettingsDialog({
                 <label htmlFor="showNodeLabels" className="text-sm font-medium">
                   Show Node Labels
                 </label>
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   Toggle visibility of node names in the flow
-                </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -224,8 +230,8 @@ export function AutomationSettingsDialog({
               </Button>
               {privateKey && (
                 <div className="mt-2 p-3 bg-muted rounded-md">
-                  <p className="text-xs text-muted-foreground mb-1">Private Key:</p>
-                  <p className="text-xs font-mono break-all">{privateKey}</p>
+                  <div className="text-xs text-muted-foreground mb-1">Private Key:</div>
+                  <div className="text-xs font-mono break-all">{privateKey}</div>
                   <Button
                     type="button"
                     variant="ghost"
@@ -240,6 +246,29 @@ export function AutomationSettingsDialog({
                   </Button>
                 </div>
               )}
+            </div>
+
+            {/* Reset Automation */}
+            <div className="space-y-2 border-t pt-4">
+              <label className="text-sm font-medium text-destructive">Danger Zone</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setShowResetDialog(true)}
+                  className="flex-1"
+                >
+                  Reset Automation
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="flex-1"
+                >
+                  Delete Automation
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -273,6 +302,61 @@ export function AutomationSettingsDialog({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isLoadingPrivateKey ? 'Loading...' : 'Yes, Reveal Private Key'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Automation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete all nodes except the start node. All your automation configuration
+              will be lost. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onReset?.();
+                setShowResetDialog(false);
+                onOpenChange(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Reset Automation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Automation?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <div>
+                This will permanently delete this automation and all its data. This action cannot be undone.
+              </div>
+              <div className="font-semibold text-destructive">
+                ⚠️ Make sure there are no funds in the automation wallet before proceeding.
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onDelete?.();
+                setShowDeleteDialog(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Delete Automation
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

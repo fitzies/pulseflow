@@ -623,32 +623,6 @@ export function NodeConfigSheet({
     </div>
   );
 
-  const renderGetTokenPriceConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="pairAddress" className="text-sm font-medium">Pair Address (Optional)</label>
-        <Input
-          id="pairAddress"
-          type="text"
-          placeholder="0x..."
-          value={formData.pairAddress || ''}
-          onChange={(e) => updateField('pairAddress', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Optional: Specify pair address. If not provided, will be auto-detected.</p>
-      </div>
-    </div>
-  );
-
   const renderLoopConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <div className="grid gap-3">
@@ -657,21 +631,12 @@ export function NodeConfigSheet({
           id="loopCount"
           type="number"
           placeholder="1"
+          min={1}
+          max={3}
           value={formData.loopCount || ''}
-          onChange={(e) => updateField('loopCount', e.target.value)}
+          onChange={(e) => updateField('loopCount', Math.min(3, Math.max(1, parseInt(e.target.value) || 1)))}
         />
-        <p className="text-xs text-muted-foreground">Number of times to loop. Leave empty for infinite loop (use with caution).</p>
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="targetNodeId" className="text-sm font-medium">Target Node ID (Optional)</label>
-        <Input
-          id="targetNodeId"
-          type="text"
-          placeholder="start-1"
-          value={formData.targetNodeId || ''}
-          onChange={(e) => updateField('targetNodeId', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Node ID to loop back to. If not specified, loops to start node.</p>
+        <p className="text-xs text-muted-foreground">Number of times to restart the automation (1-3). Loops back to start node.</p>
       </div>
     </div>
   );
@@ -688,71 +653,6 @@ export function NodeConfigSheet({
           onChange={(e) => updateField('maxGasPrice', e.target.value)}
         />
         <p className="text-xs text-muted-foreground">Maximum gas price in Gwei. Automation will stop if gas exceeds this value.</p>
-      </div>
-    </div>
-  );
-
-  const renderFailureHandleConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="fallbackNodeId" className="text-sm font-medium">Fallback Node ID</label>
-        <Input
-          id="fallbackNodeId"
-          type="text"
-          placeholder="node-id"
-          value={formData.fallbackNodeId || ''}
-          onChange={(e) => updateField('fallbackNodeId', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Node ID to route to if the previous node fails or reverts.</p>
-      </div>
-    </div>
-  );
-
-  const renderWindowedExecutionConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="startTimestamp" className="text-sm font-medium">Start Timestamp</label>
-        <Input
-          id="startTimestamp"
-          type="number"
-          placeholder="1234567890"
-          value={formData.startTimestamp || ''}
-          onChange={(e) => updateField('startTimestamp', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Unix timestamp when execution window starts. Leave empty to use start block instead.</p>
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="endTimestamp" className="text-sm font-medium">End Timestamp</label>
-        <Input
-          id="endTimestamp"
-          type="number"
-          placeholder="1234567890"
-          value={formData.endTimestamp || ''}
-          onChange={(e) => updateField('endTimestamp', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Unix timestamp when execution window ends. Leave empty to use end block instead.</p>
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="startBlock" className="text-sm font-medium">Start Block (Optional)</label>
-        <Input
-          id="startBlock"
-          type="number"
-          placeholder="1000000"
-          value={formData.startBlock || ''}
-          onChange={(e) => updateField('startBlock', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Block number when execution window starts. Used if start timestamp is not provided.</p>
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="endBlock" className="text-sm font-medium">End Block (Optional)</label>
-        <Input
-          id="endBlock"
-          type="number"
-          placeholder="1000000"
-          value={formData.endBlock || ''}
-          onChange={(e) => updateField('endBlock', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">Block number when execution window ends. Used if end timestamp is not provided.</p>
       </div>
     </div>
   );
@@ -787,16 +687,10 @@ export function NodeConfigSheet({
         return renderWaitConfig();
       case 'checkTokenBalance':
         return renderCheckTokenBalanceConfig();
-      case 'getTokenPrice':
-        return renderGetTokenPriceConfig();
       case 'loop':
         return renderLoopConfig();
       case 'gasGuard':
         return renderGasGuardConfig();
-      case 'failureHandle':
-        return renderFailureHandleConfig();
-      case 'windowedExecution':
-        return renderWindowedExecutionConfig();
       case 'checkBalance':
       default:
         return (

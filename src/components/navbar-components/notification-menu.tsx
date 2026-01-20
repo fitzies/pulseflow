@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CommandLineIcon } from "@heroicons/react/24/solid";
 
 type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED";
 
@@ -325,7 +326,7 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
             size="icon"
             variant="ghost"
           >
-            <ActivityIcon aria-hidden="true" size={16} />
+            <CommandLineIcon aria-hidden="true" className={`h-8 w-8`} />
             {runningCount > 0 && (
               <div
                 aria-hidden="true"

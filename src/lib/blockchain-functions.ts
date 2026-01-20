@@ -618,17 +618,32 @@ async function resolveAmountField(
 }
 
 /**
+ * Extract gas price from transaction receipt
+ * Returns the effective gas price in wei
+ */
+function extractGasPrice(receipt: ContractTransactionReceipt): bigint {
+  // Try to get effectiveGasPrice first (EIP-1559), fallback to gasPrice
+  if (receipt.gasPrice !== null && receipt.gasPrice !== undefined) {
+    return receipt.gasPrice;
+  }
+  return BigInt(0);
+}
+
+/**
  * Extract output from swap transaction using ERC20 Transfer events
+ * Includes gas price for Gas Guard node
  */
 async function extractSwapOutput(
   receipt: ContractTransactionReceipt,
   path: string[],
   provider: JsonRpcProvider,
   recipientAddress: string
-): Promise<{ amountOut: bigint; tokenOut: string } | null> {
+): Promise<{ amountOut: bigint; tokenOut: string; gasPrice: bigint; gasUsed: bigint } | null> {
   if (!path || path.length === 0) return null;
 
   const tokenOut = path[path.length - 1];
+  const gasPrice = extractGasPrice(receipt);
+  const gasUsed = receipt.gasUsed || BigInt(0);
 
   try {
     // Use ERC20 Transfer event to detect output amount
@@ -651,7 +666,7 @@ async function extractSwapOutput(
           
           // Check if this transfer is TO the recipient (automation wallet or specified address)
           if (to.toLowerCase() === recipientAddress.toLowerCase()) {
-            return { amountOut: value, tokenOut };
+            return { amountOut: value, tokenOut, gasPrice, gasUsed };
           }
         }
       } catch {
@@ -667,6 +682,18 @@ async function extractSwapOutput(
   return {
     amountOut: BigInt(0),
     tokenOut,
+    gasPrice,
+    gasUsed,
+  };
+}
+
+/**
+ * Create transaction output with gas price for Gas Guard
+ */
+function createTxOutput(receipt: ContractTransactionReceipt): { gasPrice: bigint; gasUsed: bigint } {
+  return {
+    gasPrice: extractGasPrice(receipt),
+    gasUsed: receipt.gasUsed || BigInt(0),
   };
 }
 
@@ -778,8 +805,9 @@ export async function executeNode(
           contractAddress
         );
 
-        // Extract output (liquidity, amounts)
-        const outputAddLP = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLP);
+        // Extract output (liquidity, amounts) with gas price for Gas Guard
+        const baseOutputAddLP = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLP);
+        const outputAddLP = { ...baseOutputAddLP, ...createTxOutput(receiptAddLP) };
         const updatedContextAddLP = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLP);
 
         return { result: receiptAddLP, context: updatedContextAddLP };
@@ -827,8 +855,9 @@ export async function executeNode(
           contractAddress
         );
 
-        // Extract output
-        const outputAddLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidity);
+        // Extract output with gas price for Gas Guard
+        const baseOutputAddLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidity);
+        const outputAddLiquidity = { ...baseOutputAddLiquidity, ...createTxOutput(receiptAddLiquidity) };
         const updatedContextAddLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidity);
 
         return { result: receiptAddLiquidity, context: updatedContextAddLiquidity };
@@ -854,8 +883,9 @@ export async function executeNode(
         contractAddress
       );
 
-      // Extract output
-      const outputAddLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidityPLS);
+      // Extract output with gas price for Gas Guard
+      const baseOutputAddLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidityPLS);
+      const outputAddLiquidityPLS = { ...baseOutputAddLiquidityPLS, ...createTxOutput(receiptAddLiquidityPLS) };
       const updatedContextAddLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidityPLS);
 
       return { result: receiptAddLiquidityPLS, context: updatedContextAddLiquidityPLS };
@@ -989,8 +1019,9 @@ export async function executeNode(
         contractAddress
       );
 
-      // Extract output
-      const outputRemoveLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidity);
+      // Extract output with gas price for Gas Guard
+      const baseOutputRemoveLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidity);
+      const outputRemoveLiquidity = { ...baseOutputRemoveLiquidity, ...createTxOutput(receiptRemoveLiquidity) };
       const updatedContextRemoveLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidity);
 
       return { result: receiptRemoveLiquidity, context: updatedContextRemoveLiquidity };
@@ -1048,8 +1079,9 @@ export async function executeNode(
         contractAddress
       );
 
-      // Extract output
-      const outputRemoveLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidityPLS);
+      // Extract output with gas price for Gas Guard
+      const baseOutputRemoveLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidityPLS);
+      const outputRemoveLiquidityPLS = { ...baseOutputRemoveLiquidityPLS, ...createTxOutput(receiptRemoveLiquidityPLS) };
       const updatedContextRemoveLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidityPLS);
 
       return { result: receiptRemoveLiquidityPLS, context: updatedContextRemoveLiquidityPLS };
@@ -1064,8 +1096,9 @@ export async function executeNode(
         contractAddress
       );
 
-      // Transfer has no meaningful output
-      const updatedContextTransfer = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
+      // Include gas price for Gas Guard
+      const outputTransfer = createTxOutput(receiptTransfer);
+      const updatedContextTransfer = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputTransfer);
 
       return { result: receiptTransfer, context: updatedContextTransfer };
 
@@ -1078,8 +1111,9 @@ export async function executeNode(
         contractAddress
       );
 
-      // Transfer PLS has no meaningful output
-      const updatedContextTransferPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
+      // Include gas price for Gas Guard
+      const outputTransferPLS = createTxOutput(receiptTransferPLS);
+      const updatedContextTransferPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputTransferPLS);
 
       return { result: receiptTransferPLS, context: updatedContextTransferPLS };
 
@@ -1093,7 +1127,8 @@ export async function executeNode(
         contractAddress
       );
 
-      const updatedContextBurn = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
+      const outputBurn = createTxOutput(receiptBurn);
+      const updatedContextBurn = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputBurn);
 
       return { result: receiptBurn, context: updatedContextBurn };
 
@@ -1107,7 +1142,8 @@ export async function executeNode(
         contractAddress
       );
 
-      const updatedContextClaim = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, null);
+      const outputClaim = createTxOutput(receiptClaim);
+      const updatedContextClaim = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputClaim);
 
       return { result: receiptClaim, context: updatedContextClaim };
 
@@ -1188,6 +1224,61 @@ export async function executeNode(
       );
 
       return { result: { delaySeconds }, context: updatedContextWait };
+
+    case "loop":
+      // Loop node - signals automation runner to restart from beginning
+      const loopCount = Math.min(3, Math.max(1, parseInt(nodeData.loopCount) || 1));
+      const loopOutput = { 
+        loopCount, 
+        shouldLoop: true,
+        currentIteration: (context as any).currentIteration || 0,
+      };
+
+      const updatedContextLoop = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        loopOutput
+      );
+
+      return { result: loopOutput, context: updatedContextLoop };
+
+    case "gasGuard":
+      // Gas Guard - checks if previous transaction's gas price exceeded threshold
+      const maxGasGwei = parseFloat(nodeData.maxGasPrice) || 100;
+      
+      // Get previous node's output which should contain gasPrice
+      if (!context.previousNodeId) {
+        throw new Error("Gas Guard: No previous node to check gas from");
+      }
+
+      const prevOutput = context.nodeOutputs.get(context.previousNodeId);
+      if (!prevOutput || prevOutput.gasPrice === undefined) {
+        throw new Error("Gas Guard: Previous node did not produce a transaction with gas price data");
+      }
+
+      // gasPrice is in wei, convert to gwei
+      const gasPriceWei = BigInt(prevOutput.gasPrice);
+      const gasPriceGwei = Number(gasPriceWei) / 1e9;
+
+      if (gasPriceGwei > maxGasGwei) {
+        throw new Error(`Gas Guard stopped automation: Gas price was ${gasPriceGwei.toFixed(2)} gwei, threshold was ${maxGasGwei} gwei`);
+      }
+
+      const gasGuardOutput = { 
+        passed: true, 
+        gasPriceGwei,
+        threshold: maxGasGwei,
+      };
+
+      const updatedContextGasGuard = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        gasGuardOutput
+      );
+
+      return { result: gasGuardOutput, context: updatedContextGasGuard };
 
     default:
       throw new Error(`Unknown node type: ${nodeType}`);

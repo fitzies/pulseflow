@@ -10,6 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
+import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 
 export default async function Page() {
   const user = await currentUser();
@@ -50,6 +51,11 @@ export default async function Page() {
     },
   });
 
+  // Get plan limit and check if user can create more
+  const currentCount = automations.length;
+  const planLimit = getPlanLimit(dbUser.plan);
+  const canCreateMore = canCreateAutomation(currentCount, dbUser.plan);
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header with Create Button */}
@@ -60,7 +66,12 @@ export default async function Page() {
             Manage your automated automations
           </p>
         </div>
-        <CreateAutomationDialog hasPlan={hasPlan} />
+        <CreateAutomationDialog 
+          hasPlan={hasPlan} 
+          canCreateMore={canCreateMore}
+          currentCount={currentCount}
+          limit={planLimit}
+        />
       </div>
 
       {/* Empty State */}
@@ -74,7 +85,13 @@ export default async function Page() {
                 : "Upgrade to a plan to create automations."}
             </p>
             {hasPlan && (
-              <CreateAutomationDialog hasPlan={hasPlan} buttonText="Create Your First Automation" />
+              <CreateAutomationDialog 
+                hasPlan={hasPlan} 
+                buttonText="Create Your First Automation"
+                canCreateMore={canCreateMore}
+                currentCount={currentCount}
+                limit={planLimit}
+              />
             )}
             {!hasPlan && (
               <Button asChild variant="default">
@@ -140,15 +157,28 @@ export default async function Page() {
         </div>
       )}
 
-      {/* Plan requirement message when button is disabled */}
-      {!hasPlan && automations.length > 0 && (
+      {/* Plan requirement or limit reached message */}
+      {automations.length > 0 && (
         <div className="mt-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
-          <p className="text-sm text-yellow-600 dark:text-yellow-400">
-            Upgrade to a plan to create new automations.
-            <Link href="/plans" className="ml-1 underline">
-              View plans
-            </Link>
-          </p>
+          {!hasPlan ? (
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              Upgrade to a plan to create new automations.
+              <Link href="/plans" className="ml-1 underline">
+                View plans
+              </Link>
+            </p>
+          ) : !canCreateMore && planLimit !== null ? (
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              You've reached your plan limit of {planLimit} automation{planLimit !== 1 ? 's' : ''}. 
+              <Link href="/plans" className="ml-1 underline">
+                Upgrade to create more
+              </Link>
+            </p>
+          ) : planLimit !== null && (
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+              You're using {currentCount} of {planLimit} automation{planLimit !== 1 ? 's' : ''} on your {dbUser.plan} plan.
+            </p>
+          )}
         </div>
       )}
     </div>

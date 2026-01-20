@@ -17,6 +17,7 @@ export type ProgressCallback = (event: ProgressEvent) => void;
 /**
  * Execute an automation chain of nodes sequentially
  * Passes execution context between nodes for variable resolution
+ * Supports loop nodes that restart the chain from the beginning
  */
 export async function executeAutomationChain(
   automationId: string,
@@ -28,74 +29,96 @@ export async function executeAutomationChain(
   // Build execution order from edges (topological sort)
   const executionOrder = getExecutionOrder(nodes, edges);
   
-  // Initialize context
+  // Initialize context with loop tracking
   let context = createExecutionContext();
+  (context as any).currentIteration = 0;
   
-  const results: Array<{ nodeId: string; result: any }> = [];
+  const allResults: Array<{ nodeId: string; result: any }> = [];
+  let maxLoopCount = 1;
+  let currentIteration = 0;
   
-  // Execute each node in order
-  for (const nodeId of executionOrder) {
-    const node = nodes.find((n) => n.id === nodeId);
-    if (!node || !node.type || node.type === 'start') {
-      continue; // Skip start nodes and invalid nodes
+  // Execute with loop support
+  do {
+    currentIteration++;
+    (context as any).currentIteration = currentIteration;
+    
+    // Reset context outputs for new iteration (keep iteration count)
+    if (currentIteration > 1) {
+      context.nodeOutputs = new Map();
+      context.previousNodeId = null;
+      context.previousNodeType = null;
     }
     
-    const nodeData = {
-      ...(node.data?.config || {}),
-      nodeId: node.id,
-    };
-    
-    // Notify: node starting
-    onProgress?.({
-      type: 'node_start',
-      nodeId: node.id,
-      nodeType: node.type,
-    });
-    
-    try {
-      // Execute node with current context
-      const { result, context: updatedContext } = await executeNode(
-        automationId,
-        node.type,
-        nodeData,
-        context,
-        contractAddress
-      );
+    // Execute each node in order
+    for (const nodeId of executionOrder) {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node || !node.type || node.type === 'start') {
+        continue; // Skip start nodes and invalid nodes
+      }
       
-      // Update context for next node
-      context = updatedContext;
-      
-      results.push({
+      const nodeData = {
+        ...(node.data?.config || {}),
         nodeId: node.id,
-        result,
-      });
+      };
       
-      // Notify: node completed
+      // Notify: node starting
       onProgress?.({
-        type: 'node_complete',
+        type: 'node_start',
         nodeId: node.id,
         nodeType: node.type,
-        data: result,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Notify: node error
-      onProgress?.({
-        type: 'node_error',
-        nodeId: node.id,
-        nodeType: node.type,
-        error: errorMessage,
+        data: currentIteration > 1 ? { iteration: currentIteration } : undefined,
       });
       
-      // If a node fails, stop execution
-      throw new Error(
-        `Node ${nodeId} (${node.type}) failed: ${errorMessage}`
-      );
+      try {
+        // Execute node with current context
+        const { result, context: updatedContext } = await executeNode(
+          automationId,
+          node.type,
+          nodeData,
+          context,
+          contractAddress
+        );
+        
+        // Update context for next node
+        context = updatedContext;
+        
+        // Track loop configuration if this is a loop node
+        if (node.type === 'loop' && result?.loopCount) {
+          maxLoopCount = Math.min(3, Math.max(1, result.loopCount));
+        }
+        
+        allResults.push({
+          nodeId: node.id,
+          result: { ...result, iteration: currentIteration },
+        });
+        
+        // Notify: node completed
+        onProgress?.({
+          type: 'node_complete',
+          nodeId: node.id,
+          nodeType: node.type,
+          data: { ...result, iteration: currentIteration },
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Notify: node error
+        onProgress?.({
+          type: 'node_error',
+          nodeId: node.id,
+          nodeType: node.type,
+          error: errorMessage,
+        });
+        
+        // If a node fails, stop execution
+        throw new Error(
+          `Node ${nodeId} (${node.type}) failed: ${errorMessage}`
+        );
+      }
     }
-  }
+  } while (currentIteration < maxLoopCount);
   
-  return { results, context };
+  return { results: allResults, context };
 }
 
 /**

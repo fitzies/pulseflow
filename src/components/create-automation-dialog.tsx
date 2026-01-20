@@ -23,9 +23,18 @@ import { createAutomation } from "@/lib/actions/automations";
 interface CreateAutomationDialogProps {
   hasPlan: boolean;
   buttonText?: string;
+  canCreateMore?: boolean;
+  currentCount?: number;
+  limit?: number | null;
 }
 
-export function CreateAutomationDialog({ hasPlan, buttonText = "Create Automation" }: CreateAutomationDialogProps) {
+export function CreateAutomationDialog({ 
+  hasPlan, 
+  buttonText = "Create Automation",
+  canCreateMore = true,
+  currentCount,
+  limit
+}: CreateAutomationDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,15 +70,27 @@ export function CreateAutomationDialog({ hasPlan, buttonText = "Create Automatio
     }
   };
 
+  const isDisabled = !hasPlan || !canCreateMore;
+  
+  const getHoverMessage = () => {
+    if (!hasPlan) {
+      return "Need to upgrade to at least the basic plan to create automations.";
+    }
+    if (!canCreateMore && limit !== null && currentCount !== undefined) {
+      return `You've reached your plan limit of ${limit} automation${limit !== 1 ? 's' : ''}. Upgrade to create more.`;
+    }
+    return "";
+  };
+
   const button = (
-    <Button disabled={!hasPlan} className={!hasPlan ? "cursor-not-allowed" : ""}>
+    <Button disabled={isDisabled} className={isDisabled ? "cursor-not-allowed" : ""}>
       {buttonText}
     </Button>
   );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {!hasPlan ? (
+      {isDisabled ? (
         <HoverCard>
           <HoverCardTrigger asChild>
             <div className="inline-block">
@@ -78,7 +99,7 @@ export function CreateAutomationDialog({ hasPlan, buttonText = "Create Automatio
           </HoverCardTrigger>
           <HoverCardContent>
             <p className="text-sm">
-              Need to upgrade to at least the basic plan to create automations.
+              {getHoverMessage()}
             </p>
           </HoverCardContent>
         </HoverCard>

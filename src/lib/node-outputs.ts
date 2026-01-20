@@ -11,38 +11,73 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
   swap: {
     amountOut: 'bigint',
     tokenOut: 'address',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
   swapPLS: {
     amountOut: 'bigint',
     tokenOut: 'address',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
-  transfer: null, // no meaningful output
-  transferPLS: null, // no meaningful output
+  swapFromPLS: {
+    amountOut: 'bigint',
+    tokenOut: 'address',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
+  swapToPLS: {
+    amountOut: 'bigint',
+    tokenOut: 'address',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
+  transfer: {
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
+  transferPLS: {
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
   checkBalance: {
     balance: 'bigint',
     token: 'address',
   },
-  checkPrice: null, // read-only, no output used by other nodes
   addLiquidity: {
     liquidity: 'bigint',
     amountA: 'bigint',
     amountB: 'bigint',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
   addLiquidityPLS: {
     liquidity: 'bigint',
     amountToken: 'bigint',
     amountPLS: 'bigint',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
   removeLiquidity: {
     amountA: 'bigint',
     amountB: 'bigint',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
   removeLiquidityPLS: {
     amountToken: 'bigint',
     amountPLS: 'bigint',
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
   },
-  burnToken: null, // no meaningful output
-  claimToken: null, // no meaningful output
+  burnToken: {
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
+  claimToken: {
+    gasPrice: 'bigint',
+    gasUsed: 'bigint',
+  },
   checkLPTokenAmounts: {
     lpBalance: 'bigint',
     token0: 'address',
@@ -56,6 +91,15 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
   },
   wait: null, // no output
   start: null, // no output
+  loop: {
+    loopCount: 'number',
+    currentIteration: 'number',
+  },
+  gasGuard: {
+    passed: 'boolean',
+    gasPriceGwei: 'number',
+    threshold: 'number',
+  },
 };
 
 /**
