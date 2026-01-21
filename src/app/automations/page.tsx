@@ -69,8 +69,8 @@ export default async function Page() {
             Manage your automated automations
           </p>
         </div>
-        <CreateAutomationDialog 
-          hasPlan={hasPlan} 
+        <CreateAutomationDialog
+          hasPlan={hasPlan}
           canCreateMore={canCreateMore}
           currentCount={currentCount}
           limit={planLimit}
@@ -89,8 +89,8 @@ export default async function Page() {
                 : "Upgrade to a plan to create automations."}
             </p>
             {hasPlan && (
-              <CreateAutomationDialog 
-                hasPlan={hasPlan} 
+              <CreateAutomationDialog
+                hasPlan={hasPlan}
                 buttonText="Create Your First Automation"
                 canCreateMore={canCreateMore}
                 currentCount={currentCount}
@@ -120,9 +120,9 @@ export default async function Page() {
                         automationId={automation.id}
                         currentName={automation.name}
                       />
-                      <ShareAutomationButton 
-                        definition={automation.definition} 
-                        automationName={automation.name} 
+                      <ShareAutomationButton
+                        definition={automation.definition}
+                        automationName={automation.name}
                       />
                     </div>
                   </div>
@@ -162,7 +162,7 @@ export default async function Page() {
       )}
 
       {/* Plan requirement or limit reached message */}
-      {automations.length > 0 && (
+      {((planLimit !== null && automations.length >= planLimit - 1) || (planLimit === null && automations.length > 0)) && dbUser.plan !== "ULTRA" ? (
         <div className="mt-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
           {!hasPlan ? (
             <p className="text-sm text-yellow-600 dark:text-yellow-400">
@@ -173,7 +173,7 @@ export default async function Page() {
             </p>
           ) : !canCreateMore && planLimit !== null ? (
             <p className="text-sm text-yellow-600 dark:text-yellow-400">
-              You've reached your plan limit of {planLimit} automation{planLimit !== 1 ? 's' : ''}. 
+              You've reached your plan limit of {planLimit} automation{planLimit !== 1 ? 's' : ''}.
               <Link href="/plans" className="ml-1 underline">
                 Upgrade to create more
               </Link>
@@ -184,7 +184,7 @@ export default async function Page() {
             </p>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
