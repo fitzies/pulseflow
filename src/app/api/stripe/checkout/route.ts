@@ -60,6 +60,7 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
+      allow_promotion_codes: true,
       success_url: `${request.headers.get("origin")}/plans?success=true`,
       cancel_url: `${request.headers.get("origin")}/plans?canceled=true`,
       subscription_data: {

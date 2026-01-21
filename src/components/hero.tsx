@@ -4,6 +4,8 @@ import { ArrowUpRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AUTH_URLS } from "@/lib/constants"
+import { useUser } from "@clerk/nextjs"
+import Link from "next/link"
 
 type ProductTeaserCardProps = {
   dailyVolume?: string
@@ -21,6 +23,7 @@ type ProductTeaserCardProps = {
 
 // @component: ProductTeaserCard
 export const Hero = (props: ProductTeaserCardProps) => {
+  const { user } = useUser()
   const {
     dailyVolumeLabel = "AUTOMATIONS EXECUTED DAILY",
     headline = "Visual Automation for On-Chain Execution",
@@ -89,23 +92,36 @@ export const Hero = (props: ProductTeaserCardProps) => {
 
 
                 <div className="flex gap-2 flex-wrap mt-10">
-                  <Button
-                    asChild
-                    className="px-[18px] py-[15px] h-auto text-base leading-4 transition-all duration-150"
-                  >
-                    <a href={primaryButtonHref}>
-                      {primaryButtonText}
-                    </a>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="px-[18px] py-[15px] h-auto text-base leading-4 text-foreground border-foreground bg-transparent hover:bg-transparent "
-                  >
-                    <a href={secondaryButtonHref}>
-                      {secondaryButtonText}
-                    </a>
-                  </Button>
+                  {user ? (
+                    <Button
+                      asChild
+                      className="px-[18px] py-[15px] h-auto text-base leading-4 transition-all duration-150"
+                    >
+                      <Link href="/automations">
+                        Go to Dashboard
+                      </Link>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        asChild
+                        className="px-[18px] py-[15px] h-auto text-base leading-4 transition-all duration-150"
+                      >
+                        <a href={primaryButtonHref}>
+                          {primaryButtonText}
+                        </a>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="px-[18px] py-[15px] h-auto text-base leading-4 text-foreground border-foreground bg-transparent hover:bg-transparent "
+                      >
+                        <a href={secondaryButtonHref}>
+                          {secondaryButtonText}
+                        </a>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
