@@ -9,7 +9,10 @@ import {
   CardContent,
   CardDescription,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
+import { ShareAutomationButton } from "@/components/share-automation-button";
+import { EditAutomationNameButton } from "@/components/edit-automation-name-button";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 
 export default async function Page() {
@@ -71,6 +74,7 @@ export default async function Page() {
           canCreateMore={canCreateMore}
           currentCount={currentCount}
           limit={planLimit}
+          automations={automations.map((a) => ({ id: a.id, name: a.name }))}
         />
       </div>
 
@@ -91,6 +95,7 @@ export default async function Page() {
                 canCreateMore={canCreateMore}
                 currentCount={currentCount}
                 limit={planLimit}
+                automations={[]}
               />
             )}
             {!hasPlan && (
@@ -106,56 +111,51 @@ export default async function Page() {
           {automations.map((automation) => {
             const isRunning = automation.executions.length > 0;
             return (
-              <Link
-                key={automation.id}
-                href={`/automations/${automation.id}`}
-                className="transition-transform hover:scale-[1.02]"
-              >
-                <Card className="h-full cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          isRunning
-                            ? "bg-blue-500 animate-pulse"
-                            : automation.isActive
-                              ? "bg-green-500"
-                              : "bg-gray-400"
-                        }`}
-                        title={isRunning ? "Running" : automation.isActive ? "Active" : "Inactive"}
+              <Card key={automation.id} className="h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
+                    <div className="flex items-center gap-1">
+                      <EditAutomationNameButton
+                        automationId={automation.id}
+                        currentName={automation.name}
+                      />
+                      <ShareAutomationButton 
+                        definition={automation.definition} 
+                        automationName={automation.name} 
                       />
                     </div>
-                    <CardDescription>
-                      Created {new Date(automation.createdAt).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2 text-sm">
-                      {isRunning ? (
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                          Running
-                        </span>
-                      ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                          Scheduled: {new Date(automation.nextRunAt).toLocaleDateString()} {new Date(automation.nextRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      ) : (
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            automation.isActive
-                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                              : "bg-gray-500/10 text-gray-600 dark:text-gray-400"
-                          }`}
-                        >
-                          {automation.isActive ? "Active" : "Inactive"}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                  </div>
+                  <CardDescription>
+                    Created {new Date(automation.createdAt).toLocaleDateString()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    {isRunning ? (
+                      <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        Running
+                      </Badge>
+                    ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
+                      <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                        Scheduled
+                      </Badge>
+                    ) : automation.isActive ? (
+                      <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        Inactive
+                      </Badge>
+                    )}
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/automations/${automation.id}`}>Open</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

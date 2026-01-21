@@ -184,7 +184,7 @@ export function AutomationFlow({
     } else {
       setIsLoadingBalance(true);
     }
-    
+
     try {
       const provider = new JsonRpcProvider(currentRpcEndpoint);
       const balance = await provider.getBalance(walletAddress);
@@ -223,7 +223,7 @@ export function AutomationFlow({
         if (!response.ok) return false;
 
         const data = await response.json();
-        
+
         // Update node statuses from logs
         if (data.logs?.length > 0) {
           updateNodeStatusesFromLogs(data.logs);
@@ -345,7 +345,7 @@ export function AutomationFlow({
     (sourceId: string, targetId: string, nodeType: NodeType) => {
       const sourceNode = nodes.find((n) => n.id === sourceId);
       const targetNode = nodes.find((n) => n.id === targetId);
-      
+
       if (!sourceNode || !targetNode) return;
 
       // Calculate position midway between source and target
@@ -364,13 +364,13 @@ export function AutomationFlow({
       };
 
       const sourceHandleId = sourceNode.type === 'start' ? 'start-output' : 'output';
-      
+
       // Remove the old edge between source and target
       setEdges((prevEdges) => {
         const filteredEdges = prevEdges.filter(
           (edge) => !(edge.source === sourceId && edge.target === targetId)
         );
-        
+
         // Add two new edges: source -> new node -> target
         return [
           ...filteredEdges,
@@ -413,11 +413,11 @@ export function AutomationFlow({
       if (!sourceNode) return;
 
       const newNodeId = `${nodeType}-${Date.now()}`;
-      
+
       // Calculate position based on whether this is a condition branch
       let newX = sourceNode.position.x + 250;
       let newY = sourceNode.position.y;
-      
+
       // If coming from a condition node, position based on branch
       if (sourceNode.type === 'condition' && sourceHandleId) {
         if (sourceHandleId === 'output-true') {
@@ -430,7 +430,7 @@ export function AutomationFlow({
           newY = sourceNode.position.y + 150;
         }
       }
-      
+
       const newNode: Node = {
         id: newNodeId,
         position: {
@@ -446,7 +446,7 @@ export function AutomationFlow({
       if (!edgeSourceHandle) {
         edgeSourceHandle = sourceNode.type === 'start' ? 'start-output' : 'output';
       }
-      
+
       const newEdge: Edge = {
         id: `edge-${sourceNodeId}-${newNodeId}`,
         source: sourceNodeId,
@@ -483,12 +483,12 @@ export function AutomationFlow({
     const result: string[] = [];
     const visited = new Set<string>();
     const queue = [nodeId];
-    
+
     while (queue.length > 0) {
       const currentId = queue.shift()!;
       if (visited.has(currentId)) continue;
       visited.add(currentId);
-      
+
       // Find all outgoing edges from this node
       const outgoingEdges = edges.filter((e) => e.source === currentId);
       for (const edge of outgoingEdges) {
@@ -498,7 +498,7 @@ export function AutomationFlow({
         }
       }
     }
-    
+
     return result;
   }, [edges]);
 
@@ -518,12 +518,12 @@ export function AutomationFlow({
 
     // Remove all nodes
     setNodes((prevNodes) => prevNodes.filter((node) => !nodeIdsToDelete.has(node.id)));
-    
+
     // Remove all edges connected to deleted nodes
     setEdges((prevEdges) =>
       prevEdges.filter((edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target))
     );
-    
+
     // Close the config sheet if it's open for a deleted node
     if (selectedNodeId && nodeIdsToDelete.has(selectedNodeId)) {
       setConfigSheetOpen(false);
@@ -624,7 +624,7 @@ export function AutomationFlow({
     return nodes.map((node) => {
       const isLastNode = node.id === lastNodeId;
       const status = nodeStatuses[node.id] || 'initial';
-      
+
       // For condition nodes, check which branches have connections
       let conditionData: {
         hasTrueBranch: boolean;
@@ -644,13 +644,13 @@ export function AutomationFlow({
           onAddNode: (sourceHandle: string) => handleOpenDialog(node.id, sourceHandle),
         };
       }
-      
+
       return {
         ...node,
         data: {
           ...node.data,
           onAddNode: node.type === 'condition' && conditionData
-            ? conditionData.onAddNode 
+            ? conditionData.onAddNode
             : (isLastNode ? () => handleOpenDialog(node.id) : undefined),
           onNodeClick: () => handleNodeClick(node.id),
           isLastNode,
@@ -673,7 +673,7 @@ export function AutomationFlow({
   const handleReset = useCallback(() => {
     // Keep only the start node(s)
     const startNodes = nodes.filter((node) => node.type === 'start');
-    
+
     // If no start node exists, create a default one
     if (startNodes.length === 0) {
       setNodes(defaultStartNode);
@@ -681,14 +681,14 @@ export function AutomationFlow({
       // Keep only the first start node (or all if multiple exist)
       setNodes(startNodes.length === 1 ? startNodes : [startNodes[0]]);
     }
-    
+
     // Clear all edges
     setEdges([]);
-    
+
     // Close config sheet if open
     setConfigSheetOpen(false);
     setSelectedNodeId(null);
-    
+
     toast.success('Automation reset - all nodes except start node removed');
   }, [nodes]);
 
@@ -724,6 +724,7 @@ export function AutomationFlow({
             onEdgeClick: handleEdgeClick,
           },
         }))}
+        proOptions={{ hideAttribution: true }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
@@ -786,10 +787,10 @@ export function AutomationFlow({
           </div>
         </div>
         <div className="text-sm font-semibold mb-3">{currentName}</div>
-        
+
         <div className="text-xs text-muted-foreground mb-1">Automation ID</div>
         <div className="text-sm">{automationId}</div>
-        
+
         <div className="text-xs text-muted-foreground mt-3 mb-1">Wallet Address</div>
         <button
           onClick={copyToClipboard}
@@ -810,7 +811,7 @@ export function AutomationFlow({
           {isLoadingBalance ? 'Loading...' : `${plsBalance} PLS`}
         </div>
       </div>
-      
+
       <AutomationSettingsDialog
         open={settingsDialogOpen}
         onOpenChange={setSettingsDialogOpen}
@@ -843,7 +844,7 @@ export function AutomationFlow({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       {/* Player Controls - Bottom Center */}
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
         <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">

@@ -8,7 +8,7 @@ export default function AutomationsLayout({
   return (
     <>
       <Nav />
-      {children}
+      <main className="mt-14">{children}</main>
     </>
   );
 }

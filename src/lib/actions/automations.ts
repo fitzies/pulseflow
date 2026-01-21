@@ -420,3 +420,197 @@ export async function updateAutomationSchedule(
     };
   }
 }
+
+export async function duplicateAutomation(sourceAutomationId: string, newName: string) {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Unauthorized. Please sign in." };
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return { success: false, error: "User not found. Please contact support." };
+    }
+
+    if (dbUser.plan === null) {
+      return { success: false, error: "You need to upgrade to a plan to create automations." };
+    }
+
+    // Check automation limit
+    const currentCount = await prisma.automation.count({
+      where: { userId: dbUser.id },
+    });
+
+    const planLimit = getPlanLimit(dbUser.plan);
+
+    if (!canCreateAutomation(currentCount, dbUser.plan)) {
+      const limitMessage = planLimit === null
+        ? "You've reached your automation limit."
+        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`;
+      return { success: false, error: limitMessage };
+    }
+
+    // Fetch source automation and verify ownership
+    const sourceAutomation = await prisma.automation.findUnique({
+      where: { id: sourceAutomationId },
+    });
+
+    if (!sourceAutomation) {
+      return { success: false, error: "Source automation not found." };
+    }
+
+    if (sourceAutomation.userId !== dbUser.id) {
+      return { success: false, error: "You don't have permission to duplicate this automation." };
+    }
+
+    // Generate new wallet
+    const { address, encryptedKey } = await generateWallet();
+
+    // Create duplicated automation
+    const automation = await prisma.automation.create({
+      data: {
+        name: newName,
+        userId: dbUser.id,
+        walletAddress: address,
+        walletEncKey: encryptedKey,
+        definition: sourceAutomation.definition ?? {},
+        isActive: false,
+        defaultSlippage: sourceAutomation.defaultSlippage,
+        rpcEndpoint: sourceAutomation.rpcEndpoint,
+        showNodeLabels: sourceAutomation.showNodeLabels,
+      },
+    });
+
+    revalidatePath("/automations");
+
+    return { success: true, automation };
+  } catch (error) {
+    console.error("Error duplicating automation:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to duplicate automation.",
+    };
+  }
+}
+
+export async function createAutomationFromShare(shareString: string, name: string) {
+  // Import here to avoid circular dependencies
+  const { decodeAutomationDefinition } = await import("@/lib/automation-share");
+
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Unauthorized. Please sign in." };
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return { success: false, error: "User not found. Please contact support." };
+    }
+
+    if (dbUser.plan === null) {
+      return { success: false, error: "You need to upgrade to a plan to create automations." };
+    }
+
+    // Check automation limit
+    const currentCount = await prisma.automation.count({
+      where: { userId: dbUser.id },
+    });
+
+    const planLimit = getPlanLimit(dbUser.plan);
+
+    if (!canCreateAutomation(currentCount, dbUser.plan)) {
+      const limitMessage = planLimit === null
+        ? "You've reached your automation limit."
+        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`;
+      return { success: false, error: limitMessage };
+    }
+
+    // Decode share string
+    const definition = decodeAutomationDefinition(shareString);
+
+    if (!definition) {
+      return { success: false, error: "Invalid share string. Please check and try again." };
+    }
+
+    // Generate wallet
+    const { address, encryptedKey } = await generateWallet();
+
+    // Create automation from shared definition
+    const automation = await prisma.automation.create({
+      data: {
+        name,
+        userId: dbUser.id,
+        walletAddress: address,
+        walletEncKey: encryptedKey,
+        definition: { nodes: definition.nodes, edges: definition.edges },
+        isActive: false,
+      },
+    });
+
+    revalidatePath("/automations");
+
+    return { success: true, automation };
+  } catch (error) {
+    console.error("Error creating automation from share:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create automation from share.",
+    };
+  }
+}
+
+export async function renameAutomation(automationId: string, newName: string) {
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Unauthorized. Please sign in." };
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return { success: false, error: "User not found. Please contact support." };
+    }
+
+    const automation = await prisma.automation.findUnique({
+      where: { id: automationId },
+    });
+
+    if (!automation) {
+      return { success: false, error: "Automation not found." };
+    }
+
+    if (automation.userId !== dbUser.id) {
+      return { success: false, error: "You don't have permission to rename this automation." };
+    }
+
+    await prisma.automation.update({
+      where: { id: automationId },
+      data: { name: newName },
+    });
+
+    revalidatePath("/automations");
+    revalidatePath(`/automations/${automationId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error renaming automation:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to rename automation.",
+    };
+  }
+}
