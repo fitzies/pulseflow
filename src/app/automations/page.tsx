@@ -137,6 +137,10 @@ export default async function Page() {
                           <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                           Running
                         </span>
+                      ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                          Scheduled: {new Date(automation.nextRunAt).toLocaleDateString()} {new Date(automation.nextRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       ) : (
                         <span
                           className={`px-2 py-1 rounded text-xs font-medium ${

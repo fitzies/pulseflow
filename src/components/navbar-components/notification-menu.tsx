@@ -8,8 +8,10 @@ import {
   Loader2Icon,
   CopyIcon,
   CheckIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -307,13 +309,24 @@ function ExecutionDialog({
 }
 
 export default function RecentExecutions({ executions }: RecentExecutionsProps) {
+  const router = useRouter();
   const runningCount = executions.filter((e) => e.status === "RUNNING").length;
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleExecutionClick = (executionId: string) => {
     setSelectedExecutionId(executionId);
     setDialogOpen(true);
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    // Reset refreshing state after a reasonable timeout
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 1000);
   };
 
   return (
@@ -336,8 +349,18 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-80 p-1">
-          <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+          <div className="flex items-center justify-between gap-4 px-3 py-2">
             <div className="font-semibold text-sm">Recent Executions</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-7 w-7 p-0"
+              aria-label="Refresh executions"
+            >
+              <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            </Button>
           </div>
           <div
             aria-orientation="horizontal"
