@@ -552,7 +552,7 @@ export async function createAutomationFromShare(shareString: string, name: strin
         userId: dbUser.id,
         walletAddress: address,
         walletEncKey: encryptedKey,
-        definition: { nodes: definition.nodes, edges: definition.edges },
+        definition: { nodes: definition.nodes, edges: definition.edges } as any,
         isActive: false,
       },
     });
