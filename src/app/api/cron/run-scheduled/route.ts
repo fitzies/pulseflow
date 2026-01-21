@@ -46,35 +46,61 @@ export async function GET(request: Request) {
     }
 
     // Determine base URL for API calls
+    // IMPORTANT: Set APP_URL env var to your production domain to avoid preview deployment protection issues
     const baseUrl = process.env.APP_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    
+    console.log(`[Cron] Using base URL: ${baseUrl}`);
+
+    // Build headers - include bypass secret if set (for Vercel Deployment Protection)
+    const headers: Record<string, string> = {
+      'x-cron-secret': process.env.CRON_SECRET || '',
+      'Content-Type': 'application/json',
+    };
+    
+    // Add Vercel deployment protection bypass if configured
+    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      headers['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    }
 
     // Fan-out: trigger each automation in parallel (fire-and-forget)
     // Each automation runs in its own serverless function with its own 300s budget
     const triggerPromises = dueAutomations.map(async (automation) => {
       try {
-        // Fire the request but don't wait for completion
-        // Using a short timeout since we just need to trigger, not wait for result
+        const url = `${baseUrl}/api/automations/${automation.id}/run-cron`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout to trigger
-
-        await fetch(`${baseUrl}/api/automations/${automation.id}/run-cron`, {
-          method: 'POST',
-          headers: {
-            'x-cron-secret': process.env.CRON_SECRET || '',
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        }).catch(() => {
-          // Ignore abort errors - the request was sent, that's what matters
-        }).finally(() => {
+        
+        // Give it 10s to get initial response (enough to check auth, not wait for completion)
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+          });
+          
           clearTimeout(timeoutId);
-        });
-
-        console.log(`[Cron] Triggered automation ${automation.id}`);
-        return { automationId: automation.id, triggered: true };
+          
+          // If we got a quick response, check if it was an auth error
+          if (response.status === 401) {
+            console.error(`[Cron] Auth failed for ${automation.id} - check APP_URL or VERCEL_AUTOMATION_BYPASS_SECRET`);
+            return { automationId: automation.id, triggered: false, error: 'auth_failed' };
+          }
+          
+          console.log(`[Cron] Triggered automation ${automation.id} (status: ${response.status})`);
+          return { automationId: automation.id, triggered: true };
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId);
+          
+          // AbortError means timeout - request was sent and is processing
+          if (fetchError.name === 'AbortError') {
+            console.log(`[Cron] Triggered automation ${automation.id} (processing)`);
+            return { automationId: automation.id, triggered: true };
+          }
+          throw fetchError;
+        }
       } catch (error) {
-        // Log but don't fail - other automations should still run
         console.error(`[Cron] Failed to trigger automation ${automation.id}:`, error);
         return { automationId: automation.id, triggered: false };
       }

@@ -12,11 +12,27 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: automationId } = await params;
+  
+  // Debug: Log that request reached our handler
+  console.log(`[run-cron] Request received for automation ${automationId}`);
 
   // Verify the request is from our cron job
-  // Using custom header as Vercel may strip Authorization header on internal requests
+  // Check both custom header and Authorization header as fallback
   const cronSecret = request.headers.get('x-cron-secret');
-  if (cronSecret !== process.env.CRON_SECRET) {
+  const authHeader = request.headers.get('authorization');
+  const expectedSecret = process.env.CRON_SECRET;
+  
+  const isValidCustomHeader = cronSecret && cronSecret === expectedSecret;
+  const isValidAuthHeader = authHeader && authHeader === `Bearer ${expectedSecret}`;
+  
+  if (!isValidCustomHeader && !isValidAuthHeader) {
+    console.error(`[run-cron] Auth failed for ${automationId}:`, {
+      hasCustomHeader: !!cronSecret,
+      hasAuthHeader: !!authHeader,
+      hasEnvSecret: !!expectedSecret,
+      customHeaderLength: cronSecret?.length,
+      envSecretLength: expectedSecret?.length,
+    });
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
