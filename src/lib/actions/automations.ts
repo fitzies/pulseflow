@@ -225,6 +225,7 @@ export async function runAutomation(automationId: string) {
         userId: dbUser.id,
         automationId: automation.id,
         status: "RUNNING",
+        wasScheduled: false,
       },
     });
 

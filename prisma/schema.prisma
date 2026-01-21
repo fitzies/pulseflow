@@ -79,8 +79,9 @@ model Execution {
   userId       String
   automationId String
 
-  status ExecutionStatus
-  error  String?
+  status       ExecutionStatus
+  error        String?
+  wasScheduled Boolean @default(false)
 
   startedAt  DateTime  @default(now())
   finishedAt DateTime?

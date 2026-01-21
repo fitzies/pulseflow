@@ -81,6 +81,7 @@ export async function POST(
         userId: automation.user.id,
         automationId: automation.id,
         status: 'RUNNING',
+        wasScheduled: true,
       },
     });
 

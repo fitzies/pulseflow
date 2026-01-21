@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import Logo from "@/components/logo";
 import RecentExecutions from "@/components/navbar-components/notification-menu";
+import ScheduledExecutionsMenu from "@/components/navbar-components/scheduled-executions-menu";
 import UserMenu from "@/components/navbar-components/user-menu";
 import AutomationSelect from "@/components/navbar-components/automation-select";
 import {
@@ -73,6 +74,7 @@ export default async function Nav() {
   const userEmail = user.emailAddresses[0]?.emailAddress || "";
 
   const hasPlan = dbUser.plan !== null;
+  const isPro = dbUser.plan === "PRO" || dbUser.plan === "ULTRA";
   return (
     <header className="border-b px-4 md:px-6 fixed top-0 w-full z-50 bg-background">
       <div className="flex h-16 items-center justify-between gap-4">
@@ -122,6 +124,8 @@ export default async function Nav() {
         <div className="flex items-center gap-4">
           {/* Recent Executions */}
           <RecentExecutions executions={executions} />
+          {/* Scheduled Executions */}
+          <ScheduledExecutionsMenu isPro={isPro} />
           {/* Upgrade button - only show if user doesn't have a plan */}
           {!hasPlan && (
             <Button asChild size="sm" variant="default">
