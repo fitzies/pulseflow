@@ -75,6 +75,18 @@ export default async function Nav() {
 
   const hasPlan = dbUser.plan !== null;
   const isPro = dbUser.plan === "PRO" || dbUser.plan === "ULTRA";
+
+  // Get latest scheduled execution timestamp for notification
+  const latestScheduledExecution = await prisma.execution.findFirst({
+    where: {
+      userId: dbUser.id,
+      wasScheduled: true,
+    },
+    orderBy: { startedAt: "desc" },
+    select: { startedAt: true },
+  });
+  const latestScheduledAt = latestScheduledExecution?.startedAt?.toISOString() || null;
+
   return (
     <header className="border-b px-4 md:px-6 fixed top-0 w-full z-50 bg-background">
       <div className="flex h-16 items-center justify-between gap-4">
@@ -121,11 +133,11 @@ export default async function Nav() {
           </Breadcrumb>
         </div>
         {/* Right side */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Scheduled Executions */}
+          <ScheduledExecutionsMenu isPro={isPro} latestScheduledAt={latestScheduledAt} />
           {/* Recent Executions */}
           <RecentExecutions executions={executions} />
-          {/* Scheduled Executions */}
-          <ScheduledExecutionsMenu isPro={isPro} />
           {/* Upgrade button - only show if user doesn't have a plan */}
           {!hasPlan && (
             <Button asChild size="sm" variant="default">

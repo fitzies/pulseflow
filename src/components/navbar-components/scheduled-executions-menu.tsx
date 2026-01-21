@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   TimerIcon,
   CheckCircle2Icon,
@@ -16,6 +16,8 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+
+const STORAGE_KEY = "scheduled-executions-last-opened";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +53,7 @@ interface ScheduledExecution {
 
 interface ScheduledExecutionsMenuProps {
   isPro: boolean;
+  latestScheduledAt: string | null;
 }
 
 function getStatusIcon(status: ExecutionStatus) {
@@ -204,11 +207,31 @@ function DataTable({ data }: { data: ScheduledExecution[] }) {
   );
 }
 
-export default function ScheduledExecutionsMenu({ isPro }: ScheduledExecutionsMenuProps) {
+export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: ScheduledExecutionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [executions, setExecutions] = useState<ScheduledExecution[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasUnseen, setHasUnseen] = useState(false);
+
+  // Check for unseen executions on mount
+  useEffect(() => {
+    if (!latestScheduledAt) {
+      setHasUnseen(false);
+      return;
+    }
+
+    const lastOpened = localStorage.getItem(STORAGE_KEY);
+    if (!lastOpened) {
+      // Never opened before, show notification if there are any executions
+      setHasUnseen(true);
+      return;
+    }
+
+    const lastOpenedDate = new Date(lastOpened).getTime();
+    const latestDate = new Date(latestScheduledAt).getTime();
+    setHasUnseen(latestDate > lastOpenedDate);
+  }, [latestScheduledAt]);
 
   const fetchExecutions = useCallback(async () => {
     setLoading(true);
@@ -229,8 +252,13 @@ export default function ScheduledExecutionsMenu({ isPro }: ScheduledExecutionsMe
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (isOpen && isPro) {
-      fetchExecutions();
+    if (isOpen) {
+      // Mark as seen by saving current timestamp
+      localStorage.setItem(STORAGE_KEY, new Date().toISOString());
+      setHasUnseen(false);
+      if (isPro) {
+        fetchExecutions();
+      }
     }
   };
 
@@ -244,6 +272,12 @@ export default function ScheduledExecutionsMenu({ isPro }: ScheduledExecutionsMe
           variant="ghost"
         >
           <TimerIcon className="h-5 w-5" />
+          {hasUnseen && (
+            <div
+              aria-hidden="true"
+              className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary"
+            />
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="w-full max-w-3xl sm:min-w-3xl">
