@@ -1,11 +1,8 @@
 import { prisma } from '@/lib/prisma';
-import { executeAutomationChain } from '@/lib/automation-runner';
-import { getNextRunDate } from '@/lib/cron-utils.server';
-import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutes max for Pro plan
+export const maxDuration = 60; // Cron orchestrator only needs 60s to dispatch
 
 export async function GET(request: Request) {
   // Verify the request is from Vercel Cron
@@ -18,7 +15,6 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const results: Array<{ automationId: string; success: boolean; error?: string }> = [];
 
   try {
     // Find all scheduled automations that are due to run
@@ -35,149 +31,66 @@ export async function GET(request: Request) {
           },
         },
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            plan: true,
-          },
-        },
+      select: {
+        id: true,
       },
     });
 
     console.log(`[Cron] Found ${dueAutomations.length} automations due to run`);
 
-    // Execute each automation
-    for (const automation of dueAutomations) {
+    if (dueAutomations.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, triggered: 0 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Determine base URL for API calls
+    const baseUrl = process.env.APP_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    // Fan-out: trigger each automation in parallel (fire-and-forget)
+    // Each automation runs in its own serverless function with its own 300s budget
+    const triggerPromises = dueAutomations.map(async (automation) => {
       try {
-        // Parse the automation definition
-        const definition = automation.definition as { nodes?: Node[]; edges?: Edge[] } | null;
-        const nodes = definition?.nodes || [];
-        const edges = definition?.edges || [];
+        // Fire the request but don't wait for completion
+        // Using a short timeout since we just need to trigger, not wait for result
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout to trigger
 
-        if (nodes.length === 0) {
-          console.log(`[Cron] Skipping automation ${automation.id}: no nodes`);
-          results.push({ automationId: automation.id, success: false, error: 'No nodes' });
-          continue;
-        }
-
-        // Create execution record
-        const execution = await prisma.execution.create({
-          data: {
-            userId: automation.user.id,
-            automationId: automation.id,
-            status: 'RUNNING',
+        await fetch(`${baseUrl}/api/automations/${automation.id}/run-cron`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+            'Content-Type': 'application/json',
           },
+          signal: controller.signal,
+        }).catch(() => {
+          // Ignore abort errors - the request was sent, that's what matters
+        }).finally(() => {
+          clearTimeout(timeoutId);
         });
 
-        try {
-          // Execute the automation
-          const { results: nodeResults } = await executeAutomationChain(
-            automation.id,
-            nodes,
-            edges
-          );
-
-          // Helper to serialize results
-          const serializeResult = (result: any): any => {
-            if (!result) return null;
-            if (result.hash && result.blockNumber !== undefined) {
-              return {
-                hash: result.hash,
-                blockHash: result.blockHash,
-                blockNumber: result.blockNumber?.toString(),
-                transactionIndex: result.transactionIndex,
-                from: result.from,
-                to: result.to,
-                gasUsed: result.gasUsed?.toString(),
-                status: result.status,
-              };
-            }
-            return JSON.parse(
-              JSON.stringify(result, (_, v) =>
-                typeof v === 'bigint' ? v.toString() : v === undefined ? null : v
-              )
-            );
-          };
-
-          // Log each node result
-          for (const nodeResult of nodeResults) {
-            const node = nodes.find((n) => n.id === nodeResult.nodeId);
-            await prisma.executionLog.create({
-              data: {
-                executionId: execution.id,
-                nodeId: nodeResult.nodeId,
-                nodeType: node?.type || 'unknown',
-                input: node?.data?.config ?? undefined,
-                output: serializeResult(nodeResult.result),
-              },
-            });
-          }
-
-          // Update execution status to SUCCESS
-          await prisma.execution.update({
-            where: { id: execution.id },
-            data: {
-              status: 'SUCCESS',
-              finishedAt: new Date(),
-            },
-          });
-
-          // Calculate and update next run time
-          if (automation.cronExpression) {
-            const nextRun = await getNextRunDate(automation.cronExpression);
-            await prisma.automation.update({
-              where: { id: automation.id },
-              data: {
-                lastRunAt: now,
-                nextRunAt: nextRun,
-              },
-            });
-          }
-
-          console.log(`[Cron] Automation ${automation.id} completed successfully`);
-          results.push({ automationId: automation.id, success: true });
-        } catch (executionError) {
-          const errorMessage = executionError instanceof Error
-            ? executionError.message
-            : 'Unknown execution error';
-
-          // Update execution status to FAILED
-          await prisma.execution.update({
-            where: { id: execution.id },
-            data: {
-              status: 'FAILED',
-              error: errorMessage,
-              finishedAt: new Date(),
-            },
-          });
-
-          // Still update next run time even if execution failed
-          if (automation.cronExpression) {
-            const nextRun = await getNextRunDate(automation.cronExpression);
-            await prisma.automation.update({
-              where: { id: automation.id },
-              data: {
-                lastRunAt: now,
-                nextRunAt: nextRun,
-              },
-            });
-          }
-
-          console.error(`[Cron] Automation ${automation.id} failed:`, errorMessage);
-          results.push({ automationId: automation.id, success: false, error: errorMessage });
-        }
+        console.log(`[Cron] Triggered automation ${automation.id}`);
+        return { automationId: automation.id, triggered: true };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[Cron] Error processing automation ${automation.id}:`, errorMessage);
-        results.push({ automationId: automation.id, success: false, error: errorMessage });
+        // Log but don't fail - other automations should still run
+        console.error(`[Cron] Failed to trigger automation ${automation.id}:`, error);
+        return { automationId: automation.id, triggered: false };
       }
-    }
+    });
+
+    // Wait for all triggers to be sent (not for automations to complete)
+    const results = await Promise.all(triggerPromises);
+
+    const triggeredCount = results.filter((r) => r.triggered).length;
+    console.log(`[Cron] Successfully triggered ${triggeredCount}/${dueAutomations.length} automations`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        processed: dueAutomations.length,
+        triggered: triggeredCount,
+        total: dueAutomations.length,
         results,
       }),
       {
