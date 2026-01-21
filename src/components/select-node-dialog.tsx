@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { getNodeBackgroundColor, getNodeTextColor } from '@/components/nodes/node-colors';
 
 export type NodeType =
+  | 'start'
   | 'swap'
   | 'swapFromPLS'
   | 'swapToPLS'

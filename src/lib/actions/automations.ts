@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
+import { validateMinimumInterval, getNextRunDate } from "@/lib/cron-utils.server";
 import type { Node, Edge } from "@xyflow/react";
+import type { TriggerMode } from "@prisma/client";
 
 export async function createAutomation(name: string) {
   try {
@@ -322,6 +324,99 @@ export async function runAutomation(automationId: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to run automation.",
+    };
+  }
+}
+
+export async function updateAutomationSchedule(
+  automationId: string,
+  triggerMode: TriggerMode,
+  cronExpression: string | null
+) {
+  try {
+    // Get authenticated user from Clerk
+    const user = await currentUser();
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Unauthorized. Please sign in.",
+      };
+    }
+
+    // Get user from database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return {
+        success: false,
+        error: "User not found. Please contact support.",
+      };
+    }
+
+    // Check if user has PRO or ULTRA plan for scheduling
+    if (triggerMode === "SCHEDULE" && dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
+      return {
+        success: false,
+        error: "Scheduling is a Pro feature. Please upgrade your plan.",
+      };
+    }
+
+    // Fetch automation and verify ownership
+    const automation = await prisma.automation.findUnique({
+      where: { id: automationId },
+    });
+
+    if (!automation) {
+      return {
+        success: false,
+        error: "Automation not found.",
+      };
+    }
+
+    if (automation.userId !== dbUser.id) {
+      return {
+        success: false,
+        error: "You don't have permission to update this automation.",
+      };
+    }
+
+    // Validate cron expression if scheduling
+    let nextRunAt: Date | null = null;
+    if (triggerMode === "SCHEDULE" && cronExpression) {
+      const validation = await validateMinimumInterval(cronExpression);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.error || "Invalid cron expression.",
+        };
+      }
+      nextRunAt = await getNextRunDate(cronExpression);
+    }
+
+    // Update automation schedule
+    await prisma.automation.update({
+      where: { id: automationId },
+      data: {
+        triggerMode,
+        cronExpression: triggerMode === "SCHEDULE" ? cronExpression : null,
+        nextRunAt: triggerMode === "SCHEDULE" ? nextRunAt : null,
+      },
+    });
+
+    // Revalidate the automation page
+    revalidatePath(`/automations/${automationId}`);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Error updating automation schedule:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update schedule.",
     };
   }
 }

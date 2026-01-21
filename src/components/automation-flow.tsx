@@ -12,6 +12,7 @@ import {
   type Edge,
   type NodeTypes,
   type NodeProps,
+  type EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { JsonRpcProvider, formatEther } from 'ethers';
@@ -53,6 +54,7 @@ import { ArrowPathIcon, PlayIcon, StopIcon, Cog6ToothIcon } from '@heroicons/rea
 import { toast } from 'sonner';
 import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
 import { AutomationSettingsDialog } from '@/components/automation-settings-dialog';
+import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
 
 // Higher-order component to wrap nodes with status indicator
 function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
@@ -89,6 +91,10 @@ const nodeTypes: NodeTypes = {
   gasGuard: withStatusIndicator(GasGuardNode),
 };
 
+const edgeTypes: EdgeTypes = {
+  buttonedge: AddNodeButtonEdge,
+};
+
 const defaultStartNode: Node[] = [
   {
     id: 'start-1',
@@ -109,6 +115,9 @@ interface AutomationFlowProps {
   rpcEndpoint: string | null;
   showNodeLabels: boolean;
   activeExecution?: { id: string; status: string } | null;
+  triggerMode: 'MANUAL' | 'SCHEDULE';
+  cronExpression: string | null;
+  nextRunAt: Date | null;
 }
 
 const PULSECHAIN_RPC = 'https://rpc.pulsechain.com';
@@ -124,6 +133,9 @@ export function AutomationFlow({
   rpcEndpoint,
   showNodeLabels: initialShowNodeLabels,
   activeExecution,
+  triggerMode: initialTriggerMode,
+  cronExpression: initialCronExpression,
+  nextRunAt: initialNextRunAt,
 }: AutomationFlowProps) {
   const nodesToUse = useMemo(() => {
     if (initialNodes && initialNodes.length > 0) {
@@ -133,13 +145,17 @@ export function AutomationFlow({
   }, [initialNodes]);
 
   const [nodes, setNodes] = useState<Node[]>(nodesToUse);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges || []);
+  const [edges, setEdges] = useState<Edge[]>((initialEdges || []).map(edge => ({
+    ...edge,
+    type: edge.type || 'buttonedge',
+  })));
   const [plsBalance, setPlsBalance] = useState<string>('0');
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
   const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sourceNodeId, setSourceNodeId] = useState<string | null>(null);
+  const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const [configSheetOpen, setConfigSheetOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(!!activeExecution);
@@ -154,6 +170,9 @@ export function AutomationFlow({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<string | null>(null);
   const [nodesToDeleteCount, setNodesToDeleteCount] = useState(0);
+  const [triggerMode, setTriggerMode] = useState(initialTriggerMode);
+  const [cronExpression, setCronExpression] = useState(initialCronExpression);
+  const [nextRunAt, setNextRunAt] = useState(initialNextRunAt);
 
   // Fetch PLS balance
   const fetchBalance = useCallback(async (isRefresh = false) => {
@@ -279,6 +298,7 @@ export function AutomationFlow({
         target: edge.target,
         sourceHandle: edge.sourceHandle || null,
         targetHandle: edge.targetHandle || null,
+        type: edge.type || 'buttonedge',
       }));
 
       const result = await updateAutomationDefinition(automationId, serializableNodes, serializableEdges);
@@ -307,13 +327,83 @@ export function AutomationFlow({
 
   const handleOpenDialog = useCallback((nodeId: string) => {
     setSourceNodeId(nodeId);
+    setTargetNodeId(null);
     setDialogOpen(true);
   }, []);
+
+  const handleEdgeClick = useCallback((sourceId: string, targetId: string) => {
+    setSourceNodeId(sourceId);
+    setTargetNodeId(targetId);
+    setDialogOpen(true);
+  }, []);
+
+  const handleInsertNodeBetween = useCallback(
+    (sourceId: string, targetId: string, nodeType: NodeType) => {
+      const sourceNode = nodes.find((n) => n.id === sourceId);
+      const targetNode = nodes.find((n) => n.id === targetId);
+      
+      if (!sourceNode || !targetNode) return;
+
+      // Calculate position midway between source and target
+      const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+      const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+      const newNodeId = `${nodeType}-${Date.now()}`;
+      const newNode: Node = {
+        id: newNodeId,
+        position: {
+          x: midX,
+          y: midY,
+        },
+        data: {},
+        type: nodeType,
+      };
+
+      const sourceHandleId = sourceNode.type === 'start' ? 'start-output' : 'output';
+      
+      // Remove the old edge between source and target
+      setEdges((prevEdges) => {
+        const filteredEdges = prevEdges.filter(
+          (edge) => !(edge.source === sourceId && edge.target === targetId)
+        );
+        
+        // Add two new edges: source -> new node -> target
+        return [
+          ...filteredEdges,
+          {
+            id: `edge-${sourceId}-${newNodeId}`,
+            source: sourceId,
+            target: newNodeId,
+            sourceHandle: sourceHandleId,
+            type: 'buttonedge',
+          },
+          {
+            id: `edge-${newNodeId}-${targetId}`,
+            source: newNodeId,
+            target: targetId,
+            type: 'buttonedge',
+          },
+        ];
+      });
+
+      setNodes((prevNodes) => [...prevNodes, newNode]);
+    },
+    [nodes],
+  );
 
   const handleAddNode = useCallback(
     (nodeType: NodeType) => {
       if (!sourceNodeId) return;
 
+      // If targetNodeId is set, we're inserting between nodes
+      if (targetNodeId) {
+        handleInsertNodeBetween(sourceNodeId, targetNodeId, nodeType);
+        setSourceNodeId(null);
+        setTargetNodeId(null);
+        return;
+      }
+
+      // Otherwise, append to the end
       const sourceNode = nodes.find((n) => n.id === sourceNodeId);
       if (!sourceNode) return;
 
@@ -335,13 +425,14 @@ export function AutomationFlow({
         source: sourceNodeId,
         target: newNodeId,
         sourceHandle: sourceHandleId,
+        type: 'buttonedge',
       };
 
       setNodes((prevNodes) => [...prevNodes, newNode]);
       setEdges((prevEdges) => [...prevEdges, newEdge]);
       setSourceNodeId(null);
     },
-    [nodes, sourceNodeId],
+    [nodes, sourceNodeId, targetNodeId, handleInsertNodeBetween],
   );
 
   const handleNodeClick = useCallback((nodeId: string) => {
@@ -508,10 +599,12 @@ export function AutomationFlow({
           isLastNode,
           status,
           showNodeLabels,
+          // Pass schedule data to start node
+          ...(node.type === 'start' ? { triggerMode, cronExpression, nextRunAt } : {}),
         },
       };
     });
-  }, [nodes, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses, showNodeLabels]);
+  }, [nodes, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
 
   const handleSettingsUpdate = useCallback(() => {
     // Refresh the page to get updated settings
@@ -564,8 +657,16 @@ export function AutomationFlow({
     <div className="w-full h-screen dark relative">
       <ReactFlow
         nodes={nodesWithHandlers}
-        edges={edges}
+        edges={edges.map(edge => ({
+          ...edge,
+          type: edge.type || 'buttonedge',
+          data: {
+            ...edge.data,
+            onEdgeClick: handleEdgeClick,
+          },
+        }))}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodesConnectable={false}
@@ -590,6 +691,15 @@ export function AutomationFlow({
           onDelete={handleDeleteNode}
           nodes={nodes}
           edges={edges}
+          automationId={automationId}
+          userPlan={userPlan}
+          triggerMode={triggerMode}
+          cronExpression={cronExpression}
+          onScheduleUpdate={(newTriggerMode, newCronExpression, newNextRunAt) => {
+            setTriggerMode(newTriggerMode);
+            setCronExpression(newCronExpression);
+            setNextRunAt(newNextRunAt);
+          }}
         />
       )}
       <div className="absolute top-4 left-4 z-10 rounded-lg bg-card border p-3 shadow-lg min-w-[280px]">

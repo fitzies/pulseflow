@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { PlayIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { PlayIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,9 @@ interface StartNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  triggerMode?: 'MANUAL' | 'SCHEDULE';
+  cronExpression?: string | null;
+  nextRunAt?: Date | null;
 }
 
 export const StartNode = memo(({ data }: NodeProps) => {
@@ -24,14 +27,19 @@ export const StartNode = memo(({ data }: NodeProps) => {
     nodeData?.onNodeClick?.();
   };
 
+  const isScheduled = nodeData?.triggerMode === 'SCHEDULE';
+  const Icon = isScheduled ? ClockIcon : PlayIcon;
+
   return (
     <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
       <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className={`rounded-xl ${getNodeBackgroundColor('start')} p-3 flex items-center justify-center`}>
-          <PlayIcon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
+        <div className={`rounded-xl ${getNodeBackgroundColor('start')} p-3 flex items-center justify-center relative`}>
+          <Icon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Start</BaseNodeHeaderTitle>
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">
+            {isScheduled ? 'Scheduled' : 'Start'}
+          </BaseNodeHeaderTitle>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="start-output" className="opacity-0" />

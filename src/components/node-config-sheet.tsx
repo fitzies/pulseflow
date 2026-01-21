@@ -19,12 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, XMarkIcon, TrashIcon, LockClosedIcon } from '@heroicons/react/24/solid';
 import type { NodeType } from '@/components/select-node-dialog';
 import { SlippageSelector } from '@/components/slippage-selector';
 import { AmountSelector } from '@/components/amount-selector';
 import type { Node, Edge } from '@xyflow/react';
 import { CONFIG } from '@/lib/config';
+import { SCHEDULE_PRESETS, validateMinimumIntervalClient } from '@/lib/cron-utils';
+import { updateAutomationSchedule } from '@/lib/actions/automations';
+import { toast } from 'sonner';
 
 interface NodeConfigSheetProps {
   nodeId: string | null;
@@ -36,6 +39,12 @@ interface NodeConfigSheetProps {
   onDelete?: (nodeId: string) => void;
   nodes: Node[];
   edges: Edge[];
+  // Schedule props for start node
+  automationId: string;
+  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  triggerMode: 'MANUAL' | 'SCHEDULE';
+  cronExpression: string | null;
+  onScheduleUpdate: (triggerMode: 'MANUAL' | 'SCHEDULE', cronExpression: string | null, nextRunAt: Date | null) => void;
 }
 
 export function NodeConfigSheet({
@@ -48,6 +57,11 @@ export function NodeConfigSheet({
   onDelete,
   nodes,
   edges,
+  automationId,
+  userPlan,
+  triggerMode,
+  cronExpression,
+  onScheduleUpdate,
 }: NodeConfigSheetProps) {
   // Find previous node in the chain
   const previousNode = (() => {
@@ -61,6 +75,20 @@ export function NodeConfigSheet({
   const previousNodeConfig = previousNode?.data?.config || {};
   const [formData, setFormData] = useState<Record<string, any>>({});
 
+  // Schedule state for start node
+  const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE'>(triggerMode);
+  const [schedulePreset, setSchedulePreset] = useState<string>(
+    SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || 'custom'
+  );
+  const [customCronExpression, setCustomCronExpression] = useState(cronExpression || '');
+  const [showAdvanced, setShowAdvanced] = useState(
+    cronExpression !== null && !SCHEDULE_PRESETS.find((p) => p.value === cronExpression)
+  );
+  const [cronError, setCronError] = useState<string | null>(null);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const isPro = userPlan === 'PRO' || userPlan === 'ULTRA';
+
   useEffect(() => {
     if (config) {
       setFormData(config);
@@ -69,9 +97,27 @@ export function NodeConfigSheet({
     }
   }, [config, nodeType]);
 
+  // Reset schedule state when props change
+  useEffect(() => {
+    setScheduleTriggerMode(triggerMode);
+    const matchingPreset = SCHEDULE_PRESETS.find((p) => p.value === cronExpression);
+    if (matchingPreset) {
+      setSchedulePreset(matchingPreset.value);
+      setShowAdvanced(false);
+    } else if (cronExpression) {
+      setSchedulePreset('custom');
+      setShowAdvanced(true);
+    } else {
+      setSchedulePreset(SCHEDULE_PRESETS[0].value);
+      setShowAdvanced(false);
+    }
+    setCustomCronExpression(cronExpression || '');
+    setCronError(null);
+  }, [triggerMode, cronExpression]);
+
   const handleSave = () => {
     if (!nodeId) return;
-    
+
     // Auto-prepend WPLS to swapFromPLS path if not already present
     // Auto-append WPLS to swapToPLS path if not already present
     let configToSave = { ...formData };
@@ -92,7 +138,7 @@ export function NodeConfigSheet({
         };
       }
     }
-    
+
     onSave(nodeId, configToSave);
     onOpenChange(false);
   };
@@ -103,7 +149,7 @@ export function NodeConfigSheet({
     onOpenChange(false);
   };
 
-  const canDelete = nodeType !== null && onDelete;
+  const canDelete = nodeType !== null && nodeType !== 'start' && onDelete;
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -152,8 +198,8 @@ export function NodeConfigSheet({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            {swapMode === 'exactIn' 
-              ? 'Specify how many tokens to swap' 
+            {swapMode === 'exactIn'
+              ? 'Specify how many tokens to swap'
               : 'Specify how many tokens you want to receive'}
           </p>
         </div>
@@ -227,8 +273,8 @@ export function NodeConfigSheet({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            {swapMode === 'exactIn' 
-              ? 'Specify how much PLS to swap' 
+            {swapMode === 'exactIn'
+              ? 'Specify how much PLS to swap'
               : 'Specify how many tokens you want to receive'}
           </p>
         </div>
@@ -306,8 +352,8 @@ export function NodeConfigSheet({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            {swapMode === 'exactIn' 
-              ? 'Specify how many tokens to swap' 
+            {swapMode === 'exactIn'
+              ? 'Specify how many tokens to swap'
               : 'Specify how much PLS you want to receive'}
           </p>
         </div>
@@ -734,8 +780,156 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const handleSaveSchedule = async () => {
+    setIsSavingSchedule(true);
+    setCronError(null);
+
+    try {
+      let cronExprToSave: string | null = null;
+
+      if (scheduleTriggerMode === 'SCHEDULE') {
+        cronExprToSave = showAdvanced ? customCronExpression : schedulePreset;
+
+        // Basic client-side validation
+        const validation = validateMinimumIntervalClient(cronExprToSave);
+        if (!validation.valid) {
+          setCronError(validation.error || 'Invalid cron expression');
+          setIsSavingSchedule(false);
+          return;
+        }
+      }
+
+      const result = await updateAutomationSchedule(
+        automationId,
+        scheduleTriggerMode,
+        cronExprToSave
+      );
+
+      if (!result.success) {
+        setCronError(result.error || 'Failed to save schedule');
+        setIsSavingSchedule(false);
+        return;
+      }
+
+      // Server calculates nextRunAt, we just update local state
+      onScheduleUpdate(scheduleTriggerMode, cronExprToSave, null);
+      toast.success('Schedule saved successfully');
+      onOpenChange(false);
+    } catch (error) {
+      setCronError(error instanceof Error ? error.message : 'Failed to save schedule');
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const renderStartConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="grid gap-3">
+        <label className="text-sm font-medium">Trigger Mode</label>
+        <Select
+          value={scheduleTriggerMode}
+          onValueChange={(value: 'MANUAL' | 'SCHEDULE') => {
+            if (value === 'SCHEDULE' && !isPro) return;
+            setScheduleTriggerMode(value);
+            setCronError(null);
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="MANUAL">Manual Start</SelectItem>
+            <SelectItem value="SCHEDULE" disabled={!isPro}>
+              <div className="flex items-center gap-2">
+                Scheduled
+                {!isPro && <LockClosedIcon className="h-3 w-3 text-muted-foreground" />}
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {scheduleTriggerMode === 'MANUAL'
+            ? 'Run this automation manually using the play button'
+            : 'Automatically run this automation on a schedule'}
+        </p>
+      </div>
+
+      {!isPro && (
+        <div className="rounded-lg bg-muted/50 border p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <LockClosedIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Pro Feature</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Upgrade to Pro to schedule your automations to run automatically.
+          </p>
+        </div>
+      )}
+
+      {scheduleTriggerMode === 'SCHEDULE' && isPro && (
+        <>
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Schedule</label>
+            <Select
+              value={showAdvanced ? 'custom' : schedulePreset}
+              onValueChange={(value) => {
+                if (value === 'custom') {
+                  setShowAdvanced(true);
+                  setSchedulePreset('custom');
+                } else {
+                  setShowAdvanced(false);
+                  setSchedulePreset(value);
+                  setCronError(null);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCHEDULE_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom (Advanced)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {showAdvanced && (
+            <div className="grid gap-3">
+              <label className="text-sm font-medium">Cron Expression</label>
+              <Input
+                type="text"
+                placeholder="*/20 * * * *"
+                value={customCronExpression}
+                onChange={(e) => {
+                  setCustomCronExpression(e.target.value);
+                  setCronError(null);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Standard cron format: minute hour day month weekday
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Minimum interval: 20 minutes between runs
+              </p>
+            </div>
+          )}
+
+          {cronError && (
+            <p className="text-xs text-destructive">{cronError}</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   const renderConfig = () => {
     switch (nodeType) {
+      case 'start':
+        return renderStartConfig();
       case 'swap':
         return renderSwapConfig();
       case 'swapFromPLS':
@@ -799,14 +993,19 @@ export function NodeConfigSheet({
               className="w-full"
             >
               <TrashIcon className="h-4 w-4 mr-2" />
-              Delete 
+              Delete
             </Button>
           )}
           <SheetClose asChild>
             <Button variant="outline" className="w-full">Cancel</Button>
           </SheetClose>
-          <Button type="submit" onClick={handleSave} className="w-full">
-            Save changes
+          <Button
+            type="submit"
+            onClick={nodeType === 'start' ? handleSaveSchedule : handleSave}
+            className="w-full"
+            disabled={nodeType === 'start' && isSavingSchedule}
+          >
+            {nodeType === 'start' && isSavingSchedule ? 'Saving...' : 'Save changes'}
           </Button>
         </SheetFooter>
       </SheetContent>

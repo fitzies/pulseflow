@@ -47,11 +47,22 @@ model Automation {
   rpcEndpoint    String?
   showNodeLabels  Boolean @default(true)
 
+  // Scheduler fields (Pro feature)
+  triggerMode    TriggerMode @default(MANUAL)
+  cronExpression String?
+  nextRunAt      DateTime?
+  lastRunAt      DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user       User        @relation(fields: [userId], references: [id])
   executions Execution[]
+}
+
+enum TriggerMode {
+  MANUAL
+  SCHEDULE
 }
 
 model Execution {
