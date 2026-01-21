@@ -263,7 +263,8 @@ export async function addLiquidity(
     amountAMin,
     amountBMin,
     to,
-    deadline
+    deadline,
+    { gasLimit: 500000n }
   );
 
   const receipt = await tx.wait();
@@ -311,7 +312,7 @@ export async function addLiquidityPLS(
     amountPLSMin,
     to,
     deadline,
-    { value: plsAmount }
+    { value: plsAmount, gasLimit: 500000n }
   );
 
   const receipt = await tx.wait();
@@ -373,7 +374,8 @@ export async function removeLiquidity(
     amountAMin,
     amountBMin,
     to,
-    deadline
+    deadline,
+    { gasLimit: 500000n }
   );
 
   const receipt = await tx.wait();
@@ -433,7 +435,8 @@ export async function removeLiquidityPLS(
     amountTokenMin,
     amountPLSMin,
     to,
-    deadline
+    deadline,
+    { gasLimit: 500000n }
   );
 
   const receipt = await tx.wait();

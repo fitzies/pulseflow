@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,12 @@ import {
 import type { AmountValue } from '@/lib/execution-context';
 import { getNumericOutputFields } from '@/lib/node-outputs';
 import { WPLS } from '@/lib/abis';
+
+interface LpQuoteState {
+  loading: boolean;
+  error: string | null;
+  quotedAmount: string | null;
+}
 
 interface AmountSelectorProps {
   value: AmountValue | string | undefined;
@@ -104,6 +110,78 @@ export function AmountSelector({
       ? normalizedValue.percentage.toString()
       : '100'
   );
+
+  // LP Quote preview state
+  const [lpQuote, setLpQuote] = useState<LpQuoteState>({
+    loading: false,
+    error: null,
+    quotedAmount: null,
+  });
+
+  // Extract base amount value from config
+  const getBaseAmountValue = useCallback((): string | null => {
+    if (!lpRatioConfig || !formData) return null;
+    const baseConfig = formData[lpRatioConfig.baseAmountField];
+    if (!baseConfig) return null;
+    if (typeof baseConfig === 'string') return baseConfig;
+    if (baseConfig.type === 'static' && baseConfig.value) {
+      return baseConfig.value;
+    }
+    return null;
+  }, [lpRatioConfig, formData]);
+
+  // Fetch LP quote when lpRatio is selected
+  useEffect(() => {
+    if (normalizedValue.type !== 'lpRatio') {
+      setLpQuote({ loading: false, error: null, quotedAmount: null });
+      return;
+    }
+
+    if (!lpRatioConfig || !formData) return;
+
+    const baseToken = formData[lpRatioConfig.baseTokenField];
+    const pairedToken = lpRatioConfig.isPLS ? 'PLS' : formData[lpRatioConfig.pairedTokenField];
+    const baseAmount = getBaseAmountValue();
+
+    if (!baseToken || !pairedToken || !baseAmount) {
+      setLpQuote({ loading: false, error: 'Enter base amount first', quotedAmount: null });
+      return;
+    }
+
+    // Debounce the fetch
+    const timeoutId = setTimeout(async () => {
+      setLpQuote({ loading: true, error: null, quotedAmount: null });
+
+      try {
+        const response = await fetch('/api/lp-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ baseToken, pairedToken, baseAmount }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setLpQuote({ loading: false, error: data.error || 'Failed to fetch quote', quotedAmount: null });
+          return;
+        }
+
+        setLpQuote({
+          loading: false,
+          error: null,
+          quotedAmount: data.quotedAmountFormatted,
+        });
+      } catch (err) {
+        setLpQuote({
+          loading: false,
+          error: err instanceof Error ? err.message : 'Failed to fetch quote',
+          quotedAmount: null,
+        });
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [normalizedValue.type, lpRatioConfig, formData, getBaseAmountValue]);
 
   const handleModeChange = (mode: 'static' | 'previousOutput' | 'lpRatio') => {
     if (mode === 'static') {
@@ -273,12 +351,31 @@ export function AmountSelector({
       {/* LP Ratio */}
       {normalizedValue.type === 'lpRatio' && (
         <div className="grid gap-2">
+          {lpQuote.loading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Calculating...
+            </div>
+          )}
+          {lpQuote.error && (
+            <p className="text-xs text-yellow-500">
+              {lpQuote.error}
+            </p>
+          )}
+          {lpQuote.quotedAmount && !lpQuote.loading && (
+            <div className="rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Calculated amount:</p>
+              <p className="text-lg font-semibold">
+                ~{parseFloat(lpQuote.quotedAmount).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+              </p>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             Amount will be auto-calculated based on the current LP pool ratio to match the other token amount.
           </p>
           {baseAmountIsLpRatio && (
-            <p className="text-xs text-muted-foreground">
-              LP Ratio can’t be calculated from another LP Ratio amount. Switch one side to Custom Amount or Previous Output.
+            <p className="text-xs text-yellow-500">
+              LP Ratio can&apos;t be calculated from another LP Ratio amount. Switch one side to Custom Amount or Previous Output.
             </p>
           )}
         </div>

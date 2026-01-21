@@ -120,13 +120,13 @@ export async function resolveAmountWithNodeData(
 
   // Handle LP ratio calculation with nodeData context
   const provider = getProvider();
-  
+
   // Resolve the base amount from the referenced field in nodeData
   const baseAmountConfig = nodeData[amountConfig.baseAmountField];
   if (!baseAmountConfig) {
     throw new Error(`LP ratio base amount field '${amountConfig.baseAmountField}' not found in nodeData`);
   }
-  
+
   // Recursively resolve (but baseAmountConfig shouldn't be lpRatio to avoid circular)
   const baseAmount = await resolveAmountWithNodeData(baseAmountConfig, nodeData, context, automationId);
   if (baseAmount === 0n) {
@@ -148,7 +148,7 @@ export async function resolveAmountWithNodeData(
     const factoryContract = new Contract(factoryAddress, [
       "function getPair(address tokenA, address tokenB) external view returns (address pair)",
     ], provider);
-    
+
     const pairAddress = await factoryContract.getPair(baseToken, pairedToken);
     if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
       throw new Error('No LP exists between the specified tokens');
@@ -158,7 +158,7 @@ export async function resolveAmountWithNodeData(
     const pairContract = new Contract(pairAddress, pairABI, provider);
     const reserves = await pairContract.getReserves();
     const token0 = await pairContract.token0();
-    
+
     // Determine which reserve is which
     const isBaseToken0 = token0.toLowerCase() === baseToken.toLowerCase();
     const reserveBase = isBaseToken0 ? reserves[0] : reserves[1];
@@ -166,7 +166,7 @@ export async function resolveAmountWithNodeData(
 
     // Use quote to calculate the paired amount
     const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
-    
+
     return pairedAmount;
   } catch (error) {
     console.error('Error calculating LP ratio amount:', error);
@@ -238,7 +238,7 @@ export async function parseSwapOutput(
     // Event: Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)
     // We need to find the Swap event and extract amountOut
     // This is a simplified version - actual implementation should parse the event properly
-    
+
     // For now, we'll need to query the balance change or parse events
     // This is a placeholder - you may need to implement proper event parsing
     return null;
