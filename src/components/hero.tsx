@@ -56,7 +56,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
             className="col-span-12 lg:col-span-6"
           >
             <Card className="border-none shadow-none rounded-[40px] h-full">
-              <CardContent className="p-12 lg:p-16 flex flex-col justify-end aspect-square overflow-hidden">
+              <CardContent className="p-12 sm:p-8 lg:p-16 flex flex-col justify-start lg:justify-end lg:aspect-square overflow-hidden">
                 <a
                   href={primaryButtonHref}
                   className="flex flex-col gap-1 text-muted-foreground"
@@ -82,16 +82,16 @@ export const Hero = (props: ProductTeaserCardProps) => {
                   </motion.span>
                 </a>
 
-                <h1 className="text-[56px] leading-[60px] tracking-tight text-foreground max-w-[520px] mb-6 font-medium font-sans">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[56px] leading-tight sm:leading-tight md:leading-tight lg:leading-[60px] tracking-tight text-foreground max-w-[520px] mb-4 sm:mb-5 lg:mb-6 font-medium font-sans">
                   {headline}
                 </h1>
 
-                <p className="text-lg leading-7 text-muted-foreground max-w-[520px] mb-6 font-sans">
+                <p className="text-base sm:text-lg leading-6 sm:leading-7 text-muted-foreground max-w-[520px] mb-4 sm:mb-5 lg:mb-6 font-sans">
                   {subheadline}
                 </p>
 
 
-                <div className="flex gap-2 flex-wrap mt-10">
+                <div className="flex gap-2 flex-wrap mt-6 sm:mt-8 lg:mt-10">
                   {user ? (
                     <Button
                       asChild
