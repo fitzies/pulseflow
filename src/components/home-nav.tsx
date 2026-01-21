@@ -111,16 +111,21 @@ export default async function HomeNav() {
         {/* Right side */}
         <div className="flex items-center gap-2">
           {user ? (
-            <UserMenu
-              user={{
-                id: user.id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.emailAddresses[0]?.emailAddress || "",
-                imageUrl: user.imageUrl,
-                username: user.username,
-              }}
-            />
+            <>
+              <Button asChild className="text-sm" size="sm" variant="ghost">
+                <Link href="/automations">Dashboard</Link>
+              </Button>
+              <UserMenu
+                user={{
+                  id: user.id,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  email: user.emailAddresses[0]?.emailAddress || "",
+                  imageUrl: user.imageUrl,
+                  username: user.username,
+                }}
+              />
+            </>
           ) : (
             <>
               <Button asChild className="text-sm" size="sm" variant="ghost">

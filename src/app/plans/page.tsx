@@ -1,4 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,7 +80,18 @@ function PlanCard({
   );
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ success?: string }>;
+}) {
+  const params = await searchParams;
+
+  // Redirect to dashboard after successful payment
+  if (params.success === "true") {
+    redirect("/automations");
+  }
+
   const user = await currentUser();
 
   if (!user) {
