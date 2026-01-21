@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/auth(.*)",
+  "/api/cron(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
