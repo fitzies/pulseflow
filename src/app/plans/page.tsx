@@ -14,6 +14,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanFeatures, plans } from "@/lib/plan-limits";
 import { CheckoutButton } from "@/components/checkout-button";
+import { ManageSubscriptionButton } from "@/components/manage-subscription-button";
 
 type Plan = "BASIC" | "PRO" | "ULTRA" | null;
 
@@ -30,7 +31,6 @@ function PlanCard({
 }) {
   const isCurrentPlan = currentPlan === plan;
   const isUpgrade =
-    currentPlan === null ||
     (currentPlan === "BASIC" && plan === "PRO") ||
     (currentPlan === "BASIC" && plan === "ULTRA") ||
     (currentPlan === "PRO" && plan === "ULTRA");
@@ -66,14 +66,15 @@ function PlanCard({
           <Button variant="outline" className="w-full bg-transparent" disabled>
             Current Plan
           </Button>
-        ) : isUpgrade && plan ? (
+        ) : currentPlan === null && plan ? (
           <CheckoutButton plan={plan} className="w-full">
             Get Started
           </CheckoutButton>
         ) : (
-          <Button variant="outline" className="w-full bg-transparent" disabled>
-            Downgrade
-          </Button>
+          <ManageSubscriptionButton
+            label={isUpgrade ? "Upgrade" : "Downgrade"}
+            className="w-full"
+          />
         )}
       </CardFooter>
     </Card>

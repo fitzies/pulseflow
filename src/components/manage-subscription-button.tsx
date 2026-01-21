@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
-export function ManageSubscriptionButton() {
+export function ManageSubscriptionButton({
+  label = "Manage Subscription",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
   const [loading, setLoading] = useState(false);
 
   const handlePortal = async () => {
@@ -29,12 +35,8 @@ export function ManageSubscriptionButton() {
   };
 
   return (
-    <Button onClick={handlePortal} disabled={loading}>
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        "Manage Subscription"
-      )}
+    <Button onClick={handlePortal} disabled={loading} className={className}>
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
     </Button>
   );
 }
