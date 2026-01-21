@@ -2,8 +2,7 @@ import {
   Contract,
   JsonRpcProvider,
   Wallet,
-  parseEther,
-  formatEther,
+  MaxUint256,
   type ContractTransactionReceipt,
   type ContractTransactionResponse
 } from "ethers";
@@ -32,8 +31,6 @@ const AUTOMATION_CONTRACT_ABI = [
 ] as const;
 
 const PULSECHAIN_RPC = CONFIG.pulsechainRpc;
-const EXECUTION_FEE = parseEther(CONFIG.executionFee);
-const DEV_WALLET = CONFIG.devWallet;
 
 // Contract address from config
 const AUTOMATION_CONTRACT_ADDRESS = CONFIG.automationContract;
@@ -120,10 +117,10 @@ export async function swapTokens(
     const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
     const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
 
-    // Check current allowance
+    // Check current allowance, approve max if insufficient
     const allowance = await tokenContract.allowance(wallet.address, contractAddr);
     if (allowance < amountIn) {
-      const approveTx = await tokenContract.approve(contractAddr, amountIn);
+      const approveTx = await tokenContract.approve(contractAddr, MaxUint256);
       await approveTx.wait();
     }
   }
@@ -133,8 +130,7 @@ export async function swapTokens(
     amountOutMin,
     path,
     to,
-    deadline,
-    { value: EXECUTION_FEE }
+    deadline
   );
 
   const receipt = await tx.wait();
@@ -159,15 +155,12 @@ export async function swapPLSForTokens(
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
 
-  // Total value = execution fee + PLS amount for swap
-  const totalValue = EXECUTION_FEE + plsAmount;
-
   const tx: ContractTransactionResponse = await contract.swapExactPLSForTokens(
     amountOutMin,
     path,
     to,
     deadline,
-    { value: totalValue }
+    { value: plsAmount }
   );
 
   const receipt = await tx.wait();
@@ -199,10 +192,10 @@ export async function swapTokensForPLS(
     const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
     const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
 
-    // Check current allowance
+    // Check current allowance, approve max if insufficient
     const allowance = await tokenContract.allowance(wallet.address, contractAddr);
     if (allowance < amountIn) {
-      const approveTx = await tokenContract.approve(contractAddr, amountIn);
+      const approveTx = await tokenContract.approve(contractAddr, MaxUint256);
       await approveTx.wait();
     }
   }
@@ -212,8 +205,7 @@ export async function swapTokensForPLS(
     amountOutMin,
     path,
     to,
-    deadline,
-    { value: EXECUTION_FEE }
+    deadline
   );
 
   const receipt = await tx.wait();
@@ -248,8 +240,20 @@ export async function addLiquidity(
   const tokenBContract = new Contract(tokenB, erc20ABI, connectedWallet);
 
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await tokenAContract.approve(contractAddr, amountADesired);
-  await tokenBContract.approve(contractAddr, amountBDesired);
+
+  // Check and approve tokenA if needed
+  const allowanceA = await tokenAContract.allowance(wallet.address, contractAddr);
+  if (allowanceA < amountADesired) {
+    const approveTxA = await tokenAContract.approve(contractAddr, MaxUint256);
+    await approveTxA.wait();
+  }
+
+  // Check and approve tokenB if needed
+  const allowanceB = await tokenBContract.allowance(wallet.address, contractAddr);
+  if (allowanceB < amountBDesired) {
+    const approveTxB = await tokenBContract.approve(contractAddr, MaxUint256);
+    await approveTxB.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.addLiquidity(
     tokenA,
@@ -259,8 +263,7 @@ export async function addLiquidity(
     amountAMin,
     amountBMin,
     to,
-    deadline,
-    { value: EXECUTION_FEE }
+    deadline
   );
 
   const receipt = await tx.wait();
@@ -293,10 +296,13 @@ export async function addLiquidityPLS(
   const tokenContract = new Contract(token, erc20ABI, connectedWallet);
 
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await tokenContract.approve(contractAddr, amountTokenDesired);
 
-  // Total value = execution fee + PLS amount for liquidity
-  const totalValue = EXECUTION_FEE + plsAmount;
+  // Check and approve token if needed
+  const allowance = await tokenContract.allowance(wallet.address, contractAddr);
+  if (allowance < amountTokenDesired) {
+    const approveTx = await tokenContract.approve(contractAddr, MaxUint256);
+    await approveTx.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.addLiquidityPLS(
     token,
@@ -305,7 +311,7 @@ export async function addLiquidityPLS(
     amountPLSMin,
     to,
     deadline,
-    { value: totalValue }
+    { value: plsAmount }
   );
 
   const receipt = await tx.wait();
@@ -352,7 +358,13 @@ export async function removeLiquidity(
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const pairContract = new Contract(pairAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await pairContract.approve(contractAddr, liquidity);
+
+  // Check and approve LP tokens if needed
+  const allowance = await pairContract.allowance(wallet.address, contractAddr);
+  if (allowance < liquidity) {
+    const approveTx = await pairContract.approve(contractAddr, MaxUint256);
+    await approveTx.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.removeLiquidity(
     tokenA,
@@ -361,8 +373,7 @@ export async function removeLiquidity(
     amountAMin,
     amountBMin,
     to,
-    deadline,
-    { value: EXECUTION_FEE }
+    deadline
   );
 
   const receipt = await tx.wait();
@@ -408,7 +419,13 @@ export async function removeLiquidityPLS(
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const pairContract = new Contract(pairAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await pairContract.approve(contractAddr, liquidity);
+
+  // Check and approve LP tokens if needed
+  const allowancePLS = await pairContract.allowance(wallet.address, contractAddr);
+  if (allowancePLS < liquidity) {
+    const approveTx = await pairContract.approve(contractAddr, MaxUint256);
+    await approveTx.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.removeLiquidityPLS(
     token,
@@ -416,8 +433,7 @@ export async function removeLiquidityPLS(
     amountTokenMin,
     amountPLSMin,
     to,
-    deadline,
-    { value: EXECUTION_FEE }
+    deadline
   );
 
   const receipt = await tx.wait();
@@ -445,13 +461,18 @@ export async function transferTokens(
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const tokenContract = new Contract(token, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
-  await tokenContract.approve(contractAddr, amount);
+
+  // Check and approve token if needed
+  const allowance = await tokenContract.allowance(wallet.address, contractAddr);
+  if (allowance < amount) {
+    const approveTx = await tokenContract.approve(contractAddr, MaxUint256);
+    await approveTx.wait();
+  }
 
   const tx: ContractTransactionResponse = await contract.transferToken(
     token,
     to,
-    amount,
-    { value: EXECUTION_FEE }
+    amount
   );
 
   const receipt = await tx.wait();
@@ -473,13 +494,10 @@ export async function transferPLS(
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
 
-  // Total value = execution fee + PLS amount to transfer
-  const totalValue = EXECUTION_FEE + amount;
-
   const tx: ContractTransactionResponse = await contract.transferPLS(
     to,
     amount,
-    { value: totalValue }
+    { value: amount }
   );
 
   const receipt = await tx.wait();
@@ -518,14 +536,13 @@ export async function burnTokens(
 
   const allowance = await parentTokenContract.allowance(wallet.address, contractAddr);
   if (allowance < amount) {
-    const approveTx = await parentTokenContract.approve(contractAddr, amount);
+    const approveTx = await parentTokenContract.approve(contractAddr, MaxUint256);
     await approveTx.wait();
   }
 
   const tx: ContractTransactionResponse = await contract.burnToken(
     token,
-    amount,
-    { value: EXECUTION_FEE }
+    amount
   );
 
   const receipt = await tx.wait();
@@ -561,14 +578,13 @@ export async function claimTokens(
 
   const allowance = await tokenContract.allowance(wallet.address, contractAddr);
   if (allowance < amount) {
-    const approveTx = await tokenContract.approve(contractAddr, amount);
+    const approveTx = await tokenContract.approve(contractAddr, MaxUint256);
     await approveTx.wait();
   }
 
   const tx: ContractTransactionResponse = await contract.claimToken(
     token,
-    amount,
-    { value: EXECUTION_FEE }
+    amount
   );
 
   const receipt = await tx.wait();
@@ -775,14 +791,14 @@ export async function executeNode(
       } else {
         const path = nodeData.path || [];
         const swapMode = nodeData.swapMode || 'exactIn';
-        
+
         let amountIn: bigint;
         let amountOutMin = BigInt(0);
-        
+
         if (swapMode === 'exactOut') {
           // User specified desired output, calculate required input
           const amountOut = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
-          
+
           if (path.length > 0 && amountOut > 0n) {
             const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
             const amountsIn = await routerContract.getAmountsIn(amountOut, path);
@@ -797,7 +813,7 @@ export async function executeNode(
         } else {
           // Default: exactIn mode - user specified input amount
           amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
-          
+
           // Calculate amountOutMin from slippage
           if (path.length > 0 && amountIn > 0n) {
             const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
@@ -948,7 +964,7 @@ export async function executeNode(
       if (swapModeFromPLS === 'exactOut') {
         // User specified desired token output, calculate required PLS input
         const amountOutSwap = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
-        
+
         if (pathSwap.length > 0 && amountOutSwap > 0n) {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(amountOutSwap, pathSwap);
@@ -963,7 +979,7 @@ export async function executeNode(
       } else {
         // Default: exactIn mode - user specified PLS input amount
         plsAmountSwap = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
-        
+
         // Calculate amountOutMin from slippage
         if (pathSwap.length > 0 && plsAmountSwap > 0n) {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
@@ -1005,7 +1021,7 @@ export async function executeNode(
       if (swapModeToPLS === 'exactOut') {
         // User specified desired PLS output, calculate required token input
         const plsAmountOut = await resolveAmountField('plsAmountOut', nodeData, context, automationId, nodeType);
-        
+
         if (pathSwapToPLS.length > 0 && plsAmountOut > 0n) {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(plsAmountOut, pathSwapToPLS);
@@ -1020,7 +1036,7 @@ export async function executeNode(
       } else {
         // Default: exactIn mode - user specified token input amount
         amountInSwapToPLS = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
-        
+
         // Calculate amountOutMin from slippage
         if (pathSwapToPLS.length > 0 && amountInSwapToPLS > 0n) {
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
