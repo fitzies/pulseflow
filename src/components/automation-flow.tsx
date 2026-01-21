@@ -55,6 +55,7 @@ import {
 import { ArrowPathIcon, PlayIcon, StopIcon, Cog6ToothIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
 import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
+import { parseBlockchainError } from '@/lib/error-utils';
 import { AutomationSettingsDialog } from '@/components/automation-settings-dialog';
 import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
 
@@ -609,7 +610,9 @@ export function AutomationFlow({
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to run automation');
+      const parsed = parseBlockchainError(error);
+      console.error('Automation error details:', parsed.technicalDetails);
+      toast.error(parsed.userMessage);
     } finally {
       setIsRunning(false);
     }
@@ -710,7 +713,9 @@ export function AutomationFlow({
       // Redirect to automations list
       window.location.href = '/automations';
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete automation');
+      const parsed = parseBlockchainError(error);
+      console.error('Delete automation error:', parsed.technicalDetails);
+      toast.error(parsed.userMessage);
     }
   }, [automationId]);
 

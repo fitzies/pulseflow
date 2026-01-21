@@ -1,6 +1,7 @@
 import type { Node, Edge } from '@xyflow/react';
 import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
+import { parseBlockchainError } from './error-utils';
 
 export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken';
 
@@ -166,19 +167,22 @@ export async function executeAutomationChain(
           }
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const parsed = parseBlockchainError(error);
         
-        // Notify: node error
+        // Log technical details for debugging
+        console.error(`[${node.type}] Technical error:`, parsed.technicalDetails);
+        
+        // Notify: node error with user-friendly message
         onProgress?.({
           type: 'node_error',
           nodeId: node.id,
           nodeType: node.type,
-          error: errorMessage,
+          error: parsed.userMessage,
         });
         
-        // If a node fails, stop execution
+        // If a node fails, stop execution with user-friendly message
         throw new Error(
-          `Node ${nodeId} (${node.type}) failed: ${errorMessage}`
+          `${node.type} failed: ${parsed.userMessage}${parsed.isRetryable ? ' (retryable)' : ''}`
         );
       }
     }
