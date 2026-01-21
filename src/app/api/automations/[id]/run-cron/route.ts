@@ -14,8 +14,9 @@ export async function POST(
   const { id: automationId } = await params;
 
   // Verify the request is from our cron job
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Using custom header as Vercel may strip Authorization header on internal requests
+  const cronSecret = request.headers.get('x-cron-secret');
+  if (cronSecret !== process.env.CRON_SECRET) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

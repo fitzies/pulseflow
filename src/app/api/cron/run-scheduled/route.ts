@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         await fetch(`${baseUrl}/api/automations/${automation.id}/run-cron`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+            'x-cron-secret': process.env.CRON_SECRET || '',
             'Content-Type': 'application/json',
           },
           signal: controller.signal,
