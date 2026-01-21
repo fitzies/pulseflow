@@ -16,6 +16,11 @@ model User {
   plan        Plan?
   trialEndsAt DateTime?
 
+  // Stripe fields
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId        String?
+
   createdAt DateTime @default(now())
 
   automations Automation[]

@@ -81,9 +81,8 @@ export default async function Nav() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink className="text-foreground" href="#">
+                <BreadcrumbLink className="text-foreground" href="/">
                   <Logo />
-
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator> / </BreadcrumbSeparator>

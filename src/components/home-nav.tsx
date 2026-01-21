@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/popover";
 import UserMenu from "@/components/navbar-components/user-menu";
 import Logo from "./logo";
+import Link from "next/link";
 
 // Navigation links array to be used in both desktop and mobile menus
 const navigationLinks = [
@@ -85,7 +86,9 @@ export default async function HomeNav() {
           </Popover>
           {/* Main nav */}
           <div className="flex items-center gap-6">
-            <Logo />
+            <Link href="/">
+              <Logo />
+            </Link>
 
             {/* Navigation menu */}
             <NavigationMenu className="max-md:hidden">

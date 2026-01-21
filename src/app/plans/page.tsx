@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { PlanFeatures, plans } from "@/lib/plan-limits";
+import { CheckoutButton } from "@/components/checkout-button";
 
 type Plan = "BASIC" | "PRO" | "ULTRA" | null;
 
@@ -65,14 +65,10 @@ function PlanCard({
           <Button variant="outline" className="w-full bg-transparent" disabled>
             Current Plan
           </Button>
-        ) : plan === "PRO" || plan === "ULTRA" ? (
-          <Button variant="outline" className="w-full bg-transparent" disabled>
-            Coming Soon
-          </Button>
-        ) : isUpgrade ? (
-          <Button asChild className="w-full">
-            <Link href="#">Get Started</Link>
-          </Button>
+        ) : isUpgrade && plan ? (
+          <CheckoutButton plan={plan} className="w-full">
+            Get Started
+          </CheckoutButton>
         ) : (
           <Button variant="outline" className="w-full bg-transparent" disabled>
             Downgrade

@@ -12,6 +12,7 @@ import {
   UserPenIcon,
 } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
+import Link from "next/link";
 
 import {
   Avatar,
@@ -76,17 +77,23 @@ export default function UserMenu({ user }: UserMenuProps) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <User aria-hidden="true" className="opacity-60" size={16} />
-            <span>Account</span>
+          <DropdownMenuItem asChild>
+            <Link href="/account">
+              <User aria-hidden="true" className="opacity-60" size={16} />
+              <span>Account</span>
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <PaperclipIcon aria-hidden="true" className="opacity-60" size={16} />
-            <span>Billing</span>
+          <DropdownMenuItem asChild>
+            <Link href="/account/billing">
+              <PaperclipIcon aria-hidden="true" className="opacity-60" size={16} />
+              <span>Billing</span>
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Globe aria-hidden="true" className="opacity-60" size={16} />
-            <span>Plans</span>
+          <DropdownMenuItem asChild>
+            <Link href="/plans">
+              <Globe aria-hidden="true" className="opacity-60" size={16} />
+              <span>Plans</span>
+            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
