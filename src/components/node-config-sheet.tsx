@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PlusIcon, XMarkIcon, TrashIcon, LockClosedIcon } from '@heroicons/react/24/solid';
+import { ExternalLink } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import type { NodeType } from '@/components/select-node-dialog';
 import { SlippageSelector } from '@/components/slippage-selector';
 import { AmountSelector } from '@/components/amount-selector';
@@ -1010,6 +1012,51 @@ export function NodeConfigSheet({
     }
   };
 
+  const renderTelegramConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-4">
+        <p className="text-sm text-sky-400">
+          Make sure you&apos;ve connected your Telegram account before using this node.
+        </p>
+        <a
+          href="/connect/telegram"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-2"
+        >
+          Connect Telegram
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+
+      <div className="grid gap-3">
+        <label htmlFor="message" className="text-sm font-medium">Message Template</label>
+        <Textarea
+          id="message"
+          placeholder="Your automation {{automation.name}} has completed!"
+          value={formData.message || ''}
+          onChange={(e) => updateField('message', e.target.value)}
+          rows={4}
+        />
+        <p className="text-xs text-muted-foreground">
+          Use variables like {`{{automation.name}}`}, {`{{timestamp}}`}, {`{{previousNode.output}}`}
+        </p>
+      </div>
+
+      <div className="rounded-lg bg-muted/50 border p-3">
+        <p className="text-xs font-medium mb-2">Available Variables</p>
+        <div className="text-xs text-muted-foreground space-y-1 font-mono">
+          <p>{`{{automation.name}}`} - Automation name</p>
+          <p>{`{{automation.id}}`} - Automation ID</p>
+          <p>{`{{timestamp}}`} - Current timestamp</p>
+          <p>{`{{previousNode.output}}`} - Previous node output</p>
+          <p>{`{{previousNode.txHash}}`} - Previous tx hash</p>
+          <p>{`{{balance.pls}}`} - Current PLS balance</p>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderStartConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <div className="grid gap-3">
@@ -1152,6 +1199,8 @@ export function NodeConfigSheet({
         return renderGasGuardConfig();
       case 'condition':
         return renderConditionConfig();
+      case 'telegram':
+        return renderTelegramConfig();
       case 'checkBalance':
       default:
         return (

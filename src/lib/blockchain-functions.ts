@@ -1514,6 +1514,68 @@ export async function executeNode(
       
       return { result: conditionOutput, context: updatedContextCondition };
 
+    case "telegram":
+      // Telegram node - sends a message to the user's connected Telegram
+      const messageTemplate = nodeData.message || 'Automation completed!';
+      
+      // Get user's telegram chat ID
+      const automation = await prisma.automation.findUnique({
+        where: { id: automationId },
+        include: { user: { select: { telegramChatId: true } } },
+      });
+      
+      if (!automation?.user?.telegramChatId) {
+        throw new Error("Telegram not connected. Please connect your Telegram at /connect/telegram");
+      }
+      
+      // Interpolate variables in the message
+      let message = messageTemplate;
+      
+      // Replace automation variables
+      message = message.replace(/\{\{automation\.name\}\}/g, automation.name || 'Unknown');
+      message = message.replace(/\{\{automation\.id\}\}/g, automationId);
+      message = message.replace(/\{\{timestamp\}\}/g, new Date().toISOString());
+      
+      // Replace previous node output variables
+      if (context.previousNodeId) {
+        const prevOutput = context.nodeOutputs.get(context.previousNodeId);
+        if (prevOutput) {
+          message = message.replace(/\{\{previousNode\.output\}\}/g, String(prevOutput.amountOut || prevOutput.balance || prevOutput.output || ''));
+          message = message.replace(/\{\{previousNode\.txHash\}\}/g, prevOutput.txHash || '');
+        }
+      }
+      
+      // Replace balance variables (fetch current PLS balance)
+      if (message.includes('{{balance.pls}}')) {
+        const walletTelegram = await getWalletFromAutomation(automationId);
+        const providerTelegram = getProvider();
+        const plsBalanceTelegram = await providerTelegram.getBalance(walletTelegram.address);
+        const plsBalanceFormatted = (Number(plsBalanceTelegram) / 1e18).toFixed(4);
+        message = message.replace(/\{\{balance\.pls\}\}/g, plsBalanceFormatted);
+      }
+      
+      // Send the Telegram message
+      const { Bot } = await import('grammy');
+      const telegramBot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
+      
+      await telegramBot.api.sendMessage(automation.user.telegramChatId, message);
+      
+      const telegramOutput = {
+        success: true,
+        message,
+        chatId: automation.user.telegramChatId,
+        sentAt: new Date().toISOString(),
+      };
+      
+      const updatedContextTelegram = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        telegramOutput
+      );
+      
+      return { result: telegramOutput, context: updatedContextTelegram };
+
     default:
       throw new Error(`Unknown node type: ${nodeType}`);
   }

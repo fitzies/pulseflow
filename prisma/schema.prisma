@@ -21,6 +21,10 @@ model User {
   stripeSubscriptionId String? @unique
   stripePriceId        String?
 
+  // Telegram integration
+  telegramChatId   String?
+  telegramLinkedAt DateTime?
+
   createdAt DateTime @default(now())
 
   automations Automation[]

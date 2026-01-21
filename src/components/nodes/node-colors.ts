@@ -25,7 +25,8 @@ export type NodeType =
   | 'wait'
   | 'loop'
   | 'gasGuard'
-  | 'condition';
+  | 'condition'
+  | 'telegram';
 
 interface NodeColorClasses {
   background: string;
@@ -54,6 +55,7 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   loop: { background: 'bg-violet-400/20', text: 'text-violet-400' },
   gasGuard: { background: 'bg-purple-500/20', text: 'text-purple-500' },
   condition: { background: 'bg-amber-500/20', text: 'text-amber-500' },
+  telegram: { background: 'bg-sky-500/20', text: 'text-sky-400' },
 };
 
 /**

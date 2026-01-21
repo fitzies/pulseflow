@@ -36,6 +36,7 @@ import {
   LoopNode,
   GasGuardNode,
   ConditionNode,
+  TelegramNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -91,6 +92,7 @@ const nodeTypes: NodeTypes = {
   loop: withStatusIndicator(LoopNode),
   gasGuard: withStatusIndicator(GasGuardNode),
   condition: withStatusIndicator(ConditionNode),
+  telegram: withStatusIndicator(TelegramNode),
 };
 
 const edgeTypes: EdgeTypes = {

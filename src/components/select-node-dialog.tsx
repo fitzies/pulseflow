@@ -14,6 +14,7 @@ import {
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/solid';
+import { MessageCircle } from 'lucide-react';
 import {
   CommandDialog,
   CommandInput,
@@ -45,7 +46,8 @@ export type NodeType =
   | 'wait'
   | 'loop'
   | 'gasGuard'
-  | 'condition';
+  | 'condition'
+  | 'telegram';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -206,6 +208,14 @@ const nodeTypes: NodeTypeOption[] = [
     iconColor: getNodeTextColor('condition'),
     requiresPlan: 'PRO',
   },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    description: 'Send Telegram notification',
+    icon: MessageCircle,
+    iconBg: getNodeBackgroundColor('telegram'),
+    iconColor: getNodeTextColor('telegram'),
+  },
 ];
 
 interface SelectNodeDialogProps {
@@ -229,6 +239,7 @@ const nodeGroups = {
   controlFlow: nodeTypes.filter((n) =>
     ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
   ),
+  external: nodeTypes.filter((n) => ['telegram'].includes(n.type)),
 };
 
 const planHierarchy: Record<string, number> = {
@@ -309,7 +320,8 @@ export function SelectNodeDialog({
         {renderGroup('Transfers', nodeGroups.transfers)}
         {renderGroup('Checks', nodeGroups.checks)}
         {renderGroup('Token Operations', nodeGroups.tokenOperations)}
-        {renderGroup('Control Flow', nodeGroups.controlFlow, false)}
+        {renderGroup('Control Flow', nodeGroups.controlFlow)}
+        {renderGroup('External', nodeGroups.external, false)}
       </CommandList>
     </CommandDialog>
   );
