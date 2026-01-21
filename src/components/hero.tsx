@@ -25,7 +25,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
     dailyVolumeLabel = "AUTOMATIONS EXECUTED DAILY",
     headline = "Visual Automation for On-Chain Execution",
     subheadline = "Design, deploy, and run deterministic blockchain workflows using a visual node editor. Automate swaps, transfers, conditions, and monitoring on PulseChain — powered by isolated wallets and secure execution.",
-    videoSrc = "",
+    // videoSrc = "",
     posterSrc = "/images/hero/flow-editor-preview.png",
     primaryButtonText = "Create your first flow",
     primaryButtonHref = AUTH_URLS.signUp,
@@ -136,7 +136,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
               }}
             >
               <CardContent className="p-0 flex justify-center items-center h-full">
-                <video
+                {/* <video
                   src={videoSrc}
                   autoPlay
                   muted
@@ -151,7 +151,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
                   }}
-                />
+                /> */}
               </CardContent>
             </Card>
           </motion.div>
