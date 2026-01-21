@@ -14,11 +14,11 @@ import {
 import UserMenu from "@/components/navbar-components/user-menu";
 import Logo from "./logo";
 import Link from "next/link";
+import { AUTH_URLS } from "@/lib/constants";
 
 // Navigation links array to be used in both desktop and mobile menus
 const navigationLinks = [
   { active: true, href: "/", label: "Home" },
-  { href: "/", label: "Features" },
   { href: "/plans", label: "Plans" },
   // { href: "#", label: "About" },
 ];
@@ -91,7 +91,7 @@ export default async function HomeNav() {
             </Link>
 
             {/* Navigation menu */}
-            <NavigationMenu className="max-md:hidden">
+            {/* <NavigationMenu className="max-md:hidden">
               <NavigationMenuList className="gap-2">
                 {navigationLinks.map((link, _index) => (
                   <NavigationMenuItem key={link.label}>
@@ -105,7 +105,7 @@ export default async function HomeNav() {
                   </NavigationMenuItem>
                 ))}
               </NavigationMenuList>
-            </NavigationMenu>
+            </NavigationMenu> */}
           </div>
         </div>
         {/* Right side */}
@@ -124,10 +124,10 @@ export default async function HomeNav() {
           ) : (
             <>
               <Button asChild className="text-sm" size="sm" variant="ghost">
-                <a href="/auth/sign-in">Sign In</a>
+                <a href={AUTH_URLS.signIn}>Sign In</a>
               </Button>
               <Button asChild className="text-sm" size="sm">
-                <a href="/auth/sign-up">Get Started</a>
+                <a href={AUTH_URLS.signUp}>Get Started</a>
               </Button>
             </>
           )}

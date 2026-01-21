@@ -3,6 +3,7 @@ import { motion } from "framer-motion"
 import { ArrowUpRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { AUTH_URLS } from "@/lib/constants"
 
 type ProductTeaserCardProps = {
   dailyVolume?: string
@@ -27,9 +28,9 @@ export const Hero = (props: ProductTeaserCardProps) => {
     videoSrc = "https://cdn.sanity.io/files/1t8iva7t/production/blockchain-flow-demo.mp4",
     posterSrc = "/images/hero/flow-editor-preview.png",
     primaryButtonText = "Create your first flow",
-    primaryButtonHref = "/auth/sign-up",
+    primaryButtonHref = AUTH_URLS.signUp,
     secondaryButtonText = "View node library",
-    secondaryButtonHref = "/auth/sign-up",
+    secondaryButtonHref = AUTH_URLS.signUp,
   } = props
 
 
@@ -55,7 +56,6 @@ export const Hero = (props: ProductTeaserCardProps) => {
               <CardContent className="p-12 lg:p-16 flex flex-col justify-end aspect-square overflow-hidden">
                 <a
                   href={primaryButtonHref}
-                  onClick={(e) => e.preventDefault()}
                   className="flex flex-col gap-1 text-muted-foreground"
                 >
                   <motion.span
@@ -93,10 +93,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
                     asChild
                     className="px-[18px] py-[15px] h-auto text-base leading-4 transition-all duration-150"
                   >
-                    <a
-                      href={primaryButtonHref}
-                      onClick={(e) => e.preventDefault()}
-                    >
+                    <a href={primaryButtonHref}>
                       {primaryButtonText}
                     </a>
                   </Button>
@@ -105,10 +102,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
                     variant="outline"
                     className="px-[18px] py-[15px] h-auto text-base leading-4 text-foreground border-foreground bg-transparent hover:bg-transparent "
                   >
-                    <a
-                      href={secondaryButtonHref}
-                      onClick={(e) => e.preventDefault()}
-                    >
+                    <a href={secondaryButtonHref}>
                       {secondaryButtonText}
                     </a>
                   </Button>
