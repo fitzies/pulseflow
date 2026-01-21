@@ -80,12 +80,10 @@ export function NodeConfigSheet({
   // Schedule state for start node
   const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE'>(triggerMode);
   const [schedulePreset, setSchedulePreset] = useState<string>(
-    SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || 'custom'
+    SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || SCHEDULE_PRESETS[0].value
   );
   const [customCronExpression, setCustomCronExpression] = useState(cronExpression || '');
-  const [showAdvanced, setShowAdvanced] = useState(
-    cronExpression !== null && !SCHEDULE_PRESETS.find((p) => p.value === cronExpression)
-  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [cronError, setCronError] = useState<string | null>(null);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
@@ -105,14 +103,10 @@ export function NodeConfigSheet({
     const matchingPreset = SCHEDULE_PRESETS.find((p) => p.value === cronExpression);
     if (matchingPreset) {
       setSchedulePreset(matchingPreset.value);
-      setShowAdvanced(false);
-    } else if (cronExpression) {
-      setSchedulePreset('custom');
-      setShowAdvanced(true);
     } else {
       setSchedulePreset(SCHEDULE_PRESETS[0].value);
-      setShowAdvanced(false);
     }
+    setShowAdvanced(false);
     setCustomCronExpression(cronExpression || '');
     setCronError(null);
   }, [triggerMode, cronExpression]);
@@ -978,7 +972,7 @@ export function NodeConfigSheet({
       let cronExprToSave: string | null = null;
 
       if (scheduleTriggerMode === 'SCHEDULE') {
-        cronExprToSave = showAdvanced ? customCronExpression : schedulePreset;
+        cronExprToSave = schedulePreset;
 
         // Basic client-side validation
         const validation = validateMinimumIntervalClient(cronExprToSave);
@@ -1106,16 +1100,11 @@ export function NodeConfigSheet({
           <div className="grid gap-3">
             <label className="text-sm font-medium">Schedule</label>
             <Select
-              value={showAdvanced ? 'custom' : schedulePreset}
+              value={schedulePreset}
               onValueChange={(value) => {
-                if (value === 'custom') {
-                  setShowAdvanced(true);
-                  setSchedulePreset('custom');
-                } else {
-                  setShowAdvanced(false);
-                  setSchedulePreset(value);
-                  setCronError(null);
-                }
+                setShowAdvanced(false);
+                setSchedulePreset(value);
+                setCronError(null);
               }}
             >
               <SelectTrigger>
@@ -1127,31 +1116,10 @@ export function NodeConfigSheet({
                     {preset.label}
                   </SelectItem>
                 ))}
-                <SelectItem value="custom">Custom (Advanced)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {showAdvanced && (
-            <div className="grid gap-3">
-              <label className="text-sm font-medium">Cron Expression</label>
-              <Input
-                type="text"
-                placeholder="*/20 * * * *"
-                value={customCronExpression}
-                onChange={(e) => {
-                  setCustomCronExpression(e.target.value);
-                  setCronError(null);
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                Standard cron format: minute hour day month weekday
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Minimum interval: 20 minutes between runs
-              </p>
-            </div>
-          )}
 
           {cronError && (
             <p className="text-xs text-destructive">{cronError}</p>
