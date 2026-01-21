@@ -24,7 +24,8 @@ export type NodeType =
   | 'claimToken'
   | 'wait'
   | 'loop'
-  | 'gasGuard';
+  | 'gasGuard'
+  | 'condition';
 
 interface NodeColorClasses {
   background: string;
@@ -52,6 +53,7 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   wait: { background: 'bg-blue-500/20', text: 'text-blue-500' },
   loop: { background: 'bg-violet-400/20', text: 'text-violet-400' },
   gasGuard: { background: 'bg-purple-500/20', text: 'text-purple-500' },
+  condition: { background: 'bg-amber-500/20', text: 'text-amber-500' },
 };
 
 /**

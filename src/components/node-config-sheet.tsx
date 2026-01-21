@@ -709,6 +709,19 @@ export function NodeConfigSheet({
           onChange={(e) => updateField('pairAddress', e.target.value)}
         />
       </div>
+      <div className="grid gap-2 p-4 bg-muted rounded-lg">
+        <h4 className="text-sm font-medium">How the Ratio is Calculated</h4>
+        <p className="text-xs text-muted-foreground">
+          This node checks the liquidity pool pair and calculates the ratio of tokens in the LP.
+        </p>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p><strong>Formula:</strong> ratio = token1Amount ÷ token0Amount</p>
+          <p><strong>Example:</strong> If token0 has 1000 tokens and token1 has 1100 tokens, the ratio is 1.1</p>
+          <p className="mt-2">
+            The ratio output can be used in condition nodes to compare against thresholds (e.g., ratio {'>'} 1.0).
+          </p>
+        </div>
+      </div>
     </div>
   );
 
@@ -779,6 +792,181 @@ export function NodeConfigSheet({
       </div>
     </div>
   );
+
+  // Get available output fields from previous node type
+  const getPreviousOutputFields = () => {
+    if (!previousNodeType) return [];
+
+    const outputFields: { value: string; label: string }[] = [];
+
+    switch (previousNodeType) {
+      case 'swap':
+      case 'swapFromPLS':
+      case 'swapToPLS':
+        outputFields.push({ value: 'amountOut', label: 'Amount Out (tokens received)' });
+        break;
+      case 'checkBalance':
+        outputFields.push({ value: 'balance', label: 'PLS Balance' });
+        break;
+      case 'checkTokenBalance':
+        outputFields.push({ value: 'balance', label: 'Token Balance' });
+        break;
+      case 'checkLPTokenAmounts':
+        outputFields.push({ value: 'ratio', label: 'LP Token Ratio' });
+        outputFields.push({ value: 'lpBalance', label: 'LP Token Balance' });
+        outputFields.push({ value: 'token0Amount', label: 'Token 0 Amount' });
+        outputFields.push({ value: 'token1Amount', label: 'Token 1 Amount' });
+        break;
+      case 'addLiquidity':
+      case 'addLiquidityPLS':
+        outputFields.push({ value: 'liquidity', label: 'LP Tokens Received' });
+        break;
+      case 'removeLiquidity':
+      case 'removeLiquidityPLS':
+        outputFields.push({ value: 'amountA', label: 'Token A Amount' });
+        outputFields.push({ value: 'amountB', label: 'Token B Amount' });
+        break;
+    }
+
+    return outputFields;
+  };
+
+  const renderConditionConfig = () => {
+    const conditionType = formData.conditionType || 'plsBalance';
+    const showTokenAddress = conditionType === 'tokenBalance';
+    const showPairAddress = conditionType === 'lpAmount';
+    const showPreviousOutput = conditionType === 'previousOutput';
+    const previousOutputFields = getPreviousOutputFields();
+    const hasPreviousNode = previousNodeType !== null;
+
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Condition Type</label>
+          <Select
+            value={conditionType}
+            onValueChange={(value) => updateField('conditionType', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="plsBalance">PLS Balance</SelectItem>
+              <SelectItem value="tokenBalance">Token Balance</SelectItem>
+              <SelectItem value="lpAmount">LP Token Amount</SelectItem>
+              <SelectItem value="previousOutput" disabled={!hasPreviousNode}>
+                Previous Node Output {!hasPreviousNode && '(no previous node)'}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {conditionType === 'plsBalance' && 'Check the PLS balance of the automation wallet'}
+            {conditionType === 'tokenBalance' && 'Check a specific token balance'}
+            {conditionType === 'lpAmount' && 'Check LP token balance for a pair'}
+            {conditionType === 'previousOutput' && 'Use output from the previous node'}
+          </p>
+        </div>
+
+        {showTokenAddress && (
+          <div className="grid gap-3">
+            <label htmlFor="tokenAddress" className="text-sm font-medium">Token Address</label>
+            <Input
+              id="tokenAddress"
+              type="text"
+              placeholder="0x..."
+              value={formData.tokenAddress || ''}
+              onChange={(e) => updateField('tokenAddress', e.target.value)}
+            />
+          </div>
+        )}
+
+        {showPairAddress && (
+          <div className="grid gap-3">
+            <label htmlFor="lpPairAddress" className="text-sm font-medium">LP Pair Address</label>
+            <Input
+              id="lpPairAddress"
+              type="text"
+              placeholder="0x..."
+              value={formData.lpPairAddress || ''}
+              onChange={(e) => updateField('lpPairAddress', e.target.value)}
+            />
+          </div>
+        )}
+
+        {showPreviousOutput && previousOutputFields.length > 0 && (
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Output Field</label>
+            <Select
+              value={formData.previousOutputField || previousOutputFields[0]?.value}
+              onValueChange={(value) => updateField('previousOutputField', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {previousOutputFields.map((field) => (
+                  <SelectItem key={field.value} value={field.value}>
+                    {field.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Select which output from the previous {previousNodeType} node to check
+            </p>
+          </div>
+        )}
+
+        {showPreviousOutput && previousOutputFields.length === 0 && hasPreviousNode && (
+          <div className="rounded-lg bg-muted/50 border p-3">
+            <p className="text-xs text-muted-foreground">
+              The previous node ({previousNodeType}) does not have numeric outputs to compare.
+            </p>
+          </div>
+        )}
+
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Operator</label>
+          <Select
+            value={formData.operator || '>'}
+            onValueChange={(value) => updateField('operator', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value=">">Greater than (&gt;)</SelectItem>
+              <SelectItem value="<">Less than (&lt;)</SelectItem>
+              <SelectItem value=">=">Greater or equal (&gt;=)</SelectItem>
+              <SelectItem value="<=">Less or equal (&lt;=)</SelectItem>
+              <SelectItem value="==">Equal (==)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-3">
+          <label htmlFor="value" className="text-sm font-medium">Value</label>
+          <Input
+            id="value"
+            type="text"
+            placeholder="100"
+            value={formData.value || ''}
+            onChange={(e) => updateField('value', e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            The value to compare against (in token units, e.g., 100 for 100 PLS)
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-muted/50 border p-3">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium">True branch:</span> Executes when condition is met<br />
+            <span className="font-medium">False branch:</span> Executes when condition is not met
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   const handleSaveSchedule = async () => {
     setIsSavingSchedule(true);
@@ -962,6 +1150,8 @@ export function NodeConfigSheet({
         return renderLoopConfig();
       case 'gasGuard':
         return renderGasGuardConfig();
+      case 'condition':
+        return renderConditionConfig();
       case 'checkBalance':
       default:
         return (

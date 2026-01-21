@@ -17,3 +17,4 @@ export { ClaimTokenNode } from './claim-token-node';
 export { WaitNode } from './wait-node';
 export { LoopNode } from './loop-node';
 export { GasGuardNode } from './gas-guard-node';
+export { ConditionNode } from './condition-node';

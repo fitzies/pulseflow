@@ -12,6 +12,7 @@ import {
   ChartBarIcon,
   ArrowPathIcon,
   ShieldCheckIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/solid';
 import {
   CommandDialog,
@@ -43,7 +44,8 @@ export type NodeType =
   | 'claimToken'
   | 'wait'
   | 'loop'
-  | 'gasGuard';
+  | 'gasGuard'
+  | 'condition';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -162,7 +164,7 @@ const nodeTypes: NodeTypeOption[] = [
   },
   {
     type: 'checkLPTokenAmounts',
-    label: 'Check LP Amounts',
+    label: 'Check LP',
     description: 'Check LP token amounts',
     icon: ChartBarIcon,
     iconBg: getNodeBackgroundColor('checkLPTokenAmounts'),
@@ -195,6 +197,15 @@ const nodeTypes: NodeTypeOption[] = [
     iconColor: getNodeTextColor('gasGuard'),
     requiresPlan: 'PRO',
   },
+  {
+    type: 'condition',
+    label: 'Condition',
+    description: 'Branch based on balance/LP',
+    icon: QuestionMarkCircleIcon,
+    iconBg: getNodeBackgroundColor('condition'),
+    iconColor: getNodeTextColor('condition'),
+    requiresPlan: 'PRO',
+  },
 ];
 
 interface SelectNodeDialogProps {
@@ -216,7 +227,7 @@ const nodeGroups = {
   ),
   tokenOperations: nodeTypes.filter((n) => ['burnToken', 'claimToken'].includes(n.type)),
   controlFlow: nodeTypes.filter((n) =>
-    ['wait', 'loop', 'gasGuard'].includes(n.type)
+    ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
   ),
 };
 
@@ -292,7 +303,7 @@ export function SelectNodeDialog({
       <CommandInput placeholder="Search nodes..." />
       <CommandList>
         <CommandEmpty>No nodes found.</CommandEmpty>
-        
+
         {renderGroup('Swaps', nodeGroups.swaps)}
         {renderGroup('Liquidity', nodeGroups.liquidity)}
         {renderGroup('Transfers', nodeGroups.transfers)}

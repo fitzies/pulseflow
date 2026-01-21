@@ -35,6 +35,7 @@ import {
   WaitNode,
   LoopNode,
   GasGuardNode,
+  ConditionNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -89,6 +90,7 @@ const nodeTypes: NodeTypes = {
   wait: withStatusIndicator(WaitNode),
   loop: withStatusIndicator(LoopNode),
   gasGuard: withStatusIndicator(GasGuardNode),
+  condition: withStatusIndicator(ConditionNode),
 };
 
 const edgeTypes: EdgeTypes = {
@@ -155,6 +157,7 @@ export function AutomationFlow({
   const [copied, setCopied] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sourceNodeId, setSourceNodeId] = useState<string | null>(null);
+  const [sourceHandleId, setSourceHandleId] = useState<string | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const [configSheetOpen, setConfigSheetOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -325,8 +328,9 @@ export function AutomationFlow({
     [],
   );
 
-  const handleOpenDialog = useCallback((nodeId: string) => {
+  const handleOpenDialog = useCallback((nodeId: string, sourceHandle?: string) => {
     setSourceNodeId(nodeId);
+    setSourceHandleId(sourceHandle || null);
     setTargetNodeId(null);
     setDialogOpen(true);
   }, []);
@@ -399,6 +403,7 @@ export function AutomationFlow({
       if (targetNodeId) {
         handleInsertNodeBetween(sourceNodeId, targetNodeId, nodeType);
         setSourceNodeId(null);
+        setSourceHandleId(null);
         setTargetNodeId(null);
         return;
       }
@@ -408,31 +413,54 @@ export function AutomationFlow({
       if (!sourceNode) return;
 
       const newNodeId = `${nodeType}-${Date.now()}`;
+      
+      // Calculate position based on whether this is a condition branch
+      let newX = sourceNode.position.x + 250;
+      let newY = sourceNode.position.y;
+      
+      // If coming from a condition node, position based on branch
+      if (sourceNode.type === 'condition' && sourceHandleId) {
+        if (sourceHandleId === 'output-true') {
+          // True branch goes to the right
+          newX = sourceNode.position.x + 150;
+          newY = sourceNode.position.y + 150;
+        } else if (sourceHandleId === 'output-false') {
+          // False branch goes to the left
+          newX = sourceNode.position.x - 150;
+          newY = sourceNode.position.y + 150;
+        }
+      }
+      
       const newNode: Node = {
         id: newNodeId,
         position: {
-          x: sourceNode.position.x + 250,
-          y: sourceNode.position.y,
+          x: newX,
+          y: newY,
         },
         data: {},
         type: nodeType,
       };
 
-      const sourceHandleId = sourceNode.type === 'start' ? 'start-output' : 'output';
+      // Determine source handle
+      let edgeSourceHandle = sourceHandleId;
+      if (!edgeSourceHandle) {
+        edgeSourceHandle = sourceNode.type === 'start' ? 'start-output' : 'output';
+      }
       
       const newEdge: Edge = {
         id: `edge-${sourceNodeId}-${newNodeId}`,
         source: sourceNodeId,
         target: newNodeId,
-        sourceHandle: sourceHandleId,
+        sourceHandle: edgeSourceHandle,
         type: 'buttonedge',
       };
 
       setNodes((prevNodes) => [...prevNodes, newNode]);
       setEdges((prevEdges) => [...prevEdges, newEdge]);
       setSourceNodeId(null);
+      setSourceHandleId(null);
     },
-    [nodes, sourceNodeId, targetNodeId, handleInsertNodeBetween],
+    [nodes, sourceNodeId, sourceHandleId, targetNodeId, handleInsertNodeBetween],
   );
 
   const handleNodeClick = useCallback((nodeId: string) => {
@@ -450,18 +478,24 @@ export function AutomationFlow({
     );
   }, []);
 
-  // Get all nodes that come after a given node in the chain
+  // Get all nodes that come after a given node in the chain (handles branching)
   const getNodesAfter = useCallback((nodeId: string): string[] => {
     const result: string[] = [];
-    let currentId = nodeId;
+    const visited = new Set<string>();
+    const queue = [nodeId];
     
-    while (currentId) {
-      const outgoingEdge = edges.find((e) => e.source === currentId);
-      if (outgoingEdge) {
-        result.push(outgoingEdge.target);
-        currentId = outgoingEdge.target;
-      } else {
-        break;
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      
+      // Find all outgoing edges from this node
+      const outgoingEdges = edges.filter((e) => e.source === currentId);
+      for (const edge of outgoingEdges) {
+        if (!visited.has(edge.target)) {
+          result.push(edge.target);
+          queue.push(edge.target);
+        }
       }
     }
     
@@ -590,21 +624,42 @@ export function AutomationFlow({
     return nodes.map((node) => {
       const isLastNode = node.id === lastNodeId;
       const status = nodeStatuses[node.id] || 'initial';
+      
+      // For condition nodes, check which branches have connections
+      let conditionData = {};
+      if (node.type === 'condition') {
+        const hasTrueBranch = edges.some(
+          (e) => e.source === node.id && e.sourceHandle === 'output-true'
+        );
+        const hasFalseBranch = edges.some(
+          (e) => e.source === node.id && e.sourceHandle === 'output-false'
+        );
+        conditionData = {
+          hasTrueBranch,
+          hasFalseBranch,
+          onAddNode: (sourceHandle: string) => handleOpenDialog(node.id, sourceHandle),
+        };
+      }
+      
       return {
         ...node,
         data: {
           ...node.data,
-          onAddNode: isLastNode ? () => handleOpenDialog(node.id) : undefined,
+          onAddNode: node.type === 'condition' 
+            ? conditionData.onAddNode 
+            : (isLastNode ? () => handleOpenDialog(node.id) : undefined),
           onNodeClick: () => handleNodeClick(node.id),
           isLastNode,
           status,
           showNodeLabels,
           // Pass schedule data to start node
           ...(node.type === 'start' ? { triggerMode, cronExpression, nextRunAt } : {}),
+          // Pass condition-specific data
+          ...(node.type === 'condition' ? conditionData : {}),
         },
       };
     });
-  }, [nodes, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
+  }, [nodes, edges, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
 
   const handleSettingsUpdate = useCallback(() => {
     // Refresh the page to get updated settings

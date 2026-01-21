@@ -610,18 +610,30 @@ export async function checkLPTokenAmounts(
   token1: string;
   token0Amount: bigint;
   token1Amount: bigint;
+  ratio: number;
 }> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
 
   const result = await contract.checkLPTokenAmounts(pairAddress, wallet.address);
 
+  const token0Amount = result[3];
+  const token1Amount = result[4];
+
+  // Calculate ratio: token1Amount / token0Amount
+  if (token0Amount === 0n) {
+    throw new Error("Cannot calculate ratio: token0Amount is zero");
+  }
+
+  const ratio = Number(token1Amount) / Number(token0Amount);
+
   return {
     lpBalance: result[0],
     token0: result[1],
     token1: result[2],
-    token0Amount: result[3],
-    token1Amount: result[4],
+    token0Amount,
+    token1Amount,
+    ratio,
   };
 }
 
@@ -1384,6 +1396,123 @@ export async function executeNode(
       );
 
       return { result: gasGuardOutput, context: updatedContextGasGuard };
+
+    case "condition":
+      // Condition node - evaluates a condition and returns which branch to follow
+      const conditionType = nodeData.conditionType || 'plsBalance';
+      const operator = nodeData.operator || '>';
+      const compareValue = nodeData.value ? parseFloat(nodeData.value) : 0;
+      
+      const walletCondition = await getWalletFromAutomation(automationId);
+      const providerCondition = getProvider();
+      
+      let actualValue: number = 0;
+      let valueLabel = '';
+      
+      // Fetch the value based on condition type
+      if (conditionType === 'plsBalance') {
+        const plsBalanceWei = await providerCondition.getBalance(walletCondition.address);
+        // Convert from wei to PLS (18 decimals)
+        actualValue = Number(plsBalanceWei) / 1e18;
+        valueLabel = 'PLS Balance';
+      } else if (conditionType === 'tokenBalance') {
+        if (!nodeData.tokenAddress) {
+          throw new Error("Token address is required for token balance condition");
+        }
+        const tokenContractCondition = new Contract(nodeData.tokenAddress, erc20ABI, providerCondition);
+        const tokenBalanceWei = await tokenContractCondition.balanceOf(walletCondition.address);
+        // Try to get decimals, default to 18
+        let decimals = 18;
+        try {
+          decimals = await tokenContractCondition.decimals();
+        } catch {
+          // Use default 18 decimals
+        }
+        actualValue = Number(tokenBalanceWei) / Math.pow(10, decimals);
+        valueLabel = 'Token Balance';
+      } else if (conditionType === 'lpAmount') {
+        if (!nodeData.lpPairAddress) {
+          throw new Error("LP Pair address is required for LP amount condition");
+        }
+        const lpTokenContract = new Contract(nodeData.lpPairAddress, erc20ABI, providerCondition);
+        const lpBalanceWei = await lpTokenContract.balanceOf(walletCondition.address);
+        // LP tokens typically have 18 decimals
+        actualValue = Number(lpBalanceWei) / 1e18;
+        valueLabel = 'LP Token Amount';
+      } else if (conditionType === 'previousOutput') {
+        // Use output from previous node
+        if (!context.previousNodeId) {
+          throw new Error("Condition: No previous node to get output from");
+        }
+        
+        const prevOutputCondition = context.nodeOutputs.get(context.previousNodeId);
+        if (!prevOutputCondition) {
+          throw new Error(`Condition: Previous node ${context.previousNodeId} has no output`);
+        }
+        
+        const fieldName = nodeData.previousOutputField || 'amountOut';
+        const fieldValue = prevOutputCondition[fieldName];
+        
+        if (fieldValue === undefined || fieldValue === null) {
+          throw new Error(`Condition: Previous node output does not have field: ${fieldName}`);
+        }
+        
+        // Convert to number - handle both bigint and number
+        // Special handling for ratio field - it's already a decimal number, don't divide by 1e18
+        if (fieldName === 'ratio') {
+          actualValue = Number(fieldValue);
+        } else if (typeof fieldValue === 'bigint') {
+          // Assume 18 decimals for wei values
+          actualValue = Number(fieldValue) / 1e18;
+        } else if (typeof fieldValue === 'string') {
+          actualValue = parseFloat(fieldValue) / 1e18;
+        } else {
+          actualValue = Number(fieldValue);
+        }
+        
+        valueLabel = `Previous Output (${fieldName})`;
+      }
+      
+      // Evaluate the condition
+      let conditionResult = false;
+      switch (operator) {
+        case '>':
+          conditionResult = actualValue > compareValue;
+          break;
+        case '<':
+          conditionResult = actualValue < compareValue;
+          break;
+        case '>=':
+          conditionResult = actualValue >= compareValue;
+          break;
+        case '<=':
+          conditionResult = actualValue <= compareValue;
+          break;
+        case '==':
+          conditionResult = Math.abs(actualValue - compareValue) < 0.0001; // Floating point comparison
+          break;
+        default:
+          conditionResult = actualValue > compareValue;
+      }
+      
+      const conditionOutput = {
+        conditionResult,
+        branchToFollow: conditionResult ? 'true' : 'false',
+        actualValue,
+        compareValue,
+        operator,
+        conditionType,
+        valueLabel,
+      };
+      
+      const updatedContextCondition = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        conditionOutput
+      );
+      
+      return { result: conditionOutput, context: updatedContextCondition };
 
     default:
       throw new Error(`Unknown node type: ${nodeType}`);

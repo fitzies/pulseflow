@@ -32,7 +32,7 @@ export const CheckLPTokenAmountsNode = memo(({ data }: NodeProps) => {
           <ChartBarIcon className={`h-8 w-8 ${getNodeTextColor('checkLPTokenAmounts')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check LP Amounts</BaseNodeHeaderTitle>
+          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check LP</BaseNodeHeaderTitle>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

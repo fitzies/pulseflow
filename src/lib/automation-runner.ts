@@ -2,7 +2,7 @@ import type { Node, Edge } from '@xyflow/react';
 import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
 
-export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error';
+export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken';
 
 export interface ProgressEvent {
   type: ProgressEventType;
@@ -15,8 +15,8 @@ export interface ProgressEvent {
 export type ProgressCallback = (event: ProgressEvent) => void;
 
 /**
- * Execute an automation chain of nodes sequentially
- * Passes execution context between nodes for variable resolution
+ * Execute an automation chain of nodes with branching support
+ * Handles condition nodes that branch to true/false paths
  * Supports loop nodes that restart the chain from the beginning
  */
 export async function executeAutomationChain(
@@ -26,8 +26,25 @@ export async function executeAutomationChain(
   contractAddress?: string,
   onProgress?: ProgressCallback
 ): Promise<{ results: Array<{ nodeId: string; result: any }>; context: ExecutionContext }> {
-  // Build execution order from edges (topological sort)
-  const executionOrder = getExecutionOrder(nodes, edges);
+  // Build graph structures for traversal
+  const nodeMap = new Map<string, Node>();
+  const outgoingEdges = new Map<string, Edge[]>();
+  
+  nodes.forEach((node) => {
+    nodeMap.set(node.id, node);
+  });
+  
+  edges.forEach((edge) => {
+    const existing = outgoingEdges.get(edge.source) || [];
+    existing.push(edge);
+    outgoingEdges.set(edge.source, existing);
+  });
+  
+  // Find start node
+  const startNode = nodes.find((n) => n.type === 'start');
+  if (!startNode) {
+    throw new Error('No start node found in automation');
+  }
   
   // Initialize context with loop tracking
   let context = createExecutionContext();
@@ -49,12 +66,28 @@ export async function executeAutomationChain(
       context.previousNodeType = null;
     }
     
-    // Execute each node in order
-    for (const nodeId of executionOrder) {
-      const node = nodes.find((n) => n.id === nodeId);
-      if (!node || !node.type || node.type === 'start') {
-        continue; // Skip start nodes and invalid nodes
+    // Start execution from start node and traverse the graph
+    const executedNodes = new Set<string>();
+    
+    // Get the first node after start
+    const startEdges = outgoingEdges.get(startNode.id) || [];
+    let currentNodeIds: string[] = startEdges.map((e) => e.target);
+    
+    // Execute nodes in order, handling branching
+    while (currentNodeIds.length > 0) {
+      const nodeId = currentNodeIds.shift()!;
+      
+      // Skip if already executed in this iteration
+      if (executedNodes.has(nodeId)) {
+        continue;
       }
+      
+      const node = nodeMap.get(nodeId);
+      if (!node || !node.type) {
+        continue;
+      }
+      
+      executedNodes.add(nodeId);
       
       const nodeData = {
         ...(node.data?.config || {}),
@@ -99,6 +132,39 @@ export async function executeAutomationChain(
           nodeType: node.type,
           data: { ...result, iteration: currentIteration },
         });
+        
+        // Determine next nodes to execute
+        const nodeOutgoingEdges = outgoingEdges.get(node.id) || [];
+        
+        if (node.type === 'condition' && result?.branchToFollow) {
+          // For condition nodes, only follow the matching branch
+          const branchToFollow = result.branchToFollow; // 'true' or 'false'
+          const expectedHandle = branchToFollow === 'true' ? 'output-true' : 'output-false';
+          
+          const branchEdge = nodeOutgoingEdges.find(
+            (e) => e.sourceHandle === expectedHandle
+          );
+          
+          if (branchEdge) {
+            currentNodeIds.push(branchEdge.target);
+            
+            // Notify: branch taken
+            onProgress?.({
+              type: 'branch_taken',
+              nodeId: node.id,
+              nodeType: node.type,
+              data: { branch: branchToFollow, nextNodeId: branchEdge.target },
+            });
+          }
+          // If no branch edge exists for the result, execution stops here
+        } else {
+          // For non-condition nodes, follow all outgoing edges (usually just one)
+          for (const edge of nodeOutgoingEdges) {
+            if (!executedNodes.has(edge.target)) {
+              currentNodeIds.push(edge.target);
+            }
+          }
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         
@@ -124,6 +190,8 @@ export async function executeAutomationChain(
 /**
  * Get execution order of nodes based on edges (topological sort)
  * Returns array of node IDs in execution order
+ * Note: This doesn't handle branching - use for linear flows only
+ * @deprecated Use executeAutomationChain which handles branching dynamically
  */
 function getExecutionOrder(nodes: Node[], edges: Edge[]): string[] {
   // Build adjacency list

@@ -84,6 +84,7 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     token1: 'address',
     token0Amount: 'bigint',
     token1Amount: 'bigint',
+    ratio: 'number',
   },
   checkTokenBalance: {
     balance: 'bigint',
