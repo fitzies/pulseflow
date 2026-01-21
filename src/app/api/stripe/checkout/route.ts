@@ -69,6 +69,7 @@ export async function POST(request: Request) {
           dbUserId: user.id,
           plan,
         },
+        ...(plan === "BASIC" && { trial_period_days: 3 }),
       },
     });
 
