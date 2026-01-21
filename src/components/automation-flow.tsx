@@ -626,7 +626,11 @@ export function AutomationFlow({
       const status = nodeStatuses[node.id] || 'initial';
       
       // For condition nodes, check which branches have connections
-      let conditionData = {};
+      let conditionData: {
+        hasTrueBranch: boolean;
+        hasFalseBranch: boolean;
+        onAddNode: (sourceHandle: string) => void;
+      } | null = null;
       if (node.type === 'condition') {
         const hasTrueBranch = edges.some(
           (e) => e.source === node.id && e.sourceHandle === 'output-true'
@@ -645,7 +649,7 @@ export function AutomationFlow({
         ...node,
         data: {
           ...node.data,
-          onAddNode: node.type === 'condition' 
+          onAddNode: node.type === 'condition' && conditionData
             ? conditionData.onAddNode 
             : (isLastNode ? () => handleOpenDialog(node.id) : undefined),
           onNodeClick: () => handleNodeClick(node.id),
@@ -655,7 +659,7 @@ export function AutomationFlow({
           // Pass schedule data to start node
           ...(node.type === 'start' ? { triggerMode, cronExpression, nextRunAt } : {}),
           // Pass condition-specific data
-          ...(node.type === 'condition' ? conditionData : {}),
+          ...(node.type === 'condition' && conditionData ? conditionData : {}),
         },
       };
     });
@@ -846,7 +850,7 @@ export function AutomationFlow({
           <Button
             variant="ghost"
             size="icon"
-            disabled={isRunning}
+            disabled={isRunning || triggerMode === 'SCHEDULE'}
             onClick={handleStart}
             className="rounded-full h-10 w-10"
           >
