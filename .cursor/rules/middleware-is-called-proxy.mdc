@@ -1,0 +1,10 @@
+---
+name: middleware-is-called-proxy
+description: This is a new rule
+---
+
+# Overview
+
+Renaming Middleware to Proxy
+Why This Error Occurred
+Middleware file convention is deprecated and has been renamed to proxy.
