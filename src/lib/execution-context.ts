@@ -165,7 +165,9 @@ export async function resolveAmountWithNodeData(
     const reservePaired = isBaseToken0 ? reserves[1] : reserves[0];
 
     // Use quote to calculate the paired amount
-    const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
+    // quote(inputAmount, inputReserve, outputReserve) = outputAmount
+    // We know the pairedToken amount (baseAmount), we want the baseToken amount
+    const pairedAmount = await routerContract.quote(baseAmount, reservePaired, reserveBase);
 
     return pairedAmount;
   } catch (error) {
