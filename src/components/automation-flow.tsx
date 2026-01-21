@@ -848,7 +848,7 @@ export function AutomationFlow({
       </AlertDialog>
 
       {/* Player Controls - Bottom Center */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10">
         <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">
           <Button
             variant="ghost"
