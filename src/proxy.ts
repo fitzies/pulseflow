@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/auth(.*)",
   "/api/cron(.*)",
   "/api/stripe/webhooks",
+  "/api/telegram/webhook",
 ]);
 
 const clerkProxy = clerkMiddleware(async (auth, request) => {
