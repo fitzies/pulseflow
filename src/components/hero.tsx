@@ -25,7 +25,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
     dailyVolumeLabel = "AUTOMATIONS EXECUTED DAILY",
     headline = "Visual Automation for On-Chain Execution",
     subheadline = "Design, deploy, and run deterministic blockchain workflows using a visual node editor. Automate swaps, transfers, conditions, and monitoring on PulseChain — powered by isolated wallets and secure execution.",
-    videoSrc = "https://cdn.sanity.io/files/1t8iva7t/production/blockchain-flow-demo.mp4",
+    videoSrc = "",
     posterSrc = "/images/hero/flow-editor-preview.png",
     primaryButtonText = "Create your first flow",
     primaryButtonHref = AUTH_URLS.signUp,
@@ -129,7 +129,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
               className="border-none shadow-none rounded-[40px] h-full aspect-square overflow-hidden"
               style={{
                 backgroundImage:
-                  "url(https://images.unsplash.com/photo-1534271057238-c2c170a76672?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
+                  "url(https://images.unsplash.com/photo-1575519627029-6fb7d4bbaf46?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
@@ -146,7 +146,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
                   className="hidden w-full h-full object-cover"
                   style={{
                     backgroundImage:
-                      "url(https://images.unsplash.com/photo-1534271057238-c2c170a76672?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
+                      "url(https://images.unsplash.com/photo-1575519627029-6fb7d4bbaf46?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
