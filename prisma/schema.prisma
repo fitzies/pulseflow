@@ -67,6 +67,7 @@ model Automation {
 
   user       User        @relation(fields: [userId], references: [id])
   executions Execution[]
+  aiChat     AIChat?
 }
 
 enum TriggerMode {
@@ -110,4 +111,27 @@ enum ExecutionStatus {
   RUNNING
   SUCCESS
   FAILED
+}
+
+model AIChat {
+  id           String @id @default(cuid())
+  automationId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  automation Automation      @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  messages   AIChatMessage[]
+}
+
+model AIChatMessage {
+  id     String @id @default(cuid())
+  chatId String
+
+  role    String // 'user' | 'assistant' | 'system'
+  content String @db.Text
+
+  createdAt DateTime @default(now())
+
+  chat AIChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 }

@@ -1183,7 +1183,7 @@ export function NodeConfigSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent className="sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Configure {nodeType}</SheetTitle>
           <SheetDescription>

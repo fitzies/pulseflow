@@ -58,6 +58,8 @@ import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-i
 import { parseBlockchainError } from '@/lib/error-utils';
 import { AutomationSettingsDialog } from '@/components/automation-settings-dialog';
 import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
+import { AIChatButton } from '@/components/ai-chat-button';
+import { AIChatPanel } from '@/components/ai-chat-panel';
 
 // Higher-order component to wrap nodes with status indicator
 function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
@@ -179,6 +181,19 @@ export function AutomationFlow({
   const [triggerMode, setTriggerMode] = useState(initialTriggerMode);
   const [cronExpression, setCronExpression] = useState(initialCronExpression);
   const [nextRunAt, setNextRunAt] = useState(initialNextRunAt);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+
+  // Check if user has Pro/Ultra for AI access
+  const hasAiAccess = userPlan === 'PRO' || userPlan === 'ULTRA';
+
+  // Handle AI flow update - update state directly without reload
+  const handleAiFlowUpdated = useCallback((definition: { nodes: Node[]; edges: Edge[] }) => {
+    setNodes(definition.nodes);
+    setEdges(definition.edges.map(edge => ({
+      ...edge,
+      type: edge.type || 'buttonedge',
+    })));
+  }, []);
 
   // Fetch PLS balance
   const fetchBalance = useCallback(async (isRefresh = false) => {
@@ -853,7 +868,7 @@ export function AutomationFlow({
       </AlertDialog>
 
       {/* Player Controls - Bottom Center */}
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10">
         <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">
           <Button
             variant="ghost"
@@ -878,6 +893,24 @@ export function AutomationFlow({
           </Button>
         </div>
       </div>
+
+      {/* AI Assistant - Bottom Right */}
+      <div className="absolute bottom-7 right-7 z-10 shadow-lg">
+        <AIChatButton
+          onClick={() => setAiChatOpen(!aiChatOpen)}
+          isOpen={aiChatOpen}
+          disabled={!hasAiAccess}
+        />
+      </div>
+
+      {hasAiAccess && (
+        <AIChatPanel
+          automationId={automationId}
+          isOpen={aiChatOpen}
+          onClose={() => setAiChatOpen(false)}
+          onFlowUpdated={handleAiFlowUpdated}
+        />
+      )}
     </div>
   );
 }
