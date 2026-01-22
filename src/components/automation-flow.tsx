@@ -636,16 +636,19 @@ export function AutomationFlow({
     }
   }, [automationId, walletAddress, currentRpcEndpoint]);
 
-  const lastNodeId = useMemo(() => {
-    // Find the node that has no outgoing edges (the last node in the chain)
+  const lastNodeIds = useMemo(() => {
+    // Find ALL nodes that have no outgoing edges (supports branching with multiple terminal nodes)
     const nodesWithOutgoingEdges = new Set(edges.map((edge) => edge.source));
-    const lastNode = nodes.find((node) => !nodesWithOutgoingEdges.has(node.id));
-    return lastNode?.id || null;
+    return new Set(
+      nodes
+        .filter((node) => !nodesWithOutgoingEdges.has(node.id))
+        .map((node) => node.id)
+    );
   }, [nodes, edges]);
 
   const nodesWithHandlers = useMemo(() => {
     return nodes.map((node) => {
-      const isLastNode = node.id === lastNodeId;
+      const isLastNode = lastNodeIds.has(node.id);
       const status = nodeStatuses[node.id] || 'initial';
 
       // For condition nodes, check which branches have connections
@@ -686,7 +689,7 @@ export function AutomationFlow({
         },
       };
     });
-  }, [nodes, edges, handleOpenDialog, lastNodeId, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
+  }, [nodes, edges, handleOpenDialog, lastNodeIds, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
 
   const handleSettingsUpdate = useCallback(() => {
     // Refresh the page to get updated settings

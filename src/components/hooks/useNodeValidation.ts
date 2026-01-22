@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { isAddress } from 'ethers';
 import type { NodeType } from '@/components/select-node-dialog';
 
@@ -21,45 +21,98 @@ export function useNodeValidation(
     isLoading: false,
   });
 
+  // Track previous values to detect changes
+  const prevValuesRef = useRef<Record<string, any>>({});
+
+  // Helper functions
+  const validateAddressFormat = (address: string | null | undefined, fieldName: string): boolean => {
+    if (!address) return true;
+    if (!isAddress(address)) {
+      return false;
+    }
+    return true;
+  };
+
+  const validateNumberRange = (
+    value: number | string | undefined,
+    fieldName: string,
+    min: number,
+    max: number
+  ): boolean => {
+    if (value === undefined || value === '' || value === null) return true;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return !isNaN(num) && num >= min && num <= max;
+  };
+
+  // Effect 1: Client-side format validation (immediate) - runs when addresses/required fields change
   useEffect(() => {
     if (!nodeType) {
-      setValidation({ hardErrors: {}, softWarnings: {}, isValid: true, isLoading: false });
+      setValidation((prev) => ({ ...prev, hardErrors: {}, softWarnings: {}, isValid: true }));
       return;
     }
 
     const hardErrors: Record<string, string> = {};
     const softWarnings: Record<string, string> = {};
 
-    // Client-side validation (format checks)
-    const validateAddressFormat = (address: string | null | undefined, fieldName: string): boolean => {
-      if (!address) return true; // Empty is handled by required checks
-      if (!isAddress(address)) {
-        hardErrors[fieldName] = 'Invalid address format';
-        return false;
-      }
-      return true;
-    };
+    // Get relevant fields for this node type
+    const relevantFields: string[] = [];
+    switch (nodeType) {
+      case 'swap':
+      case 'swapFromPLS':
+      case 'swapToPLS':
+        relevantFields.push('path');
+        break;
+      case 'transfer':
+        relevantFields.push('token', 'to');
+        break;
+      case 'transferPLS':
+        relevantFields.push('to');
+        break;
+      case 'addLiquidity':
+        relevantFields.push('tokenA', 'tokenB');
+        break;
+      case 'addLiquidityPLS':
+        relevantFields.push('token');
+        break;
+      case 'removeLiquidity':
+        relevantFields.push('tokenA', 'tokenB');
+        break;
+      case 'removeLiquidityPLS':
+        relevantFields.push('token');
+        break;
+      case 'burnToken':
+      case 'claimToken':
+      case 'checkTokenBalance':
+        relevantFields.push('token');
+        break;
+      case 'checkLPTokenAmounts':
+        relevantFields.push('pairAddress');
+        break;
+      case 'condition':
+        if (formData.conditionType === 'tokenBalance') relevantFields.push('tokenAddress');
+        if (formData.conditionType === 'lpAmount') relevantFields.push('lpPairAddress');
+        break;
+      case 'gasGuard':
+        relevantFields.push('maxGasPrice');
+        break;
+      case 'loop':
+        relevantFields.push('loopCount');
+        break;
+      case 'wait':
+        relevantFields.push('delay');
+        break;
+    }
 
-    const validateNumberRange = (
-      value: number | string | undefined,
-      fieldName: string,
-      min: number,
-      max: number,
-      allowEmpty = false
-    ): boolean => {
-      if (value === undefined || value === '' || value === null) {
-        if (allowEmpty) return true;
-        return true; // Empty handled by required checks
-      }
-      const num = typeof value === 'string' ? parseFloat(value) : value;
-      if (isNaN(num) || num < min || num > max) {
-        hardErrors[fieldName] = `Must be between ${min} and ${max}`;
-        return false;
-      }
-      return true;
-    };
+    // Check if any relevant field changed
+    const hasChanges = relevantFields.some(
+      (field) => JSON.stringify(formData[field]) !== JSON.stringify(prevValuesRef.current[field])
+    );
 
-    // Validate based on node type
+    if (!hasChanges && Object.keys(prevValuesRef.current).length > 0) {
+      return; // No relevant changes, skip validation
+    }
+
+    // Validate addresses
     switch (nodeType) {
       case 'swap':
       case 'swapFromPLS':
@@ -69,34 +122,23 @@ export function useNodeValidation(
           hardErrors.path = 'Token path cannot be empty';
         }
         path.forEach((addr: string, index: number) => {
-          if (addr) {
-            validateAddressFormat(addr, `path[${index}]`);
+          if (addr && !validateAddressFormat(addr, `path[${index}]`)) {
+            hardErrors[`path[${index}]`] = 'Invalid address format';
           }
         });
-        validateNumberRange(formData.slippage, 'slippage', 0, 1, true);
-        if (formData.slippage !== undefined && formData.slippage > 0.5) {
-          softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
-        }
         break;
       }
 
       case 'transfer': {
         if (!formData.token) {
           hardErrors.token = 'Token address is required';
-        } else {
-          validateAddressFormat(formData.token, 'token');
+        } else if (!validateAddressFormat(formData.token, 'token')) {
+          hardErrors.token = 'Invalid address format';
         }
         if (!formData.to) {
           hardErrors.to = 'Recipient address is required';
-        } else {
-          validateAddressFormat(formData.to, 'to');
-        }
-        const amount = formData.amount;
-        if (amount && typeof amount === 'object' && amount.type === 'custom' && amount.value) {
-          const numValue = parseFloat(amount.value);
-          if (numValue === 0) {
-            softWarnings.amount = 'Amount is 0, this node may not execute as expected';
-          }
+        } else if (!validateAddressFormat(formData.to, 'to')) {
+          hardErrors.to = 'Invalid address format';
         }
         break;
       }
@@ -104,15 +146,8 @@ export function useNodeValidation(
       case 'transferPLS': {
         if (!formData.to) {
           hardErrors.to = 'Recipient address is required';
-        } else {
-          validateAddressFormat(formData.to, 'to');
-        }
-        const plsAmount = formData.plsAmount;
-        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'custom' && plsAmount.value) {
-          const numValue = parseFloat(plsAmount.value);
-          if (numValue === 0) {
-            softWarnings.plsAmount = 'Amount is 0, this node may not execute as expected';
-          }
+        } else if (!validateAddressFormat(formData.to, 'to')) {
+          hardErrors.to = 'Invalid address format';
         }
         break;
       }
@@ -120,17 +155,13 @@ export function useNodeValidation(
       case 'addLiquidity': {
         if (!formData.tokenA) {
           hardErrors.tokenA = 'Token A address is required';
-        } else {
-          validateAddressFormat(formData.tokenA, 'tokenA');
+        } else if (!validateAddressFormat(formData.tokenA, 'tokenA')) {
+          hardErrors.tokenA = 'Invalid address format';
         }
         if (!formData.tokenB) {
           hardErrors.tokenB = 'Token B address is required';
-        } else {
-          validateAddressFormat(formData.tokenB, 'tokenB');
-        }
-        validateNumberRange(formData.slippage, 'slippage', 0, 1, true);
-        if (formData.slippage !== undefined && formData.slippage > 0.5) {
-          softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
+        } else if (!validateAddressFormat(formData.tokenB, 'tokenB')) {
+          hardErrors.tokenB = 'Invalid address format';
         }
         break;
       }
@@ -138,12 +169,8 @@ export function useNodeValidation(
       case 'addLiquidityPLS': {
         if (!formData.token) {
           hardErrors.token = 'Token address is required';
-        } else {
-          validateAddressFormat(formData.token, 'token');
-        }
-        validateNumberRange(formData.slippage, 'slippage', 0, 1, true);
-        if (formData.slippage !== undefined && formData.slippage > 0.5) {
-          softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
+        } else if (!validateAddressFormat(formData.token, 'token')) {
+          hardErrors.token = 'Invalid address format';
         }
         break;
       }
@@ -151,17 +178,13 @@ export function useNodeValidation(
       case 'removeLiquidity': {
         if (!formData.tokenA) {
           hardErrors.tokenA = 'Token A address is required';
-        } else {
-          validateAddressFormat(formData.tokenA, 'tokenA');
+        } else if (!validateAddressFormat(formData.tokenA, 'tokenA')) {
+          hardErrors.tokenA = 'Invalid address format';
         }
         if (!formData.tokenB) {
           hardErrors.tokenB = 'Token B address is required';
-        } else {
-          validateAddressFormat(formData.tokenB, 'tokenB');
-        }
-        validateNumberRange(formData.slippage, 'slippage', 0, 1, true);
-        if (formData.slippage !== undefined && formData.slippage > 0.5) {
-          softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
+        } else if (!validateAddressFormat(formData.tokenB, 'tokenB')) {
+          hardErrors.tokenB = 'Invalid address format';
         }
         break;
       }
@@ -169,31 +192,19 @@ export function useNodeValidation(
       case 'removeLiquidityPLS': {
         if (!formData.token) {
           hardErrors.token = 'Token address is required';
-        } else {
-          validateAddressFormat(formData.token, 'token');
-        }
-        validateNumberRange(formData.slippage, 'slippage', 0, 1, true);
-        if (formData.slippage !== undefined && formData.slippage > 0.5) {
-          softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
+        } else if (!validateAddressFormat(formData.token, 'token')) {
+          hardErrors.token = 'Invalid address format';
         }
         break;
       }
 
       case 'burnToken':
-      case 'claimToken': {
-        if (!formData.token) {
-          hardErrors.token = 'Token address is required';
-        } else {
-          validateAddressFormat(formData.token, 'token');
-        }
-        break;
-      }
-
+      case 'claimToken':
       case 'checkTokenBalance': {
         if (!formData.token) {
           hardErrors.token = 'Token address is required';
-        } else {
-          validateAddressFormat(formData.token, 'token');
+        } else if (!validateAddressFormat(formData.token, 'token')) {
+          hardErrors.token = 'Invalid address format';
         }
         break;
       }
@@ -201,18 +212,22 @@ export function useNodeValidation(
       case 'checkLPTokenAmounts': {
         if (!formData.pairAddress) {
           hardErrors.pairAddress = 'Pair address is required';
-        } else {
-          validateAddressFormat(formData.pairAddress, 'pairAddress');
+        } else if (!validateAddressFormat(formData.pairAddress, 'pairAddress')) {
+          hardErrors.pairAddress = 'Invalid address format';
         }
         break;
       }
 
       case 'condition': {
         if (formData.conditionType === 'tokenBalance' && formData.tokenAddress) {
-          validateAddressFormat(formData.tokenAddress, 'tokenAddress');
+          if (!validateAddressFormat(formData.tokenAddress, 'tokenAddress')) {
+            hardErrors.tokenAddress = 'Invalid address format';
+          }
         }
         if (formData.conditionType === 'lpAmount' && formData.lpPairAddress) {
-          validateAddressFormat(formData.lpPairAddress, 'lpPairAddress');
+          if (!validateAddressFormat(formData.lpPairAddress, 'lpPairAddress')) {
+            hardErrors.lpPairAddress = 'Invalid address format';
+          }
         }
         break;
       }
@@ -225,15 +240,126 @@ export function useNodeValidation(
           const num = typeof maxGasPrice === 'string' ? parseFloat(maxGasPrice) : maxGasPrice;
           if (isNaN(num) || num <= 0) {
             hardErrors.maxGasPrice = 'Gas price must be a positive number';
-          } else if (num > 1000) {
-            softWarnings.maxGasPrice = 'Gas price is very high, transaction may be expensive';
           }
         }
         break;
       }
 
       case 'loop': {
-        validateNumberRange(formData.loopCount, 'loopCount', 1, 3);
+        if (!validateNumberRange(formData.loopCount, 'loopCount', 1, 3)) {
+          hardErrors.loopCount = 'Loop count must be between 1 and 3';
+        }
+        break;
+      }
+
+      case 'wait': {
+        if (!validateNumberRange(formData.delay, 'delay', 1, 10)) {
+          hardErrors.delay = 'Delay must be between 1 and 10 seconds';
+        }
+        break;
+      }
+    }
+
+    // Update validation state
+    const isValid = Object.keys(hardErrors).length === 0;
+    setValidation((prev) => ({
+      ...prev,
+      hardErrors,
+      isValid,
+    }));
+
+    // Update previous values
+    relevantFields.forEach((field) => {
+      prevValuesRef.current[field] = formData[field];
+    });
+  }, [
+    nodeType,
+    formData.path,
+    formData.token,
+    formData.tokenA,
+    formData.tokenB,
+    formData.to,
+    formData.pairAddress,
+    formData.tokenAddress,
+    formData.lpPairAddress,
+    formData.conditionType,
+    formData.maxGasPrice,
+    formData.loopCount,
+    formData.delay,
+  ]);
+
+  // Effect 2: Slippage validation (immediate) - only when slippage changes
+  useEffect(() => {
+    if (!nodeType) return;
+
+    const needsSlippage = [
+      'swap',
+      'swapFromPLS',
+      'swapToPLS',
+      'addLiquidity',
+      'addLiquidityPLS',
+      'removeLiquidity',
+      'removeLiquidityPLS',
+    ].includes(nodeType);
+
+    if (!needsSlippage) return;
+
+    const slippage = formData.slippage;
+    const hardErrors: Record<string, string> = {};
+    const softWarnings: Record<string, string> = {};
+
+    if (slippage !== undefined && (slippage < 0 || slippage > 1)) {
+      hardErrors.slippage = 'Slippage must be between 0 and 1';
+    } else if (slippage !== undefined && slippage > 0.5) {
+      softWarnings.slippage = 'Slippage is very high, you may receive significantly less than expected';
+    }
+
+    setValidation((prev) => ({
+      ...prev,
+      hardErrors: { ...prev.hardErrors, ...hardErrors },
+      softWarnings: { ...prev.softWarnings, ...softWarnings },
+      isValid: Object.keys({ ...prev.hardErrors, ...hardErrors }).length === 0,
+    }));
+  }, [nodeType, formData.slippage]);
+
+  // Effect 3: Amount warnings (immediate) - only when amounts change
+  useEffect(() => {
+    if (!nodeType) return;
+
+    const softWarnings: Record<string, string> = {};
+
+    switch (nodeType) {
+      case 'transfer': {
+        const amount = formData.amount;
+        if (amount && typeof amount === 'object' && amount.type === 'custom' && amount.value) {
+          const numValue = parseFloat(amount.value);
+          if (numValue === 0) {
+            softWarnings.amount = 'Amount is 0, this node may not execute as expected';
+          }
+        }
+        break;
+      }
+
+      case 'transferPLS': {
+        const plsAmount = formData.plsAmount;
+        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'custom' && plsAmount.value) {
+          const numValue = parseFloat(plsAmount.value);
+          if (numValue === 0) {
+            softWarnings.plsAmount = 'Amount is 0, this node may not execute as expected';
+          }
+        }
+        break;
+      }
+
+      case 'gasGuard': {
+        const maxGasPrice = formData.maxGasPrice;
+        if (maxGasPrice && parseFloat(maxGasPrice) > 1000) {
+          softWarnings.maxGasPrice = 'Gas price is very high, transaction may be expensive';
+        }
+        break;
+      }
+
+      case 'loop': {
         if (formData.loopCount === 3) {
           softWarnings.loopCount = 'Maximum loop count reached';
         }
@@ -241,7 +367,6 @@ export function useNodeValidation(
       }
 
       case 'wait': {
-        validateNumberRange(formData.delay, 'delay', 1, 10);
         if (formData.delay === 10) {
           softWarnings.delay = 'Maximum delay reached';
         }
@@ -249,53 +374,138 @@ export function useNodeValidation(
       }
     }
 
-    // Set initial client-side validation
-    const isValid = Object.keys(hardErrors).length === 0;
-    setValidation({
-      hardErrors,
-      softWarnings,
-      isValid,
-      isLoading: false,
-    });
+    setValidation((prev) => ({
+      ...prev,
+      softWarnings: { ...prev.softWarnings, ...softWarnings },
+    }));
+  }, [
+    nodeType,
+    formData.amount,
+    formData.plsAmount,
+    formData.maxGasPrice,
+    formData.loopCount,
+    formData.delay,
+  ]);
 
-    // Then fetch server-side validation (balance checks, contract verification)
-    // Debounce server-side validation to avoid excessive API calls
-    let timeoutId: NodeJS.Timeout | null = null;
-    if (isValid && Object.keys(formData).length > 0) {
-      timeoutId = setTimeout(() => {
-        setValidation((prev) => ({ ...prev, isLoading: true }));
+  // Effect 4: Server-side validation (debounced 2s) - only when addresses OR amounts change
+  const serverValidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-        fetch(`/api/automations/${automationId}/validate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodeType, formData }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.hardErrors || data.softWarnings) {
-              setValidation({
-                hardErrors: { ...hardErrors, ...(data.hardErrors || {}) },
-                softWarnings: { ...softWarnings, ...(data.softWarnings || {}) },
-                isValid: Object.keys({ ...hardErrors, ...(data.hardErrors || {}) }).length === 0,
-                isLoading: false,
-              });
-            } else {
-              setValidation((prev) => ({ ...prev, isLoading: false }));
-            }
-          })
-          .catch((error) => {
-            console.error('Validation error:', error);
-            setValidation((prev) => ({ ...prev, isLoading: false }));
-          });
-      }, 500);
+  useEffect(() => {
+    if (!nodeType) return;
+
+    // Determine which fields trigger server-side validation
+    const serverValidationFields: string[] = [];
+    switch (nodeType) {
+      case 'swap':
+      case 'swapFromPLS':
+      case 'swapToPLS':
+        serverValidationFields.push('path');
+        break;
+      case 'transfer':
+        serverValidationFields.push('token', 'amount');
+        break;
+      case 'transferPLS':
+        serverValidationFields.push('plsAmount');
+        break;
+      case 'addLiquidity':
+        serverValidationFields.push('tokenA', 'tokenB');
+        break;
+      case 'addLiquidityPLS':
+        serverValidationFields.push('token');
+        break;
+      case 'removeLiquidity':
+        serverValidationFields.push('tokenA', 'tokenB');
+        break;
+      case 'removeLiquidityPLS':
+        serverValidationFields.push('token');
+        break;
+      case 'burnToken':
+      case 'claimToken':
+      case 'checkTokenBalance':
+        serverValidationFields.push('token');
+        break;
+      case 'checkLPTokenAmounts':
+        serverValidationFields.push('pairAddress');
+        break;
+      case 'condition':
+        if (formData.conditionType === 'tokenBalance') serverValidationFields.push('tokenAddress');
+        if (formData.conditionType === 'lpAmount') serverValidationFields.push('lpPairAddress');
+        break;
     }
 
+    // Check if any server validation field changed
+    const hasServerChanges = serverValidationFields.some(
+      (field) => JSON.stringify(formData[field]) !== JSON.stringify(prevValuesRef.current[`server_${field}`])
+    );
+
+    if (!hasServerChanges) return;
+
+    // Clear existing timeout
+    if (serverValidationTimeoutRef.current) {
+      clearTimeout(serverValidationTimeoutRef.current);
+    }
+
+    // Debounce server-side validation (2 seconds)
+    serverValidationTimeoutRef.current = setTimeout(() => {
+      // Check if client-side validation passed before making API call
+      setValidation((current) => {
+        if (!current.isValid) return current;
+        return { ...current, isLoading: true };
+      });
+
+      // Make API call
+      fetch(`/api/automations/${automationId}/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeType, formData }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setValidation((prev) => {
+            if (!prev.isValid) return prev; // Still check in case validation state changed
+            if (data.hardErrors || data.softWarnings) {
+              return {
+                ...prev,
+                hardErrors: { ...prev.hardErrors, ...(data.hardErrors || {}) },
+                softWarnings: { ...prev.softWarnings, ...(data.softWarnings || {}) },
+                isValid: Object.keys({ ...prev.hardErrors, ...(data.hardErrors || {}) }).length === 0,
+                isLoading: false,
+              };
+            }
+            return { ...prev, isLoading: false };
+          });
+        })
+        .catch((error) => {
+          console.error('Validation error:', error);
+          setValidation((prev) => ({ ...prev, isLoading: false }));
+        });
+    }, 2000);
+
+    // Update previous values for server validation fields
+    serverValidationFields.forEach((field) => {
+      prevValuesRef.current[`server_${field}`] = formData[field];
+    });
+
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (serverValidationTimeoutRef.current) {
+        clearTimeout(serverValidationTimeoutRef.current);
+        serverValidationTimeoutRef.current = null;
       }
     };
-  }, [formData, nodeType, automationId]);
+  }, [
+    nodeType,
+    automationId,
+    formData.path,
+    formData.token,
+    formData.tokenA,
+    formData.tokenB,
+    formData.amount,
+    formData.plsAmount,
+    formData.pairAddress,
+    formData.tokenAddress,
+    formData.lpPairAddress,
+    formData.conditionType,
+  ]);
 
   return validation;
 }

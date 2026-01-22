@@ -233,6 +233,21 @@ export function NodeConfigSheet({
   const canDelete = nodeType !== null && nodeType !== 'start' && onDelete;
 
   const updateField = (field: string, value: any) => {
+    // When conditionType changes to previousOutput, set default field if not already set
+    if (field === 'conditionType' && value === 'previousOutput') {
+      setFormData((prev) => {
+        const updates: Record<string, any> = { [field]: value };
+        // Set default previousOutputField if not already set
+        if (!prev.previousOutputField) {
+          const fields = getPreviousOutputFields();
+          if (fields.length > 0) {
+            updates.previousOutputField = fields[0].value;
+          }
+        }
+        return { ...prev, ...updates };
+      });
+      return;
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
