@@ -777,6 +777,7 @@ export function AutomationFlow({
           nodes={nodes}
           edges={edges}
           automationId={automationId}
+          walletAddress={walletAddress}
           userPlan={userPlan}
           triggerMode={triggerMode}
           cronExpression={cronExpression}

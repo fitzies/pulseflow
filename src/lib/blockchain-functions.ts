@@ -614,23 +614,30 @@ export async function checkLPTokenAmounts(
 }> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
+  const provider = getProvider();
 
   const result = await contract.checkLPTokenAmounts(pairAddress, wallet.address);
 
+  const lpBalance = result[0];
+  const token0 = result[1];
+  const token1 = result[2];
   const token0Amount = result[3];
   const token1Amount = result[4];
 
-  // Calculate ratio: token1Amount / token0Amount
-  if (token0Amount === 0n) {
-    throw new Error("Cannot calculate ratio: token0Amount is zero");
+  // Get pool reserves directly to calculate ratio (independent of user balance)
+  const pairContract = new Contract(pairAddress, pairABI, provider);
+  const [reserve0, reserve1] = await pairContract.getReserves();
+
+  // Calculate ratio from pool reserves: reserve1 / reserve0
+  let ratio = 0;
+  if (reserve0 > 0n) {
+    ratio = Number(reserve1) / Number(reserve0);
   }
 
-  const ratio = Number(token1Amount) / Number(token0Amount);
-
   return {
-    lpBalance: result[0],
-    token0: result[1],
-    token1: result[2],
+    lpBalance,
+    token0,
+    token1,
     token0Amount,
     token1Amount,
     ratio,
@@ -1402,13 +1409,13 @@ export async function executeNode(
       const conditionType = nodeData.conditionType || 'plsBalance';
       const operator = nodeData.operator || '>';
       const compareValue = nodeData.value ? parseFloat(nodeData.value) : 0;
-      
+
       const walletCondition = await getWalletFromAutomation(automationId);
       const providerCondition = getProvider();
-      
+
       let actualValue: number = 0;
       let valueLabel = '';
-      
+
       // Fetch the value based on condition type
       if (conditionType === 'plsBalance') {
         const plsBalanceWei = await providerCondition.getBalance(walletCondition.address);
@@ -1444,19 +1451,19 @@ export async function executeNode(
         if (!context.previousNodeId) {
           throw new Error("Condition: No previous node to get output from");
         }
-        
+
         const prevOutputCondition = context.nodeOutputs.get(context.previousNodeId);
         if (!prevOutputCondition) {
           throw new Error(`Condition: Previous node ${context.previousNodeId} has no output`);
         }
-        
+
         const fieldName = nodeData.previousOutputField || 'amountOut';
         const fieldValue = prevOutputCondition[fieldName];
-        
+
         if (fieldValue === undefined || fieldValue === null) {
           throw new Error(`Condition: Previous node output does not have field: ${fieldName}`);
         }
-        
+
         // Convert to number - handle both bigint and number
         // Special handling for ratio field - it's already a decimal number, don't divide by 1e18
         if (fieldName === 'ratio') {
@@ -1469,10 +1476,10 @@ export async function executeNode(
         } else {
           actualValue = Number(fieldValue);
         }
-        
+
         valueLabel = `Previous Output (${fieldName})`;
       }
-      
+
       // Evaluate the condition
       let conditionResult = false;
       switch (operator) {
@@ -1494,7 +1501,7 @@ export async function executeNode(
         default:
           conditionResult = actualValue > compareValue;
       }
-      
+
       const conditionOutput = {
         conditionResult,
         branchToFollow: conditionResult ? 'true' : 'false',
@@ -1504,38 +1511,38 @@ export async function executeNode(
         conditionType,
         valueLabel,
       };
-      
+
       const updatedContextCondition = updateContextWithOutput(
         context,
         nodeData.nodeId || 'unknown',
         nodeType,
         conditionOutput
       );
-      
+
       return { result: conditionOutput, context: updatedContextCondition };
 
     case "telegram":
       // Telegram node - sends a message to the user's connected Telegram
       const messageTemplate = nodeData.message || 'Automation completed!';
-      
+
       // Get user's telegram chat ID
       const automation = await prisma.automation.findUnique({
         where: { id: automationId },
         include: { user: { select: { telegramChatId: true } } },
       });
-      
+
       if (!automation?.user?.telegramChatId) {
         throw new Error("Telegram not connected. Please connect your Telegram at /connect/telegram");
       }
-      
+
       // Interpolate variables in the message
       let message = messageTemplate;
-      
+
       // Replace automation variables
       message = message.replace(/\{\{automation\.name\}\}/g, automation.name || 'Unknown');
       message = message.replace(/\{\{automation\.id\}\}/g, automationId);
       message = message.replace(/\{\{timestamp\}\}/g, new Date().toISOString());
-      
+
       // Replace previous node output variables
       if (context.previousNodeId) {
         const prevOutput = context.nodeOutputs.get(context.previousNodeId);
@@ -1544,7 +1551,7 @@ export async function executeNode(
           message = message.replace(/\{\{previousNode\.txHash\}\}/g, prevOutput.txHash || '');
         }
       }
-      
+
       // Replace balance variables (fetch current PLS balance)
       if (message.includes('{{balance.pls}}')) {
         const walletTelegram = await getWalletFromAutomation(automationId);
@@ -1553,27 +1560,27 @@ export async function executeNode(
         const plsBalanceFormatted = (Number(plsBalanceTelegram) / 1e18).toFixed(4);
         message = message.replace(/\{\{balance\.pls\}\}/g, plsBalanceFormatted);
       }
-      
+
       // Send the Telegram message
       const { Bot } = await import('grammy');
       const telegramBot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
-      
+
       await telegramBot.api.sendMessage(automation.user.telegramChatId, message);
-      
+
       const telegramOutput = {
         success: true,
         message,
         chatId: automation.user.telegramChatId,
         sentAt: new Date().toISOString(),
       };
-      
+
       const updatedContextTelegram = updateContextWithOutput(
         context,
         nodeData.nodeId || 'unknown',
         nodeType,
         telegramOutput
       );
-      
+
       return { result: telegramOutput, context: updatedContextTelegram };
 
     default:

@@ -30,6 +30,80 @@ import { CONFIG } from '@/lib/config';
 import { SCHEDULE_PRESETS, validateMinimumIntervalClient } from '@/lib/cron-utils';
 import { updateAutomationSchedule } from '@/lib/actions/automations';
 import { toast } from 'sonner';
+import { useTokenInfo } from '@/components/hooks/useTokenInfo';
+import { useNodeValidation } from '@/components/hooks/useNodeValidation';
+
+// Helper component for address inputs with validation and token name
+function AddressInput({
+  id,
+  value,
+  onChange,
+  placeholder = '0x...',
+  label,
+  fieldName,
+  hardError,
+  softWarning,
+  showTokenName = true,
+  expectedType,
+}: {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  label?: string;
+  fieldName: string;
+  hardError?: string;
+  softWarning?: string;
+  showTokenName?: boolean;
+  expectedType?: 'token' | 'lp';
+}) {
+  const tokenInfo = useTokenInfo(value, expectedType);
+
+  const borderClass = hardError
+    ? 'border-destructive'
+    : softWarning || (expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null && 
+        ((expectedType === 'token' && tokenInfo.isLP) || (expectedType === 'lp' && tokenInfo.isToken && !tokenInfo.isLP)))
+    ? 'border-yellow-500'
+    : '';
+
+  const typeMismatchWarning = expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null && 
+    ((expectedType === 'token' && tokenInfo.isLP) || (expectedType === 'lp' && tokenInfo.isToken && !tokenInfo.isLP))
+    ? expectedType === 'token' 
+      ? 'This is an LP pair address. Token address required.'
+      : 'This is a token address. LP pair address required.'
+    : null;
+
+  return (
+    <div className="grid gap-3">
+      {label && <label htmlFor={id} className="text-sm font-medium">{label}</label>}
+      <div className="space-y-1">
+        <Input
+          id={id}
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          className={borderClass}
+        />
+        {showTokenName && tokenInfo.name && (
+          <p className="text-xs text-muted-foreground">{tokenInfo.name}</p>
+        )}
+        {tokenInfo.isLoading && (
+          <p className="text-xs text-muted-foreground">Loading token info...</p>
+        )}
+        {typeMismatchWarning && !hardError && (
+          <p className="text-xs text-yellow-600">{typeMismatchWarning}</p>
+        )}
+        {hardError && (
+          <p className="text-xs text-destructive">{hardError}</p>
+        )}
+        {softWarning && (
+          <p className="text-xs text-yellow-600">{softWarning}</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface NodeConfigSheetProps {
   nodeId: string | null;
@@ -43,6 +117,7 @@ interface NodeConfigSheetProps {
   edges: Edge[];
   // Schedule props for start node
   automationId: string;
+  walletAddress: string;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
   triggerMode: 'MANUAL' | 'SCHEDULE';
   cronExpression: string | null;
@@ -60,6 +135,7 @@ export function NodeConfigSheet({
   nodes,
   edges,
   automationId,
+  walletAddress,
   userPlan,
   triggerMode,
   cronExpression,
@@ -76,6 +152,9 @@ export function NodeConfigSheet({
   const previousNodeType = previousNode?.type || null;
   const previousNodeConfig = previousNode?.data?.config || {};
   const [formData, setFormData] = useState<Record<string, any>>({});
+
+  // Validation hook
+  const validation = useNodeValidation(formData, nodeType, automationId);
 
   // Schedule state for start node
   const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE'>(triggerMode);
@@ -113,6 +192,12 @@ export function NodeConfigSheet({
 
   const handleSave = () => {
     if (!nodeId) return;
+
+    // Check validation before saving
+    if (!validation.isValid) {
+      toast.error('Please fix validation errors before saving');
+      return;
+    }
 
     // Auto-prepend WPLS to swapFromPLS path if not already present
     // Auto-append WPLS to swapToPLS path if not already present
@@ -175,6 +260,53 @@ export function NodeConfigSheet({
     });
   };
 
+  // PathTokenInput component for swap path arrays
+  const PathTokenInput = ({ address, idx, onUpdate, onRemove }: { 
+    address: string; 
+    idx: number;
+    onUpdate: (value: string) => void;
+    onRemove: () => void;
+  }) => {
+    const info = useTokenInfo(address, 'token');
+    const typeMismatch = info.isLP === true;
+    const hasError = validation.hardErrors[`path[${idx}]`];
+    const borderClass = hasError
+      ? 'border-destructive'
+      : typeMismatch
+      ? 'border-yellow-500'
+      : '';
+    
+    return (
+      <div className="space-y-1">
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="0x..."
+            value={address}
+            onChange={(e) => onUpdate(e.target.value)}
+            className={borderClass}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={onRemove}
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </Button>
+        </div>
+        {info.name && <p className="text-xs text-muted-foreground">{info.name}</p>}
+        {info.isLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
+        {typeMismatch && !hasError && (
+          <p className="text-xs text-yellow-600">LP pair address not allowed in token path</p>
+        )}
+        {hasError && (
+          <p className="text-xs text-destructive">{hasError}</p>
+        )}
+      </div>
+    );
+  };
+
   const renderSwapConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
     return (
@@ -211,24 +343,18 @@ export function NodeConfigSheet({
         />
         <div className="grid gap-3">
           <label className="text-sm font-medium">Token Path</label>
+          {validation.hardErrors.path && (
+            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+          )}
           <div className="space-y-2">
             {(formData.path || []).map((item: string, index: number) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder="0x..."
-                  value={item}
-                  onChange={(e) => updateArrayField('path', index, e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => removeArrayItem('path', index)}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </Button>
-              </div>
+              <PathTokenInput
+                key={index}
+                address={item}
+                idx={index}
+                onUpdate={(value) => updateArrayField('path', index, value)}
+                onRemove={() => removeArrayItem('path', index)}
+              />
             ))}
           </div>
           <Button
@@ -242,10 +368,18 @@ export function NodeConfigSheet({
             Add Token
           </Button>
         </div>
-        <SlippageSelector
-          value={formData.slippage ?? 0.01}
-          onChange={(value) => updateField('slippage', value)}
-        />
+        <div className="grid gap-3">
+          <SlippageSelector
+            value={formData.slippage ?? 0.01}
+            onChange={(value) => updateField('slippage', value)}
+          />
+          {validation.hardErrors.slippage && (
+            <p className="text-xs text-destructive">{validation.hardErrors.slippage}</p>
+          )}
+          {validation.softWarnings.slippage && (
+            <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
+          )}
+        </div>
       </div>
     );
   };
@@ -290,24 +424,18 @@ export function NodeConfigSheet({
           <div className="text-xs text-muted-foreground mb-2">
             WPLS will be automatically added as the first token in the path
           </div>
+          {validation.hardErrors.path && (
+            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+          )}
           <div className="space-y-2">
             {(formData.path || []).map((item: string, index: number) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder="0x..."
-                  value={item}
-                  onChange={(e) => updateArrayField('path', index, e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => removeArrayItem('path', index)}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </Button>
-              </div>
+              <PathTokenInput
+                key={index}
+                address={item}
+                idx={index}
+                onUpdate={(value) => updateArrayField('path', index, value)}
+                onRemove={() => removeArrayItem('path', index)}
+              />
             ))}
           </div>
           <Button
@@ -321,10 +449,18 @@ export function NodeConfigSheet({
             Add Token
           </Button>
         </div>
-        <SlippageSelector
-          value={formData.slippage ?? 0.01}
-          onChange={(value) => updateField('slippage', value)}
-        />
+        <div className="grid gap-3">
+          <SlippageSelector
+            value={formData.slippage ?? 0.01}
+            onChange={(value) => updateField('slippage', value)}
+          />
+          {validation.hardErrors.slippage && (
+            <p className="text-xs text-destructive">{validation.hardErrors.slippage}</p>
+          )}
+          {validation.softWarnings.slippage && (
+            <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
+          )}
+        </div>
       </div>
     );
   };
@@ -369,24 +505,18 @@ export function NodeConfigSheet({
           <div className="text-xs text-muted-foreground mb-2">
             WPLS will be automatically added as the last token in the path
           </div>
+          {validation.hardErrors.path && (
+            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+          )}
           <div className="space-y-2">
             {(formData.path || []).map((item: string, index: number) => (
-              <div key={index} className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder="0x..."
-                  value={item}
-                  onChange={(e) => updateArrayField('path', index, e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => removeArrayItem('path', index)}
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </Button>
-              </div>
+              <PathTokenInput
+                key={index}
+                address={item}
+                idx={index}
+                onUpdate={(value) => updateArrayField('path', index, value)}
+                onRemove={() => removeArrayItem('path', index)}
+              />
             ))}
           </div>
           <Button
@@ -400,36 +530,43 @@ export function NodeConfigSheet({
             Add Token
           </Button>
         </div>
-        <SlippageSelector
-          value={formData.slippage ?? 0.01}
-          onChange={(value) => updateField('slippage', value)}
-        />
+        <div className="grid gap-3">
+          <SlippageSelector
+            value={formData.slippage ?? 0.01}
+            onChange={(value) => updateField('slippage', value)}
+          />
+          {validation.hardErrors.slippage && (
+            <p className="text-xs text-destructive">{validation.hardErrors.slippage}</p>
+          )}
+          {validation.softWarnings.slippage && (
+            <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
+          )}
+        </div>
       </div>
     );
   };
 
   const renderTransferConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="to" className="text-sm font-medium">To Address</label>
-        <Input
-          id="to"
-          type="text"
-          placeholder="0x..."
-          value={formData.to || ''}
-          onChange={(e) => updateField('to', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
+      <AddressInput
+        id="to"
+        value={formData.to || ''}
+        onChange={(e) => updateField('to', e.target.value)}
+        label="To Address"
+        fieldName="to"
+        hardError={validation.hardErrors.to}
+        showTokenName={false}
+      />
       <AmountSelector
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
@@ -445,16 +582,15 @@ export function NodeConfigSheet({
 
   const renderTransferPLSConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="to" className="text-sm font-medium">To Address</label>
-        <Input
-          id="to"
-          type="text"
-          placeholder="0x..."
-          value={formData.to || ''}
-          onChange={(e) => updateField('to', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="to"
+        value={formData.to || ''}
+        onChange={(e) => updateField('to', e.target.value)}
+        label="To Address"
+        fieldName="to"
+        hardError={validation.hardErrors.to}
+        showTokenName={false}
+      />
       <AmountSelector
         value={formData.plsAmount}
         onChange={(value) => updateField('plsAmount', value)}
@@ -471,26 +607,26 @@ export function NodeConfigSheet({
 
   const renderAddLiquidityConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="tokenA" className="text-sm font-medium">Token A Address</label>
-        <Input
-          id="tokenA"
-          type="text"
-          placeholder="0x..."
-          value={formData.tokenA || ''}
-          onChange={(e) => updateField('tokenA', e.target.value)}
-        />
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="tokenB" className="text-sm font-medium">Token B Address</label>
-        <Input
-          id="tokenB"
-          type="text"
-          placeholder="0x..."
-          value={formData.tokenB || ''}
-          onChange={(e) => updateField('tokenB', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="tokenA"
+        value={formData.tokenA || ''}
+        onChange={(e) => updateField('tokenA', e.target.value)}
+        label="Token A Address"
+        fieldName="tokenA"
+        hardError={validation.hardErrors.tokenA}
+        softWarning={validation.softWarnings.tokenA}
+        expectedType="token"
+      />
+      <AddressInput
+        id="tokenB"
+        value={formData.tokenB || ''}
+        onChange={(e) => updateField('tokenB', e.target.value)}
+        label="Token B Address"
+        fieldName="tokenB"
+        hardError={validation.hardErrors.tokenB}
+        softWarning={validation.softWarnings.tokenB}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.amountADesired}
         onChange={(value) => updateField('amountADesired', value)}
@@ -525,16 +661,16 @@ export function NodeConfigSheet({
 
   const renderAddLiquidityPLSConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.amountTokenDesired}
         onChange={(value) => updateField('amountTokenDesired', value)}
@@ -577,26 +713,26 @@ export function NodeConfigSheet({
 
   const renderRemoveLiquidityConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="tokenA" className="text-sm font-medium">Token A Address</label>
-        <Input
-          id="tokenA"
-          type="text"
-          placeholder="0x..."
-          value={formData.tokenA || ''}
-          onChange={(e) => updateField('tokenA', e.target.value)}
-        />
-      </div>
-      <div className="grid gap-3">
-        <label htmlFor="tokenB" className="text-sm font-medium">Token B Address</label>
-        <Input
-          id="tokenB"
-          type="text"
-          placeholder="0x..."
-          value={formData.tokenB || ''}
-          onChange={(e) => updateField('tokenB', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="tokenA"
+        value={formData.tokenA || ''}
+        onChange={(e) => updateField('tokenA', e.target.value)}
+        label="Token A Address"
+        fieldName="tokenA"
+        hardError={validation.hardErrors.tokenA}
+        softWarning={validation.softWarnings.tokenA}
+        expectedType="token"
+      />
+      <AddressInput
+        id="tokenB"
+        value={formData.tokenB || ''}
+        onChange={(e) => updateField('tokenB', e.target.value)}
+        label="Token B Address"
+        fieldName="tokenB"
+        hardError={validation.hardErrors.tokenB}
+        softWarning={validation.softWarnings.tokenB}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.liquidity}
         onChange={(value) => updateField('liquidity', value)}
@@ -616,16 +752,16 @@ export function NodeConfigSheet({
 
   const renderRemoveLiquidityPLSConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.liquidity}
         onChange={(value) => updateField('liquidity', value)}
@@ -645,16 +781,16 @@ export function NodeConfigSheet({
 
   const renderBurnTokenConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
@@ -670,16 +806,16 @@ export function NodeConfigSheet({
 
   const renderClaimTokenConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
       <AmountSelector
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
@@ -695,16 +831,16 @@ export function NodeConfigSheet({
 
   const renderCheckLPTokenAmountsConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="pairAddress" className="text-sm font-medium">Pair Address</label>
-        <Input
-          id="pairAddress"
-          type="text"
-          placeholder="0x..."
-          value={formData.pairAddress || ''}
-          onChange={(e) => updateField('pairAddress', e.target.value)}
-        />
-      </div>
+      <AddressInput
+        id="pairAddress"
+        value={formData.pairAddress || ''}
+        onChange={(e) => updateField('pairAddress', e.target.value)}
+        label="Pair Address"
+        fieldName="pairAddress"
+        hardError={validation.hardErrors.pairAddress}
+        softWarning={validation.softWarnings.pairAddress}
+        expectedType="lp"
+      />
       <div className="grid gap-2 p-4 bg-muted rounded-lg">
         <h4 className="text-sm font-medium">How the Ratio is Calculated</h4>
         <p className="text-xs text-muted-foreground">
@@ -733,25 +869,31 @@ export function NodeConfigSheet({
           max={10}
           value={formData.delay || ''}
           onChange={(e) => updateField('delay', Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+          className={validation.hardErrors.delay ? 'border-destructive' : validation.softWarnings.delay ? 'border-yellow-500' : ''}
         />
         <p className="text-xs text-muted-foreground">Delay in seconds (max 10 seconds)</p>
+        {validation.hardErrors.delay && (
+          <p className="text-xs text-destructive">{validation.hardErrors.delay}</p>
+        )}
+        {validation.softWarnings.delay && (
+          <p className="text-xs text-yellow-600">{validation.softWarnings.delay}</p>
+        )}
       </div>
     </div>
   );
 
   const renderCheckTokenBalanceConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <div className="grid gap-3">
-        <label htmlFor="token" className="text-sm font-medium">Token Contract Address</label>
-        <Input
-          id="token"
-          type="text"
-          placeholder="0x..."
-          value={formData.token || ''}
-          onChange={(e) => updateField('token', e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">The ERC20 token contract address to check balance for</p>
-      </div>
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Contract Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+      />
+      <p className="text-xs text-muted-foreground px-4">The ERC20 token contract address to check balance for</p>
     </div>
   );
 
@@ -767,8 +909,15 @@ export function NodeConfigSheet({
           max={3}
           value={formData.loopCount || ''}
           onChange={(e) => updateField('loopCount', Math.min(3, Math.max(1, parseInt(e.target.value) || 1)))}
+          className={validation.hardErrors.loopCount ? 'border-destructive' : validation.softWarnings.loopCount ? 'border-yellow-500' : ''}
         />
         <p className="text-xs text-muted-foreground">Number of times to restart the automation (1-3). Loops back to start node.</p>
+        {validation.hardErrors.loopCount && (
+          <p className="text-xs text-destructive">{validation.hardErrors.loopCount}</p>
+        )}
+        {validation.softWarnings.loopCount && (
+          <p className="text-xs text-yellow-600">{validation.softWarnings.loopCount}</p>
+        )}
       </div>
     </div>
   );
@@ -783,8 +932,15 @@ export function NodeConfigSheet({
           placeholder="100"
           value={formData.maxGasPrice || ''}
           onChange={(e) => updateField('maxGasPrice', e.target.value)}
+          className={validation.hardErrors.maxGasPrice ? 'border-destructive' : validation.softWarnings.maxGasPrice ? 'border-yellow-500' : ''}
         />
         <p className="text-xs text-muted-foreground">Maximum gas price in Gwei. Automation will stop if gas exceeds this value.</p>
+        {validation.hardErrors.maxGasPrice && (
+          <p className="text-xs text-destructive">{validation.hardErrors.maxGasPrice}</p>
+        )}
+        {validation.softWarnings.maxGasPrice && (
+          <p className="text-xs text-yellow-600">{validation.softWarnings.maxGasPrice}</p>
+        )}
       </div>
     </div>
   );
@@ -864,29 +1020,29 @@ export function NodeConfigSheet({
         </div>
 
         {showTokenAddress && (
-          <div className="grid gap-3">
-            <label htmlFor="tokenAddress" className="text-sm font-medium">Token Address</label>
-            <Input
-              id="tokenAddress"
-              type="text"
-              placeholder="0x..."
-              value={formData.tokenAddress || ''}
-              onChange={(e) => updateField('tokenAddress', e.target.value)}
-            />
-          </div>
+          <AddressInput
+            id="tokenAddress"
+            value={formData.tokenAddress || ''}
+            onChange={(e) => updateField('tokenAddress', e.target.value)}
+            label="Token Address"
+            fieldName="tokenAddress"
+            hardError={validation.hardErrors.tokenAddress}
+            softWarning={validation.softWarnings.tokenAddress}
+            expectedType="token"
+          />
         )}
 
         {showPairAddress && (
-          <div className="grid gap-3">
-            <label htmlFor="lpPairAddress" className="text-sm font-medium">LP Pair Address</label>
-            <Input
-              id="lpPairAddress"
-              type="text"
-              placeholder="0x..."
-              value={formData.lpPairAddress || ''}
-              onChange={(e) => updateField('lpPairAddress', e.target.value)}
-            />
-          </div>
+          <AddressInput
+            id="lpPairAddress"
+            value={formData.lpPairAddress || ''}
+            onChange={(e) => updateField('lpPairAddress', e.target.value)}
+            label="LP Pair Address"
+            fieldName="lpPairAddress"
+            hardError={validation.hardErrors.lpPairAddress}
+            softWarning={validation.softWarnings.lpPairAddress}
+            expectedType="lp"
+          />
         )}
 
         {showPreviousOutput && previousOutputFields.length > 0 && (
@@ -1210,9 +1366,15 @@ export function NodeConfigSheet({
             type="submit"
             onClick={nodeType === 'start' ? handleSaveSchedule : handleSave}
             className="w-full"
-            disabled={nodeType === 'start' && isSavingSchedule}
+            disabled={(nodeType === 'start' && isSavingSchedule) || (!validation.isValid && nodeType !== 'start') || validation.isLoading}
           >
-            {nodeType === 'start' && isSavingSchedule ? 'Saving...' : 'Save changes'}
+            {nodeType === 'start' && isSavingSchedule
+              ? 'Saving...'
+              : validation.isLoading
+              ? 'Validating...'
+              : !validation.isValid && nodeType !== 'start'
+              ? 'Fix errors to save'
+              : 'Save changes'}
           </Button>
         </SheetFooter>
       </SheetContent>
