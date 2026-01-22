@@ -8,6 +8,7 @@ import {
   Loader2Icon,
   LockIcon,
   RefreshCwIcon,
+  FlagIcon,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import Link from "next/link";
@@ -37,6 +38,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED";
 
@@ -215,6 +227,7 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
   const [error, setError] = useState<string | null>(null);
   const [hasUnseen, setHasUnseen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Check for unseen executions on mount
   useEffect(() => {
@@ -273,6 +286,24 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
     }, 500);
   };
 
+  const handleClearStale = async () => {
+    if (!isPro) return;
+    setIsClearing(true);
+    try {
+      await fetch("/api/executions/clear-stale", { method: "POST" });
+      await fetchExecutions();
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const hasStaleExecutions = executions.some((e) => {
+    if (e.status !== "RUNNING") return false;
+    const startedAt = new Date(e.startedAt).getTime();
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    return startedAt < tenMinutesAgo;
+  });
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -301,16 +332,47 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
               </DialogDescription>
             </div>
             {isPro && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefreshing || loading}
-                className="h-7 w-7 p-0"
-                aria-label="Refresh scheduled executions"
-              >
-                <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
-              </Button>
+              <div className="flex items-center gap-1">
+                {hasStaleExecutions && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isClearing || loading}
+                        className="h-7 w-7 p-0"
+                        aria-label="Clear stuck executions"
+                      >
+                        <FlagIcon size={14} />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clear Stuck Executions?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will clean up any executions that appear to be stuck or unresponsive.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleClearStale}>
+                          Clear
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || loading}
+                  className="h-7 w-7 p-0"
+                  aria-label="Refresh scheduled executions"
+                >
+                  <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>

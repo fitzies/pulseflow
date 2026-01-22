@@ -17,6 +17,24 @@ export async function GET(request: Request) {
   const now = new Date();
 
   try {
+    // Clean up stale executions (RUNNING for more than 10 minutes)
+    const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
+    const staleCleanup = await prisma.execution.updateMany({
+      where: {
+        status: 'RUNNING',
+        startedAt: { lt: staleThreshold },
+      },
+      data: {
+        status: 'FAILED',
+        error: 'Execution timed out',
+        finishedAt: now,
+      },
+    });
+
+    if (staleCleanup.count > 0) {
+      console.log(`[Cron] Cleaned up ${staleCleanup.count} stale executions`);
+    }
+
     // Find all scheduled automations that are due to run
     // Only for PRO and ULTRA users
     const dueAutomations = await prisma.automation.findMany({
