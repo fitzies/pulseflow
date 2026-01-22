@@ -7,6 +7,7 @@ import {
   XCircleIcon,
   Loader2Icon,
   LockIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import Link from "next/link";
@@ -213,6 +214,7 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasUnseen, setHasUnseen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Check for unseen executions on mount
   useEffect(() => {
@@ -262,6 +264,15 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
     }
   };
 
+  const handleRefresh = async () => {
+    if (!isPro) return;
+    setIsRefreshing(true);
+    await fetchExecutions();
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 500);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -282,10 +293,26 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
       </DialogTrigger>
       <DialogContent className="w-full max-w-3xl sm:min-w-3xl">
         <DialogHeader>
-          <DialogTitle>Scheduled Executions</DialogTitle>
-          <DialogDescription>
-            History of your scheduled automation runs
-          </DialogDescription>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <DialogTitle>Scheduled Executions</DialogTitle>
+              <DialogDescription>
+                History of your scheduled automation runs
+              </DialogDescription>
+            </div>
+            {isPro && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isRefreshing || loading}
+                className="h-7 w-7 p-0"
+                aria-label="Refresh scheduled executions"
+              >
+                <RefreshCwIcon size={14} className={isRefreshing ? 'animate-spin' : ''} />
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {!isPro ? (

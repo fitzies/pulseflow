@@ -720,7 +720,7 @@ export function AutomationFlow({
   }, [automationId]);
 
   return (
-    <div className="w-full h-screen dark relative">
+    <div className="w-full h-[calc(100vh-4rem)] dark relative">
       <ReactFlow
         nodes={nodesWithHandlers}
         edges={edges.map(edge => ({
