@@ -34,6 +34,7 @@ interface AutomationSettingsDialogProps {
   initialDefaultSlippage: number;
   initialRpcEndpoint: string | null;
   initialShowNodeLabels: boolean;
+  initialBetaFeatures: boolean;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
   onSettingsUpdate?: () => void;
   onReset?: () => void;
@@ -48,6 +49,7 @@ export function AutomationSettingsDialog({
   initialDefaultSlippage,
   initialRpcEndpoint,
   initialShowNodeLabels,
+  initialBetaFeatures,
   userPlan,
   onSettingsUpdate,
   onReset,
@@ -57,6 +59,7 @@ export function AutomationSettingsDialog({
   const [defaultSlippage, setDefaultSlippage] = useState(initialDefaultSlippage);
   const [rpcEndpoint, setRpcEndpoint] = useState(initialRpcEndpoint || 'https://rpc.pulsechain.com');
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
+  const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
   const [isSaving, setIsSaving] = useState(false);
   const [showPrivateKeyDialog, setShowPrivateKeyDialog] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
@@ -70,9 +73,10 @@ export function AutomationSettingsDialog({
       setDefaultSlippage(initialDefaultSlippage);
       setRpcEndpoint(initialRpcEndpoint || 'https://rpc.pulsechain.com');
       setShowNodeLabels(initialShowNodeLabels);
+      setBetaFeatures(initialBetaFeatures);
       setPrivateKey(null);
     }
-  }, [open, initialName, initialDefaultSlippage, initialRpcEndpoint, initialShowNodeLabels]);
+  }, [open, initialName, initialDefaultSlippage, initialRpcEndpoint, initialShowNodeLabels, initialBetaFeatures]);
 
   const isProUser = userPlan === 'PRO' || userPlan === 'ULTRA';
 
@@ -89,6 +93,7 @@ export function AutomationSettingsDialog({
           defaultSlippage,
           rpcEndpoint: isProUser ? rpcEndpoint : undefined,
           showNodeLabels,
+          betaFeatures,
         }),
       });
 
@@ -202,6 +207,33 @@ export function AutomationSettingsDialog({
                   className={cn(
                     'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
                     showNodeLabels ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+
+            {/* Beta Features Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label htmlFor="betaFeatures" className="text-sm font-medium">
+                  Beta Features
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  Enable experimental features like AI chat
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBetaFeatures(!betaFeatures)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  betaFeatures ? 'bg-primary' : 'bg-muted'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    betaFeatures ? 'translate-x-6' : 'translate-x-1'
                   )}
                 />
               </button>

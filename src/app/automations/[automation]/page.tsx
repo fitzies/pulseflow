@@ -84,6 +84,7 @@ export default async function Page({ params }: PageProps) {
       defaultSlippage={automation.defaultSlippage ?? 0.01}
       rpcEndpoint={automation.rpcEndpoint}
       showNodeLabels={automation.showNodeLabels ?? true}
+      betaFeatures={automation.betaFeatures ?? false}
       activeExecution={activeExecution ? { id: activeExecution.id, status: activeExecution.status } : null}
       triggerMode={automation.triggerMode}
       cronExpression={automation.cronExpression}

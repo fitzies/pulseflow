@@ -53,8 +53,9 @@ model Automation {
 
   // Settings
   defaultSlippage Float?  @default(0.01)
-  rpcEndpoint    String?
+  rpcEndpoint     String?
   showNodeLabels  Boolean @default(true)
+  betaFeatures    Boolean @default(false)
 
   // Scheduler fields (Pro feature)
   triggerMode    TriggerMode @default(MANUAL)
@@ -82,7 +83,7 @@ model Execution {
 
   status       ExecutionStatus
   error        String?
-  wasScheduled Boolean @default(false)
+  wasScheduled Boolean         @default(false)
 
   startedAt  DateTime  @default(now())
   finishedAt DateTime?

@@ -121,6 +121,7 @@ interface AutomationFlowProps {
   defaultSlippage: number;
   rpcEndpoint: string | null;
   showNodeLabels: boolean;
+  betaFeatures: boolean;
   activeExecution?: { id: string; status: string } | null;
   triggerMode: 'MANUAL' | 'SCHEDULE';
   cronExpression: string | null;
@@ -139,6 +140,7 @@ export function AutomationFlow({
   defaultSlippage,
   rpcEndpoint,
   showNodeLabels: initialShowNodeLabels,
+  betaFeatures: initialBetaFeatures,
   activeExecution,
   triggerMode: initialTriggerMode,
   cronExpression: initialCronExpression,
@@ -172,6 +174,7 @@ export function AutomationFlow({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
+  const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
   const [currentRpcEndpoint, setCurrentRpcEndpoint] = useState(rpcEndpoint || PULSECHAIN_RPC);
   const [currentName, setCurrentName] = useState(automationName);
   const [currentDefaultSlippage, setCurrentDefaultSlippage] = useState(defaultSlippage);
@@ -842,6 +845,7 @@ export function AutomationFlow({
         initialDefaultSlippage={currentDefaultSlippage}
         initialRpcEndpoint={rpcEndpoint}
         initialShowNodeLabels={showNodeLabels}
+        initialBetaFeatures={betaFeatures}
         userPlan={userPlan}
         onSettingsUpdate={handleSettingsUpdate}
         onReset={handleReset}
@@ -895,15 +899,17 @@ export function AutomationFlow({
       </div>
 
       {/* AI Assistant - Bottom Right */}
-      <div className="absolute bottom-7 right-7 z-10 shadow-lg">
-        <AIChatButton
-          onClick={() => setAiChatOpen(!aiChatOpen)}
-          isOpen={aiChatOpen}
-          disabled={!hasAiAccess}
-        />
-      </div>
+      {betaFeatures && (
+        <div className="absolute bottom-7 right-7 z-10 shadow-lg">
+          <AIChatButton
+            onClick={() => setAiChatOpen(!aiChatOpen)}
+            isOpen={aiChatOpen}
+            disabled={!hasAiAccess}
+          />
+        </div>
+      )}
 
-      {hasAiAccess && (
+      {betaFeatures && hasAiAccess && (
         <AIChatPanel
           automationId={automationId}
           isOpen={aiChatOpen}

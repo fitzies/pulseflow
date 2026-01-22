@@ -9,7 +9,7 @@ export async function PATCH(
   try {
     const { id: automationId } = await params;
     const body = await request.json();
-    const { name, defaultSlippage, rpcEndpoint, showNodeLabels } = body;
+    const { name, defaultSlippage, rpcEndpoint, showNodeLabels, betaFeatures } = body;
 
     // Get authenticated user from Clerk
     const user = await currentUser();
@@ -54,22 +54,26 @@ export async function PATCH(
 
     // Check if user has PRO/ULTRA plan for RPC endpoint
     const isProUser = dbUser.plan === 'PRO' || dbUser.plan === 'ULTRA';
-    
+
     // Build update data
     const updateData: any = {};
-    
+
     if (name !== undefined) {
       updateData.name = name;
     }
-    
+
     if (defaultSlippage !== undefined) {
       updateData.defaultSlippage = defaultSlippage;
     }
-    
+
     if (showNodeLabels !== undefined) {
       updateData.showNodeLabels = showNodeLabels;
     }
-    
+
+    if (betaFeatures !== undefined) {
+      updateData.betaFeatures = betaFeatures;
+    }
+
     // Only allow RPC endpoint update if user is PRO/ULTRA
     if (rpcEndpoint !== undefined) {
       if (!isProUser) {
