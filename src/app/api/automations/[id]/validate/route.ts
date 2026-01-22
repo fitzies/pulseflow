@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { JsonRpcProvider, Contract, isAddress } from 'ethers';
-import { erc20ABI, pairABI } from '@/lib/abis';
+import { erc20ABI, pairABI, playgroundTokenABI } from '@/lib/abis';
 import { CONFIG } from '@/lib/config';
 
 export async function POST(
@@ -95,6 +95,18 @@ export async function POST(
       }
       const isValidLP = await validateLPPair(address);
       return { isValid: isValidLP, isToken: isValidToken && !isValidLP };
+    };
+
+    // Helper function to check if token is a playground token (has parent() function)
+    const validatePlaygroundToken = async (address: string): Promise<boolean> => {
+      if (!validateAddress(address)) return false;
+      try {
+        const contract = new Contract(address, playgroundTokenABI, provider);
+        await contract.parent();
+        return true;
+      } catch {
+        return false;
+      }
     };
 
     // Helper function to get token balance
@@ -332,6 +344,12 @@ export async function POST(
             validationResults.hardErrors.token = 'LP pair address not allowed. Please use a token address.';
           } else if (!tokenCheck.isValid) {
             validationResults.hardErrors.token = 'Invalid token contract';
+          } else {
+            // Check if it's a playground token (has parent() function)
+            const isPlaygroundToken = await validatePlaygroundToken(token);
+            if (!isPlaygroundToken) {
+              validationResults.hardErrors.token = 'Only playground tokens are allowed. This token does not have a parent() function.';
+            }
           }
         }
         break;

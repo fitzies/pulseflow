@@ -806,6 +806,9 @@ export function NodeConfigSheet({
         softWarning={validation.softWarnings.token}
         expectedType="token"
       />
+      <p className="text-xs text-muted-foreground px-4">
+        Only playground tokens are allowed. Playground tokens have a parent() function.
+      </p>
       <AmountSelector
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}
@@ -831,6 +834,9 @@ export function NodeConfigSheet({
         softWarning={validation.softWarnings.token}
         expectedType="token"
       />
+      <p className="text-xs text-muted-foreground px-4">
+        Only playground tokens are allowed. Playground tokens have a parent() function.
+      </p>
       <AmountSelector
         value={formData.amount}
         onChange={(value) => updateField('amount', value)}

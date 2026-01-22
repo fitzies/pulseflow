@@ -442,6 +442,12 @@ contract AutomationContract {
             "PlaygroundToken transfer failed"
         );
 
+        // Approve playground token to take tokens from this contract
+        require(
+            tokenContract.approve(token, amount),
+            "PlaygroundToken approval failed"
+        );
+
         // Call claim() which burns PlaygroundTokens and transfers parent tokens to this contract
         playgroundToken.claim(amount);
 
