@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { prisma, withRetry } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,17 +19,19 @@ export async function GET(request: Request) {
   try {
     // Clean up stale executions (RUNNING for more than 10 minutes)
     const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
-    const staleCleanup = await prisma.execution.updateMany({
-      where: {
-        status: 'RUNNING',
-        startedAt: { lt: staleThreshold },
-      },
-      data: {
-        status: 'FAILED',
-        error: 'Execution timed out',
-        finishedAt: now,
-      },
-    });
+    const staleCleanup = await withRetry(() =>
+      prisma.execution.updateMany({
+        where: {
+          status: 'RUNNING',
+          startedAt: { lt: staleThreshold },
+        },
+        data: {
+          status: 'FAILED',
+          error: 'Execution timed out',
+          finishedAt: now,
+        },
+      })
+    );
 
     if (staleCleanup.count > 0) {
       console.log(`[Cron] Cleaned up ${staleCleanup.count} stale executions`);
@@ -37,22 +39,24 @@ export async function GET(request: Request) {
 
     // Find all scheduled automations that are due to run
     // Only for PRO and ULTRA users
-    const dueAutomations = await prisma.automation.findMany({
-      where: {
-        triggerMode: 'SCHEDULE',
-        nextRunAt: {
-          lte: now,
-        },
-        user: {
-          plan: {
-            in: ['PRO', 'ULTRA'],
+    const dueAutomations = await withRetry(() =>
+      prisma.automation.findMany({
+        where: {
+          triggerMode: 'SCHEDULE',
+          nextRunAt: {
+            lte: now,
+          },
+          user: {
+            plan: {
+              in: ['PRO', 'ULTRA'],
+            },
           },
         },
-      },
-      select: {
-        id: true,
-      },
-    });
+        select: {
+          id: true,
+        },
+      })
+    );
 
     console.log(`[Cron] Found ${dueAutomations.length} automations due to run`);
 
