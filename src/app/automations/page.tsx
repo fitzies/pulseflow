@@ -160,7 +160,7 @@ export default async function Page() {
                             ? "maintenance"
                             : automation.isActive
                               ? "online"
-                              : "maintenance"
+                              : "offline"
                       }
                       variant="outline"
                     >
