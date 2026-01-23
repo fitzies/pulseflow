@@ -86,6 +86,7 @@ function PlanCard({
   );
 }
 
+
 export default async function Page({
   searchParams,
 }: {

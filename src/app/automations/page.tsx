@@ -8,12 +8,14 @@ import {
   CardTitle,
   CardContent,
   CardDescription,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
 import { ShareAutomationButton } from "@/components/share-automation-button";
 import { EditAutomationNameButton } from "@/components/edit-automation-name-button";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
+import { AutomationNodeIcons } from "@/components/automation-node-icons";
 
 export default async function Page() {
   const user = await currentUser();
@@ -111,27 +113,41 @@ export default async function Page() {
           {automations.map((automation) => {
             const isRunning = automation.executions.length > 0;
             return (
-              <Card key={automation.id} className="h-full flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
-                    <div className="flex items-center gap-1">
-                      <EditAutomationNameButton
-                        automationId={automation.id}
-                        currentName={automation.name}
-                      />
-                      <ShareAutomationButton
-                        definition={automation.definition}
-                        automationName={automation.name}
-                      />
+              <Card key={automation.id} className="h-full flex flex-col hover:scale-[102%] duration-300">
+                {/* <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
+                      <div className="flex items-center gap-1">
+                        <EditAutomationNameButton
+                          automationId={automation.id}
+                          currentName={automation.name}
+                        />
+                        <ShareAutomationButton
+                          definition={automation.definition}
+                          automationName={automation.name}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <CardDescription>
-                    Created {new Date(automation.createdAt).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
+                    <CardDescription>
+                      Created {new Date(automation.createdAt).toLocaleDateString()}
+                    </CardDescription>
+                  </CardHeader> */}
                 <CardContent>
-                  <div className="flex items-center justify-between">
+                  <Link href={`/automations/${automation.id}`} className="flex items-center justify-center w-full h-40 border rounded-xl p-2">
+                    <AutomationNodeIcons definition={automation.definition} />
+                  </Link>
+                </CardContent>
+                <CardFooter className="flex items-center justify-between">
+                  <p>{automation.name}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <EditAutomationNameButton
+                      automationId={automation.id}
+                      currentName={automation.name}
+                    />
+                    <ShareAutomationButton
+                      definition={automation.definition}
+                      automationName={automation.name}
+                    />
                     {isRunning ? (
                       <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
                         <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -147,14 +163,14 @@ export default async function Page() {
                       </Badge>
                     ) : (
                       <Badge variant="outline">
-                        Inactive
+                        Not Running
                       </Badge>
                     )}
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/automations/${automation.id}`}>Open</Link>
-                    </Button>
                   </div>
-                </CardContent>
+                  {/* <Button asChild size="sm" variant="outline">
+                        <Link href={`/automations/${automation.id}`}>Open</Link>
+                      </Button> */}
+                </CardFooter>
               </Card>
             );
           })}
