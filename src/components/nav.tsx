@@ -134,16 +134,14 @@ export default async function Nav() {
         </div>
         {/* Right side */}
         <div className="flex items-center gap-2">
-          {/* Scheduled Executions */}
-          <ScheduledExecutionsMenu isPro={isPro} latestScheduledAt={latestScheduledAt} />
-          {/* Recent Executions */}
-          <RecentExecutions executions={executions} />
-          {/* Upgrade button - only show if user doesn't have a plan */}
           {!hasPlan && (
-            <Button asChild size="sm" variant="default">
+            <Button asChild size="sm" variant="outline">
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
+          <ScheduledExecutionsMenu isPro={isPro} latestScheduledAt={latestScheduledAt} />
+          <RecentExecutions executions={executions} />
+          {/* Upgrade button - only show if user doesn't have a plan */}
           {/* User menu */}
           <UserMenu
             user={{

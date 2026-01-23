@@ -188,9 +188,9 @@ function DataTable({ data }: { data: ScheduledExecution[] }) {
                   {header.isPlaceholder
                     ? null
                     : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
                 </TableHead>
               ))}
             </TableRow>
@@ -309,11 +309,12 @@ export default function ScheduledExecutionsMenu({ isPro, latestScheduledAt }: Sc
       <DialogTrigger asChild>
         <Button
           aria-label="View scheduled executions"
-          className="relative size-8 rounded-full text-muted-foreground shadow-none"
-          size="icon"
+          className="relative h-8 px-3 shadow-none"
+          size="sm"
           variant="ghost"
         >
-          <TimerIcon className="h-5 w-5" />
+          <TimerIcon className="h-6 w-6" />
+          {/* <span className="text-sm">Scheduled</span> */}
           {hasUnseen && (
             <div
               aria-hidden="true"

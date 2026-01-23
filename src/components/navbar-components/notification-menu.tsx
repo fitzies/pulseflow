@@ -227,11 +227,10 @@ function ExecutionDialog({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Status</span>
-                <span className={`font-medium ${
-                  executionDetails.status === "SUCCESS" ? "text-green-600" :
+                <span className={`font-medium ${executionDetails.status === "SUCCESS" ? "text-green-600" :
                   executionDetails.status === "FAILED" ? "text-red-600" :
-                  "text-blue-600"
-                }`}>
+                    "text-blue-600"
+                  }`}>
                   {executionDetails.status}
                 </span>
               </div>
@@ -335,11 +334,12 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
         <PopoverTrigger asChild>
           <Button
             aria-label="View recent executions"
-            className="relative size-8 rounded-full text-muted-foreground shadow-none"
-            size="icon"
+            className="relative h-8 px-3 shadow-none"
+            size="sm"
             variant="ghost"
           >
-            <CommandLineIcon aria-hidden="true" className={`h-8 w-8`} />
+            <CommandLineIcon aria-hidden="true" className={`h-9 w-9`} />
+            {/* <span className="text-sm">Executions</span> */}
             {runningCount > 0 && (
               <div
                 aria-hidden="true"
