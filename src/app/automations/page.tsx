@@ -16,6 +16,7 @@ import { ShareAutomationButton } from "@/components/share-automation-button";
 import { EditAutomationNameButton } from "@/components/edit-automation-name-button";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 import { AutomationNodeIcons } from "@/components/automation-node-icons";
+import { Status, StatusIndicator } from "@/components/kibo-ui/status";
 
 export default async function Page() {
   const user = await currentUser();
@@ -137,8 +138,10 @@ export default async function Page() {
                     <AutomationNodeIcons definition={automation.definition} />
                   </Link>
                 </CardContent>
-                <CardFooter className="flex items-center justify-between">
-                  <p>{automation.name}</p>
+                <CardFooter className="flex items-center justify-between px-6!">
+                  <div className="flex items-center gap-2">
+                    <p>{automation.name}</p>
+                  </div>
                   <div className="flex items-center justify-center gap-2">
                     <EditAutomationNameButton
                       automationId={automation.id}
@@ -148,28 +151,22 @@ export default async function Page() {
                       definition={automation.definition}
                       automationName={automation.name}
                     />
-                    {isRunning ? (
-                      <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        Running
-                      </Badge>
-                    ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
-                      <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
-                        Scheduled
-                      </Badge>
-                    ) : automation.isActive ? (
-                      <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">
-                        Not Running
-                      </Badge>
-                    )}
+                    <Status
+                      className="rounded-full px-0 py-0 border-0 pl-2"
+                      status={
+                        isRunning
+                          ? "online"
+                          : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt
+                            ? "maintenance"
+                            : automation.isActive
+                              ? "online"
+                              : "maintenance"
+                      }
+                      variant="outline"
+                    >
+                      <StatusIndicator />
+                    </Status>
                   </div>
-                  {/* <Button asChild size="sm" variant="outline">
-                        <Link href={`/automations/${automation.id}`}>Open</Link>
-                      </Button> */}
                 </CardFooter>
               </Card>
             );

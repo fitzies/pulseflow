@@ -75,7 +75,7 @@ export function AutomationNodeIcons({ definition }: AutomationNodeIconsProps) {
             key={idx}
             className={`flex items-center justify-center rounded p-1 ${getNodeBackgroundColor(node.type as any)}`}
           >
-            <Icon className={`h-3 w-3 ${getNodeTextColor(node.type as any)}`} />
+            <Icon className={`h-6 w-6 ${getNodeTextColor(node.type as any)}`} />
           </div>
         );
       })}
