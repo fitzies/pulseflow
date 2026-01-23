@@ -83,7 +83,7 @@ export default async function Page() {
 
       {/* Empty State */}
       {automations.length === 0 ? (
-        <Card className="py-12">
+        <Card className="py-12 bg-transparent border-transparent">
           <CardContent className="flex flex-col items-center justify-center text-center">
             <h3 className="text-lg font-semibold mb-2">No automations yet</h3>
             <p className="text-muted-foreground mb-6 text-sm">
@@ -115,24 +115,6 @@ export default async function Page() {
             const isRunning = automation.executions.length > 0;
             return (
               <Card key={automation.id} className="h-full flex flex-col hover:scale-[102%] duration-300">
-                {/* <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="line-clamp-1">{automation.name}</CardTitle>
-                      <div className="flex items-center gap-1">
-                        <EditAutomationNameButton
-                          automationId={automation.id}
-                          currentName={automation.name}
-                        />
-                        <ShareAutomationButton
-                          definition={automation.definition}
-                          automationName={automation.name}
-                        />
-                      </div>
-                    </div>
-                    <CardDescription>
-                      Created {new Date(automation.createdAt).toLocaleDateString()}
-                    </CardDescription>
-                  </CardHeader> */}
                 <CardContent>
                   <Link href={`/automations/${automation.id}`} className="flex items-center justify-center w-full h-40 border rounded-xl p-2">
                     <AutomationNodeIcons definition={automation.definition} />

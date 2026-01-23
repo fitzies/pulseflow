@@ -26,7 +26,7 @@ export const CheckTokenBalanceNode = memo(({ data }: NodeProps) => {
 
   return (
     <BaseNode className="w-40 cursor-pointer" onClick={handleNodeClick}>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Top} className="opacity-0" />
       <div className="flex flex-col items-center justify-center p-4 gap-2">
         <div className={`rounded-xl ${getNodeBackgroundColor('checkTokenBalance')} p-3 flex items-center justify-center`}>
           <CurrencyDollarIcon className={`h-8 w-8 ${getNodeTextColor('checkTokenBalance')}`} />

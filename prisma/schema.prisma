@@ -53,7 +53,7 @@ model Automation {
 
   // Settings
   defaultSlippage Float?  @default(0.01)
-  rpcEndpoint     String?
+  rpcEndpoint     String? @default("https://rpc.pulsechain.com")
   showNodeLabels  Boolean @default(true)
   betaFeatures    Boolean @default(false)
 

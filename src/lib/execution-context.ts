@@ -11,7 +11,8 @@ export type AmountValue =
   | { type: 'static'; value: string } // User-entered value
   | { type: 'previousOutput'; field: string; percentage: number } // Use output from previous node
   | { type: 'currentBalance'; token: string; percentage: number } // Use current wallet balance
-  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string }; // Auto-calculate from LP ratio (field reference)
+  | { type: 'lpRatio'; baseTokenField: string; baseAmountField: string; pairedToken: string } // New: field reference for dynamic resolution
+  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string }; // Legacy: stored token value (auto-fixed at runtime)
 
 /**
  * Execution context that tracks outputs from executed nodes
@@ -133,8 +134,23 @@ export async function resolveAmountWithNodeData(
     return 0n;
   }
 
-  // Determine token addresses
-  const baseToken = amountConfig.baseToken;
+  // Determine token addresses - support both new (baseTokenField) and legacy (baseToken) formats
+  let baseToken: string;
+  
+  if ('baseTokenField' in amountConfig && amountConfig.baseTokenField) {
+    // New format: resolve field reference from nodeData
+    baseToken = nodeData[amountConfig.baseTokenField];
+    if (!baseToken) {
+      throw new Error(`LP ratio baseTokenField '${amountConfig.baseTokenField}' not found in nodeData`);
+    }
+  } else if ('baseToken' in amountConfig && amountConfig.baseToken) {
+    // Legacy format: auto-fix by using nodeData.token instead of stored value
+    // This fixes misconfigured automations where the token was changed after selecting LP Ratio
+    baseToken = nodeData.token || nodeData.tokenA || amountConfig.baseToken;
+  } else {
+    throw new Error('LP ratio config missing both baseTokenField and baseToken');
+  }
+  
   const pairedToken = amountConfig.pairedToken === 'PLS' ? WPLS : amountConfig.pairedToken;
 
   if (!baseToken || !pairedToken) {

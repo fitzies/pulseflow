@@ -190,10 +190,10 @@ export function AmountSelector({
       if (baseAmountIsLpRatio) {
         return;
       }
-      // Store field REFERENCE instead of value - will be resolved dynamically at execution time
+      // Store field REFERENCES - will be resolved dynamically at execution time
       onChange({
         type: 'lpRatio',
-        baseToken: formData[lpRatioConfig.baseTokenField] || '',
+        baseTokenField: lpRatioConfig.baseTokenField, // Field name, not value! Resolved at execution time
         baseAmountField: lpRatioConfig.baseAmountField, // Field name, not value!
         pairedToken: lpRatioConfig.isPLS ? 'PLS' : (formData[lpRatioConfig.pairedTokenField] || ''),
       });
