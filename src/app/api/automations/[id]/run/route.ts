@@ -1,6 +1,7 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { executeAutomationChain, type ProgressEvent } from '@/lib/automation-runner';
+import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
 import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
@@ -25,6 +26,7 @@ export async function POST(
   // Get user from database
   const dbUser = await prisma.user.findUnique({
     where: { clerkId: user.id },
+    select: { id: true, plan: true },
   });
 
   if (!dbUser) {
@@ -63,6 +65,21 @@ export async function POST(
       JSON.stringify({ error: 'Automation has no nodes to execute' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
+  }
+
+  // Check for PRO-only nodes that the user's plan doesn't support
+  if (!canUseProNodes(dbUser.plan)) {
+    const proNodes = findProNodesInDefinition(nodes);
+    if (proNodes.length > 0) {
+      const nodeNames = proNodes.map((n) => n.label).join(', ');
+      return new Response(
+        JSON.stringify({
+          error: `This automation contains Pro nodes: ${nodeNames}. Upgrade to Pro to run this automation.`,
+          proNodes: proNodes.map((n) => n.type),
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
   }
 
   // Create execution record

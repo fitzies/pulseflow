@@ -136,3 +136,11 @@ model AIChatMessage {
 
   chat AIChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 }
+
+model SharedAutomation {
+  id         String   @id @default(cuid())
+  shareCode  String   @unique
+  definition Json
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+}

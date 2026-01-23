@@ -1,51 +1,59 @@
-const SHARE_PREFIX = "pf:";
+import crypto from "crypto";
+
+export const SHARE_PREFIX = "pf:";
+const SHARE_CODE_LENGTH = 12;
+const SHARE_EXPIRY_DAYS = 30;
 
 /**
- * Encodes an automation definition to a shareable string
- * Format: "pf:" + base64(JSON)
+ * Generates a random alphanumeric share code
  */
-export function encodeAutomationDefinition(definition: unknown): string {
-  const json = JSON.stringify(definition);
-  const base64 = Buffer.from(json).toString("base64");
-  return `${SHARE_PREFIX}${base64}`;
+export function generateShareCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.randomBytes(SHARE_CODE_LENGTH);
+  let code = "";
+  for (let i = 0; i < SHARE_CODE_LENGTH; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
+  return code;
 }
 
 /**
- * Decodes a share string back to an automation definition
- * Returns null if the string is invalid
+ * Validates if a string is a valid share code format
+ * Expected format: "pf:" + 12 alphanumeric characters
  */
-export function decodeAutomationDefinition(
-  shareString: string
-): { nodes: unknown[]; edges: unknown[] } | null {
-  try {
-    // Validate prefix
-    if (!shareString.startsWith(SHARE_PREFIX)) {
-      return null;
-    }
+export function isValidShareCode(shareString: string): boolean {
+  if (!shareString.startsWith(SHARE_PREFIX)) {
+    return false;
+  }
+  const code = shareString.slice(SHARE_PREFIX.length);
+  if (code.length !== SHARE_CODE_LENGTH) {
+    return false;
+  }
+  return /^[A-Za-z0-9]+$/.test(code);
+}
 
-    // Extract base64 part
-    const base64 = shareString.slice(SHARE_PREFIX.length);
-    if (!base64) {
-      return null;
-    }
-
-    // Decode base64
-    const json = Buffer.from(base64, "base64").toString("utf-8");
-
-    // Parse JSON
-    const parsed = JSON.parse(json);
-
-    // Validate structure
-    if (typeof parsed !== "object" || parsed === null) {
-      return null;
-    }
-
-    // Ensure nodes and edges exist (default to empty arrays)
-    const nodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
-    const edges = Array.isArray(parsed.edges) ? parsed.edges : [];
-
-    return { nodes, edges };
-  } catch {
+/**
+ * Extracts the share code from a full share string
+ */
+export function extractShareCode(shareString: string): string | null {
+  if (!isValidShareCode(shareString)) {
     return null;
   }
+  return shareString.slice(SHARE_PREFIX.length);
+}
+
+/**
+ * Creates a full share string from a code
+ */
+export function createShareString(code: string): string {
+  return `${SHARE_PREFIX}${code}`;
+}
+
+/**
+ * Returns the expiry date for a new share code
+ */
+export function getShareExpiryDate(): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + SHARE_EXPIRY_DAYS);
+  return date;
 }

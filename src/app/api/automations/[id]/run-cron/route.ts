@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { executeAutomationChain } from '@/lib/automation-runner';
 import { getNextRunDate } from '@/lib/cron-utils.server';
+import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
 import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
@@ -73,6 +74,23 @@ export async function POST(
         JSON.stringify({ success: false, error: 'No nodes' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Check for PRO-only nodes that the user's plan doesn't support
+    if (!canUseProNodes(automation.user.plan)) {
+      const proNodes = findProNodesInDefinition(nodes);
+      if (proNodes.length > 0) {
+        const nodeNames = proNodes.map((n) => n.label).join(', ');
+        console.log(`[Cron] Skipping automation ${automationId}: contains Pro nodes (${nodeNames}) but user has ${automation.user.plan} plan`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `This automation contains Pro nodes: ${nodeNames}. Upgrade to Pro to run this automation.`,
+            proNodes: proNodes.map((n) => n.type),
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Create execution record

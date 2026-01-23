@@ -337,7 +337,7 @@ export function CreateAutomationDialog({
                 id="share-string"
                 value={shareString}
                 onChange={(e) => setShareString(e.target.value)}
-                placeholder="pf:eyJub2Rlcy..."
+                placeholder="pf:x7kM9pL2qRsT"
                 required
                 disabled={isLoading}
               />

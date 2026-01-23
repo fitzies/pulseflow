@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
-import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
+import { getPlanLimit, canCreateAutomation, findProNodesInDefinition, canUseProNodes } from "@/lib/plan-limits";
 import { validateMinimumInterval, getNextRunDate } from "@/lib/cron-utils.server";
 import type { Node, Edge } from "@xyflow/react";
 import type { TriggerMode } from "@prisma/client";
@@ -217,6 +217,19 @@ export async function runAutomation(automationId: string) {
         success: false,
         error: "Automation has no nodes to execute.",
       };
+    }
+
+    // Check for PRO-only nodes that the user's plan doesn't support
+    if (!canUseProNodes(dbUser.plan)) {
+      const proNodes = findProNodesInDefinition(nodes);
+      if (proNodes.length > 0) {
+        const nodeNames = proNodes.map((n) => n.label).join(", ");
+        return {
+          success: false,
+          error: `This automation contains Pro nodes: ${nodeNames}. Upgrade to Pro to run this automation.`,
+          proNodes: proNodes.map((n) => n.type),
+        };
+      }
     }
 
     // Create execution record
@@ -499,9 +512,62 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
   }
 }
 
+export async function createShareCode(definition: unknown) {
+  const {
+    generateShareCode,
+    createShareString,
+    getShareExpiryDate,
+  } = await import("@/lib/automation-share");
+
+  try {
+    const user = await currentUser();
+
+    if (!user) {
+      return { success: false, error: "Unauthorized. Please sign in." };
+    }
+
+    // Generate unique share code
+    let shareCode: string;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    do {
+      shareCode = generateShareCode();
+      const existing = await prisma.sharedAutomation.findUnique({
+        where: { shareCode },
+      });
+      if (!existing) break;
+      attempts++;
+    } while (attempts < maxAttempts);
+
+    if (attempts >= maxAttempts) {
+      return { success: false, error: "Failed to generate unique share code. Please try again." };
+    }
+
+    // Create shared automation record
+    await prisma.sharedAutomation.create({
+      data: {
+        shareCode,
+        definition: definition as any,
+        expiresAt: getShareExpiryDate(),
+      },
+    });
+
+    return {
+      success: true,
+      shareString: createShareString(shareCode),
+    };
+  } catch (error) {
+    console.error("Error creating share code:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create share code.",
+    };
+  }
+}
+
 export async function createAutomationFromShare(shareString: string, name: string) {
-  // Import here to avoid circular dependencies
-  const { decodeAutomationDefinition } = await import("@/lib/automation-share");
+  const { extractShareCode } = await import("@/lib/automation-share");
 
   try {
     const user = await currentUser();
@@ -536,12 +602,30 @@ export async function createAutomationFromShare(shareString: string, name: strin
       return { success: false, error: limitMessage };
     }
 
-    // Decode share string
-    const definition = decodeAutomationDefinition(shareString);
+    // Extract share code from string
+    const shareCode = extractShareCode(shareString);
 
-    if (!definition) {
-      return { success: false, error: "Invalid share string. Please check and try again." };
+    if (!shareCode) {
+      return { success: false, error: "Invalid share code format. Please check and try again." };
     }
+
+    // Look up shared automation in database
+    const sharedAutomation = await prisma.sharedAutomation.findUnique({
+      where: { shareCode },
+    });
+
+    if (!sharedAutomation) {
+      return { success: false, error: "Share code not found. It may have expired or been deleted." };
+    }
+
+    // Check if expired
+    if (new Date() > sharedAutomation.expiresAt) {
+      // Clean up expired record
+      await prisma.sharedAutomation.delete({ where: { shareCode } });
+      return { success: false, error: "This share code has expired." };
+    }
+
+    const definition = sharedAutomation.definition as { nodes?: unknown[]; edges?: unknown[] };
 
     // Generate wallet
     const { address, encryptedKey } = await generateWallet();
@@ -553,7 +637,10 @@ export async function createAutomationFromShare(shareString: string, name: strin
         userId: dbUser.id,
         walletAddress: address,
         walletEncKey: encryptedKey,
-        definition: { nodes: definition.nodes, edges: definition.edges } as any,
+        definition: {
+          nodes: definition?.nodes || [],
+          edges: definition?.edges || [],
+        } as any,
         isActive: false,
       },
     });

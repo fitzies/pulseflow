@@ -61,7 +61,7 @@ function PlanCard({
           ))}
         </ul>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex flex-col gap-2">
         {isCurrentPlan ? (
           <Button variant="outline" className="w-full bg-transparent" disabled>
             Current Plan
@@ -75,6 +75,11 @@ function PlanCard({
             label={isUpgrade ? "Upgrade" : "Downgrade"}
             className="w-full"
           />
+        )}
+        {(plan === "BASIC" || plan === "PRO") && (
+          <p className="text-center text-sm text-muted-foreground">
+            3-day free trial
+          </p>
         )}
       </CardFooter>
     </Card>

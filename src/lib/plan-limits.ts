@@ -1,5 +1,51 @@
 import { Plan } from "@prisma/client";
 
+// Node types that require PRO or higher plan
+const PRO_ONLY_NODES = ["wait", "loop", "gasGuard", "condition"] as const;
+
+type ProNodeType = (typeof PRO_ONLY_NODES)[number];
+
+/**
+ * Check if a node type requires PRO plan
+ */
+export function isProNode(nodeType: string): nodeType is ProNodeType {
+  return PRO_ONLY_NODES.includes(nodeType as ProNodeType);
+}
+
+/**
+ * Find all PRO-only nodes in an automation definition
+ * @returns Array of { nodeType, label } for each PRO node found
+ */
+export function findProNodesInDefinition(
+  nodes: { type?: string }[]
+): { type: string; label: string }[] {
+  const proNodeLabels: Record<ProNodeType, string> = {
+    wait: "Wait",
+    loop: "Loop",
+    gasGuard: "Gas Guard",
+    condition: "Condition",
+  };
+
+  const found: { type: string; label: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const node of nodes) {
+    if (node.type && isProNode(node.type) && !seen.has(node.type)) {
+      seen.add(node.type);
+      found.push({ type: node.type, label: proNodeLabels[node.type] });
+    }
+  }
+
+  return found;
+}
+
+/**
+ * Check if a user's plan allows running automations with PRO nodes
+ */
+export function canUseProNodes(plan: Plan | null): boolean {
+  return plan === "PRO" || plan === "ULTRA";
+}
+
 /**
  * Get the maximum number of automations allowed for a plan
  * @param plan - The user's plan (BASIC, PRO, ULTRA, or null)
@@ -57,12 +103,10 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
     price: 6,
     maxAutomations: 3,
     features: [
-      "3 day free trial",
       "Up to 3 automations",
-      "Basic node types",
       "Swap, transfer, and liquidity operations",
-      "Balance and token checks",
-      "Telegram support",
+      "Balance and price checks",
+      "Telegram notifications",
     ],
   },
   PRO: {
@@ -72,11 +116,11 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
     maxAutomations: 10,
     features: [
       "Up to 10 automations",
-      "All basic nodes",
-      "Advanced control flow nodes",
-      "Event-based triggers",
-      "Gas guard and failure handling",
-      "Priority support",
+      "Everything in Basic",
+      "Wait, Loop, and Conditional nodes",
+      "Gas Guard protection",
+      "Scheduled triggers",
+      "AI Integration",
     ],
     highlight: true,
   },
@@ -88,7 +132,6 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
     features: [
       "Unlimited automations",
       "Everything in Pro",
-      "Priority support",
       "Advanced analytics",
       "Early access to new features",
       "Custom integrations",
