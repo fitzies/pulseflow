@@ -67,7 +67,7 @@ export default async function Page() {
       {/* Header with Create Button */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Automations</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Automations</h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Manage your automated automations
           </p>
