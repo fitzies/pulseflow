@@ -33,7 +33,8 @@ export function useTokenInfo(
     let cancelled = false;
 
     const fetchTokenInfo = async () => {
-      setInfo((prev) => ({ ...prev, isLoading: true, error: null }));
+      // Reset ALL fields when starting a new fetch to prevent stale data
+      setInfo({ name: null, isLoading: true, error: null, isLP: null, isToken: null });
 
       try {
         let isLP = false;

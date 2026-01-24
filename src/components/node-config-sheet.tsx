@@ -85,11 +85,10 @@ function AddressInput({
           onChange={onChange}
           className={borderClass}
         />
-        {showTokenName && tokenInfo.name && (
-          <p className="text-xs text-muted-foreground">{tokenInfo.name}</p>
-        )}
-        {tokenInfo.isLoading && (
-          <p className="text-xs text-muted-foreground">Loading token info...</p>
+        {showTokenName && (
+          <p className="text-xs text-muted-foreground">
+            {tokenInfo.isLoading ? 'Loading...' : tokenInfo.name || (expectedType === 'lp' ? 'No LP' : 'No token')}
+          </p>
         )}
         {typeMismatchWarning && !hardError && (
           <p className="text-xs text-yellow-600">{typeMismatchWarning}</p>
@@ -101,6 +100,60 @@ function AddressInput({
           <p className="text-xs text-yellow-600">{softWarning}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// PathTokenInput component for swap path arrays - defined outside to prevent focus loss on re-render
+function PathTokenInput({
+  address,
+  idx,
+  onUpdate,
+  onRemove,
+  hardError,
+}: {
+  address: string;
+  idx: number;
+  onUpdate: (value: string) => void;
+  onRemove: () => void;
+  hardError?: string;
+}) {
+  const info = useTokenInfo(address, 'token');
+  const typeMismatch = info.isLP === true;
+  const borderClass = hardError
+    ? 'border-destructive'
+    : typeMismatch
+      ? 'border-yellow-500'
+      : '';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          placeholder="0x..."
+          value={address}
+          onChange={(e) => onUpdate(e.target.value)}
+          className={borderClass}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={onRemove}
+        >
+          <XMarkIcon className="h-4 w-4" />
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {info.isLoading ? 'Loading...' : info.name || 'No token'}
+      </p>
+      {typeMismatch && !hardError && (
+        <p className="text-xs text-yellow-600">LP pair address not allowed in token path</p>
+      )}
+      {hardError && (
+        <p className="text-xs text-destructive">{hardError}</p>
+      )}
     </div>
   );
 }
@@ -308,53 +361,6 @@ export function NodeConfigSheet({
     });
   };
 
-  // PathTokenInput component for swap path arrays
-  const PathTokenInput = ({ address, idx, onUpdate, onRemove }: {
-    address: string;
-    idx: number;
-    onUpdate: (value: string) => void;
-    onRemove: () => void;
-  }) => {
-    const info = useTokenInfo(address, 'token');
-    const typeMismatch = info.isLP === true;
-    const hasError = validation.hardErrors[`path[${idx}]`];
-    const borderClass = hasError
-      ? 'border-destructive'
-      : typeMismatch
-        ? 'border-yellow-500'
-        : '';
-
-    return (
-      <div className="space-y-1">
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="0x..."
-            value={address}
-            onChange={(e) => onUpdate(e.target.value)}
-            className={borderClass}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={onRemove}
-          >
-            <XMarkIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        {info.name && <p className="text-xs text-muted-foreground">{info.name}</p>}
-        {info.isLoading && <p className="text-xs text-muted-foreground">Loading...</p>}
-        {typeMismatch && !hasError && (
-          <p className="text-xs text-yellow-600">LP pair address not allowed in token path</p>
-        )}
-        {hasError && (
-          <p className="text-xs text-destructive">{hasError}</p>
-        )}
-      </div>
-    );
-  };
-
   const renderSwapConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
     return (
@@ -402,6 +408,7 @@ export function NodeConfigSheet({
                 idx={index}
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
+                hardError={validation.hardErrors[`path[${index}]`]}
               />
             ))}
           </div>
@@ -484,6 +491,7 @@ export function NodeConfigSheet({
                 idx={index}
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
+                hardError={validation.hardErrors[`path[${index}]`]}
               />
             ))}
           </div>
@@ -566,6 +574,7 @@ export function NodeConfigSheet({
                 idx={index}
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
+                hardError={validation.hardErrors[`path[${index}]`]}
               />
             ))}
           </div>
@@ -1596,15 +1605,17 @@ export function NodeConfigSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Configure {nodeType}</SheetTitle>
-          <SheetDescription>
-            Set the parameters for this node
-          </SheetDescription>
-        </SheetHeader>
-        {renderConfig()}
-        <SheetFooter className="flex-col gap-2">
+      <SheetContent className="sm:max-w-xl flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Configure {nodeType}</SheetTitle>
+            <SheetDescription>
+              Set the parameters for this node
+            </SheetDescription>
+          </SheetHeader>
+          {renderConfig()}
+        </div>
+        <SheetFooter className="flex-col gap-2 border-t pt-3!">
           {canDelete && (
             <Button
               type="button"
