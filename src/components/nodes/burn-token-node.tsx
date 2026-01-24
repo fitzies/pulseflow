@@ -13,6 +13,9 @@ interface BurnTokenNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const BurnTokenNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const BurnTokenNode = memo(({ data }: NodeProps) => {
           <FireIcon className={`h-8 w-8 ${getNodeTextColor('burnToken')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Burn Token</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Burn Token</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

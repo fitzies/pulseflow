@@ -13,6 +13,9 @@ interface CheckLPTokenAmountsNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const CheckLPTokenAmountsNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const CheckLPTokenAmountsNode = memo(({ data }: NodeProps) => {
           <ChartBarIcon className={`h-8 w-8 ${getNodeTextColor('checkLPTokenAmounts')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check LP</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check LP</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

@@ -22,6 +22,7 @@ interface ConditionNodeData {
     tokenAddress?: string;
     lpPairAddress?: string;
     previousOutputField?: string;
+    notes?: string;
   };
 }
 
@@ -67,9 +68,16 @@ export const ConditionNode = memo(({ data }: NodeProps) => {
           <QuestionMarkCircleIcon className={`h-8 w-8 ${getNodeTextColor('condition')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">
-            {conditionSummary || 'Condition'}
-          </BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">
+              {conditionSummary || 'Condition'}
+            </BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       

@@ -13,6 +13,9 @@ interface SwapToPLSNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const SwapToPLSNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const SwapToPLSNode = memo(({ data }: NodeProps) => {
           <ArrowsRightLeftIcon className={`h-8 w-8 ${getNodeTextColor('swapToPLS')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap to PLS</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap to PLS</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

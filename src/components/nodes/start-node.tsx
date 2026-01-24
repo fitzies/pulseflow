@@ -16,6 +16,9 @@ interface StartNodeData {
   triggerMode?: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression?: string | null;
   nextRunAt?: Date | null;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const StartNode = memo(({ data }: NodeProps) => {
@@ -38,9 +41,16 @@ export const StartNode = memo(({ data }: NodeProps) => {
           <Icon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">
-            {isPriceTrigger ? 'Price' : isScheduled ? 'Scheduled' : 'Start'}
-          </BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">
+              {isPriceTrigger ? 'Price Trigger' : isScheduled ? 'Scheduled' : 'Start'}
+            </BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="start-output" className="opacity-0" />

@@ -13,6 +13,9 @@ interface CheckTokenBalanceNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const CheckTokenBalanceNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const CheckTokenBalanceNode = memo(({ data }: NodeProps) => {
           <CurrencyDollarIcon className={`h-8 w-8 ${getNodeTextColor('checkTokenBalance')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check Token Balance</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check Token Balance</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

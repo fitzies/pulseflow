@@ -219,6 +219,54 @@ export async function getTokenPriceUSD(lpAddress: string): Promise<{
 }
 
 /**
+ * Validates that an LP address contains WPLS as one of its tokens
+ */
+export async function validateLPHasWPLS(lpAddress: string): Promise<{
+  isValid: boolean;
+  token0?: string;
+  token1?: string;
+  error?: string;
+}> {
+  const provider = getProvider();
+  
+  try {
+    const pairContract = new Contract(lpAddress, pairABI, provider);
+    
+    // Get token addresses
+    const [token0, token1] = await Promise.all([
+      pairContract.token0(),
+      pairContract.token1(),
+    ]);
+    
+    // Check if one of the tokens is WPLS
+    const wplsIsToken0 = token0.toLowerCase() === WPLS_ADDRESS.toLowerCase();
+    const wplsIsToken1 = token1.toLowerCase() === WPLS_ADDRESS.toLowerCase();
+    
+    if (!wplsIsToken0 && !wplsIsToken1) {
+      return {
+        isValid: false,
+        token0,
+        token1,
+        error: "This LP pair does not contain WPLS. Please enter a TOKEN/WPLS pair address.",
+      };
+    }
+    
+    return {
+      isValid: true,
+      token0,
+      token1,
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      error: error instanceof Error 
+        ? `Failed to validate LP: ${error.message}` 
+        : "Failed to validate LP address. Please check the address is correct.",
+    };
+  }
+}
+
+/**
  * Evaluates a price condition for price triggers
  */
 export function evaluatePriceCondition(

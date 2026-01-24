@@ -13,6 +13,9 @@ interface AddLiquidityNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const AddLiquidityNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const AddLiquidityNode = memo(({ data }: NodeProps) => {
           <BeakerIcon className={`h-8 w-8 ${getNodeTextColor('addLiquidity')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Add Liquidity</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Add Liquidity</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />

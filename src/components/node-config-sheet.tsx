@@ -61,14 +61,14 @@ function AddressInput({
 
   const borderClass = hardError
     ? 'border-destructive'
-    : softWarning || (expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null && 
-        ((expectedType === 'token' && tokenInfo.isLP) || (expectedType === 'lp' && tokenInfo.isToken && !tokenInfo.isLP)))
-    ? 'border-yellow-500'
-    : '';
+    : softWarning || (expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null &&
+      ((expectedType === 'token' && tokenInfo.isLP) || (expectedType === 'lp' && tokenInfo.isToken && !tokenInfo.isLP)))
+      ? 'border-yellow-500'
+      : '';
 
-  const typeMismatchWarning = expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null && 
+  const typeMismatchWarning = expectedType && tokenInfo.isLP !== null && tokenInfo.isToken !== null &&
     ((expectedType === 'token' && tokenInfo.isLP) || (expectedType === 'lp' && tokenInfo.isToken && !tokenInfo.isLP))
-    ? expectedType === 'token' 
+    ? expectedType === 'token'
       ? 'This is an LP pair address. Token address required.'
       : 'This is a token address. LP pair address required.'
     : null;
@@ -190,7 +190,7 @@ export function NodeConfigSheet({
   const [priceError, setPriceError] = useState<string | null>(null);
 
   const isPro = userPlan === 'PRO' || userPlan === 'ULTRA';
-  
+
   // Token info for LP address validation
   const lpTokenInfo = useTokenInfo(priceLpAddress, 'lp');
 
@@ -214,7 +214,7 @@ export function NodeConfigSheet({
     setShowAdvanced(false);
     setCustomCronExpression(cronExpression || '');
     setCronError(null);
-    
+
     // Reset price trigger state
     setPriceLpAddress(priceTriggerLpAddress || '');
     setPriceOperator(priceTriggerOperator || '<');
@@ -309,8 +309,8 @@ export function NodeConfigSheet({
   };
 
   // PathTokenInput component for swap path arrays
-  const PathTokenInput = ({ address, idx, onUpdate, onRemove }: { 
-    address: string; 
+  const PathTokenInput = ({ address, idx, onUpdate, onRemove }: {
+    address: string;
     idx: number;
     onUpdate: (value: string) => void;
     onRemove: () => void;
@@ -321,9 +321,9 @@ export function NodeConfigSheet({
     const borderClass = hasError
       ? 'border-destructive'
       : typeMismatch
-      ? 'border-yellow-500'
-      : '';
-    
+        ? 'border-yellow-500'
+        : '';
+
     return (
       <div className="space-y-1">
         <div className="flex gap-2">
@@ -428,6 +428,7 @@ export function NodeConfigSheet({
             <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
           )}
         </div>
+        {renderNotesField()}
       </div>
     );
   };
@@ -509,6 +510,7 @@ export function NodeConfigSheet({
             <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
           )}
         </div>
+        {renderNotesField()}
       </div>
     );
   };
@@ -590,6 +592,7 @@ export function NodeConfigSheet({
             <p className="text-xs text-yellow-600">{validation.softWarnings.slippage}</p>
           )}
         </div>
+        {renderNotesField()}
       </div>
     );
   };
@@ -625,6 +628,7 @@ export function NodeConfigSheet({
         nodeType="transfer"
         formData={formData}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -704,6 +708,7 @@ export function NodeConfigSheet({
         value={formData.slippage ?? 0.01}
         onChange={(value) => updateField('slippage', value)}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -756,6 +761,7 @@ export function NodeConfigSheet({
         value={formData.slippage ?? 0.01}
         onChange={(value) => updateField('slippage', value)}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -795,6 +801,7 @@ export function NodeConfigSheet({
         value={formData.slippage ?? 0.01}
         onChange={(value) => updateField('slippage', value)}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -824,6 +831,7 @@ export function NodeConfigSheet({
         value={formData.slippage ?? 0.01}
         onChange={(value) => updateField('slippage', value)}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -852,6 +860,7 @@ export function NodeConfigSheet({
         nodeType="burnToken"
         formData={formData}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -880,6 +889,7 @@ export function NodeConfigSheet({
         nodeType="claimToken"
         formData={formData}
       />
+      {renderNotesField()}
     </div>
   );
 
@@ -908,6 +918,7 @@ export function NodeConfigSheet({
           </p>
         </div>
       </div>
+      {renderNotesField()}
     </div>
   );
 
@@ -933,6 +944,7 @@ export function NodeConfigSheet({
           <p className="text-xs text-yellow-600">{validation.softWarnings.delay}</p>
         )}
       </div>
+      {renderNotesField()}
     </div>
   );
 
@@ -948,6 +960,7 @@ export function NodeConfigSheet({
         softWarning={validation.softWarnings.token}
       />
       <p className="text-xs text-muted-foreground px-4">The ERC20 token contract address to check balance for</p>
+      {renderNotesField()}
     </div>
   );
 
@@ -973,6 +986,7 @@ export function NodeConfigSheet({
           <p className="text-xs text-yellow-600">{validation.softWarnings.loopCount}</p>
         )}
       </div>
+      {renderNotesField()}
     </div>
   );
 
@@ -996,6 +1010,7 @@ export function NodeConfigSheet({
           <p className="text-xs text-yellow-600">{validation.softWarnings.maxGasPrice}</p>
         )}
       </div>
+      {renderNotesField()}
     </div>
   );
 
@@ -1170,6 +1185,7 @@ export function NodeConfigSheet({
             <span className="font-medium">False branch:</span> Executes when condition is not met
           </p>
         </div>
+        {renderNotesField()}
       </div>
     );
   };
@@ -1320,6 +1336,7 @@ export function NodeConfigSheet({
           <p>{`{{balance.pls}}`} - Current PLS balance</p>
         </div>
       </div>
+      {renderNotesField()}
     </div>
   );
 
@@ -1359,8 +1376,8 @@ export function NodeConfigSheet({
           {scheduleTriggerMode === 'MANUAL'
             ? 'Run this automation manually using the play button'
             : scheduleTriggerMode === 'SCHEDULE'
-            ? 'Automatically run this automation on a schedule'
-            : 'Trigger when LP price meets your condition'}
+              ? 'Automatically run this automation on a schedule'
+              : 'Trigger when LP price meets your condition'}
         </p>
       </div>
 
@@ -1479,19 +1496,46 @@ export function NodeConfigSheet({
             </p>
           </div>
 
-          <div className="rounded-lg bg-muted/50 border p-3">
+          {/* <div className="rounded-lg bg-muted/50 border p-3">
             <p className="text-xs text-muted-foreground">
               <span className="font-medium">How it works:</span> Every ~20 minutes, we calculate the token&apos;s USD price 
               using on-chain LP reserves (TOKEN/WPLS × PLS/DAI). If your condition is met and the cooldown has passed, 
               your automation triggers.
             </p>
-          </div>
+          </div> */}
 
           {priceError && (
             <p className="text-xs text-destructive">{priceError}</p>
           )}
         </>
       )}
+    </div>
+  );
+
+  // Helper component for Notes field (no padding, will be inside config divs)
+  const renderNotesField = () => (
+    <div className="grid gap-3">
+      <div className="grid gap-2">
+        <label htmlFor="notes" className="text-sm font-medium">Notes</label>
+        <Textarea
+          id="notes"
+          placeholder="Add a note (max 50 characters)"
+          value={formData.notes || ''}
+          onChange={(e) => {
+            const value = e.target.value.slice(0, 50);
+            updateField('notes', value);
+          }}
+          maxLength={50}
+          rows={2}
+          className="resize-none"
+        />
+        <div className="flex justify-between items-center">
+          <p className="text-xs text-muted-foreground">Optional note to help identify this node</p>
+          <p className="text-xs text-muted-foreground">
+            {(formData.notes || '').length}/50
+          </p>
+        </div>
+      </div>
     </div>
   );
 
@@ -1538,8 +1582,11 @@ export function NodeConfigSheet({
       case 'checkBalance':
       default:
         return (
-          <div className="px-4 py-6 text-sm text-muted-foreground">
-            No configuration needed for this node type.
+          <div className="grid flex-1 auto-rows-min gap-6 px-4">
+            <div className="py-6 text-sm text-muted-foreground">
+              No configuration needed for this node type.
+            </div>
+            {renderNotesField()}
           </div>
         );
     }
@@ -1581,10 +1628,10 @@ export function NodeConfigSheet({
             {nodeType === 'start' && isSavingSchedule
               ? 'Saving...'
               : validation.isLoading
-              ? 'Validating...'
-              : !validation.isValid && nodeType !== 'start'
-              ? 'Fix errors to save'
-              : 'Save changes'}
+                ? 'Validating...'
+                : !validation.isValid && nodeType !== 'start'
+                  ? 'Fix errors to save'
+                  : 'Save changes'}
           </Button>
         </SheetFooter>
       </SheetContent>

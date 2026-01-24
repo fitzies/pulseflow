@@ -514,6 +514,17 @@ export async function updateAutomationPriceTrigger(
       };
     }
 
+    // Validate that LP address contains WPLS
+    const { validateLPHasWPLS } = await import("@/lib/blockchain-functions");
+    const lpValidation = await validateLPHasWPLS(lpAddress);
+    
+    if (!lpValidation.isValid) {
+      return {
+        success: false,
+        error: lpValidation.error || "Invalid LP address.",
+      };
+    }
+
     if (cooldownMinutes < 1 || cooldownMinutes > 1440) {
       return {
         success: false,

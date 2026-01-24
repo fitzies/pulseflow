@@ -1,14 +1,20 @@
 const MIN_INTERVAL_MINUTES = 20;
 
 // Preset schedule options for the UI
-// All schedules align with 20-minute intervals (mod 20 = 0)
+// Minimum interval is 20 minutes (enforced by validation)
 export const SCHEDULE_PRESETS = [
-  { label: '20', value: '*/20 * * * *' },
-  { label: '40', value: '*/40 * * * *' },
-  { label: 'hr', value: '0 * * * *' },
-  { label: '2hr', value: '0 */2 * * *' },
-  { label: '6hr', value: '0 */6 * * *' },
-  { label: 'Every day at midnight', value: '0 0 * * *' },
+  { label: '20 mins', value: '*/20 * * * *' },
+  { label: '40 mins', value: '*/40 * * * *' },
+  { label: '1 hr', value: '0 * * * *' },
+  { label: '2 hr', value: '0 */2 * * *' },
+  { label: '4 hr', value: '0 */4 * * *' },
+  { label: '6 hr', value: '0 */6 * * *' },
+  { label: '8 hr', value: '0 */8 * * *' },
+  { label: '12 hr', value: '0 */12 * * *' },
+  { label: '24 hr', value: '0 0 * * *' },
+  { label: '2 days', value: '0 0 */2 * *' },
+  { label: '3 days', value: '0 0 */3 * *' },
+  { label: '7 days', value: '0 0 */7 * *' },
 ] as const;
 
 /**

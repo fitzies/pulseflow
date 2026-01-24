@@ -13,6 +13,9 @@ interface CheckBalanceNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
+  config?: {
+    notes?: string;
+  };
 }
 
 export const CheckBalanceNode = memo(({ data }: NodeProps) => {
@@ -32,7 +35,14 @@ export const CheckBalanceNode = memo(({ data }: NodeProps) => {
           <WalletIcon className={`h-8 w-8 ${getNodeTextColor('checkBalance')}`} />
         </div>
         {nodeData?.showNodeLabels !== false && (
-          <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check Balance</BaseNodeHeaderTitle>
+          <>
+            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check Balance</BaseNodeHeaderTitle>
+            {nodeData?.config?.notes && (
+              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+                {nodeData.config.notes}
+              </p>
+            )}
+          </>
         )}
       </div>
       <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
