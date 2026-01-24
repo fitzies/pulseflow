@@ -13,6 +13,12 @@ import { CONFIG } from "./config";
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput } from "./execution-context";
 
+// WPLS address for price calculations
+const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
+
+// WPLS/DAI LP for PLS/USD price (DAI ≈ $1)
+const WPLS_DAI_LP_ADDRESS = "0xefD766cCb38EaF1dfd701853BFCe31359239F305";
+
 // Automation Contract ABI - extracted from automation-contract.sol
 const AUTOMATION_CONTRACT_ABI = [
   "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external payable returns (uint[] memory amounts)",
@@ -63,6 +69,177 @@ export function getAutomationContract(
   // Connect wallet to provider if not already connected
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   return new Contract(address, AUTOMATION_CONTRACT_ABI, connectedWallet);
+}
+
+/**
+ * Gets the current PLS price in USD from the WPLS/DAI LP
+ */
+export async function getPLSPriceInUSD(): Promise<{
+  price: number;
+  isValid: boolean;
+  error?: string;
+}> {
+  const provider = getProvider();
+  
+  try {
+    const pairContract = new Contract(WPLS_DAI_LP_ADDRESS, pairABI, provider);
+    
+    // Get token addresses to determine which is WPLS and which is DAI
+    const [token0, token1] = await Promise.all([
+      pairContract.token0(),
+      pairContract.token1(),
+    ]);
+    
+    const wplsIsToken0 = token0.toLowerCase() === WPLS_ADDRESS.toLowerCase();
+    
+    // Get reserves
+    const reserves = await pairContract.getReserves();
+    const reserve0 = reserves[0] as bigint;
+    const reserve1 = reserves[1] as bigint;
+    
+    // Calculate PLS price in DAI (USD)
+    // If WPLS is token0: price = reserve1 / reserve0 (DAI per WPLS)
+    // If WPLS is token1: price = reserve0 / reserve1 (DAI per WPLS)
+    let price = 0;
+    if (wplsIsToken0 && reserve0 > 0n) {
+      price = Number(reserve1) / Number(reserve0);
+    } else if (!wplsIsToken0 && reserve1 > 0n) {
+      price = Number(reserve0) / Number(reserve1);
+    }
+    
+    return { price, isValid: true };
+  } catch (error) {
+    return {
+      price: 0,
+      isValid: false,
+      error: error instanceof Error ? error.message : "Failed to fetch PLS/USD price",
+    };
+  }
+}
+
+/**
+ * Gets the price of a token in USD from a PLS LP pair
+ * Calculates: token_price_pls × pls_price_usd = token_price_usd
+ */
+export async function getTokenPriceUSD(lpAddress: string): Promise<{
+  priceUSD: number;
+  pricePLS: number;
+  plsPriceUSD: number;
+  token0: string;
+  token1: string;
+  tokenAddress: string; // The non-WPLS token
+  isValid: boolean;
+  error?: string;
+}> {
+  const provider = getProvider();
+  
+  try {
+    // First get PLS price in USD
+    const plsPrice = await getPLSPriceInUSD();
+    if (!plsPrice.isValid) {
+      return {
+        priceUSD: 0,
+        pricePLS: 0,
+        plsPriceUSD: 0,
+        token0: "",
+        token1: "",
+        tokenAddress: "",
+        isValid: false,
+        error: plsPrice.error || "Failed to get PLS/USD price",
+      };
+    }
+    
+    const pairContract = new Contract(lpAddress, pairABI, provider);
+    
+    // Get token addresses
+    const [token0, token1] = await Promise.all([
+      pairContract.token0(),
+      pairContract.token1(),
+    ]);
+    
+    // Check if this is a PLS pair
+    const wplsIsToken0 = token0.toLowerCase() === WPLS_ADDRESS.toLowerCase();
+    const wplsIsToken1 = token1.toLowerCase() === WPLS_ADDRESS.toLowerCase();
+    
+    if (!wplsIsToken0 && !wplsIsToken1) {
+      return {
+        priceUSD: 0,
+        pricePLS: 0,
+        plsPriceUSD: plsPrice.price,
+        token0,
+        token1,
+        tokenAddress: "",
+        isValid: false,
+        error: "Not a PLS pair - one token must be WPLS",
+      };
+    }
+    
+    // The non-WPLS token is what we're pricing
+    const tokenAddress = wplsIsToken0 ? token1 : token0;
+    
+    // Get reserves
+    const reserves = await pairContract.getReserves();
+    const reserve0 = reserves[0] as bigint;
+    const reserve1 = reserves[1] as bigint;
+    
+    // Calculate price in PLS: how much PLS per 1 token
+    let pricePLS = 0;
+    if (wplsIsToken0 && reserve1 > 0n) {
+      // Token1 is the token we're pricing, WPLS is token0
+      pricePLS = Number(reserve0) / Number(reserve1);
+    } else if (wplsIsToken1 && reserve0 > 0n) {
+      // Token0 is the token we're pricing, WPLS is token1
+      pricePLS = Number(reserve1) / Number(reserve0);
+    }
+    
+    // Calculate USD price
+    const priceUSD = pricePLS * plsPrice.price;
+    
+    return {
+      priceUSD,
+      pricePLS,
+      plsPriceUSD: plsPrice.price,
+      token0,
+      token1,
+      tokenAddress,
+      isValid: true,
+    };
+  } catch (error) {
+    return {
+      priceUSD: 0,
+      pricePLS: 0,
+      plsPriceUSD: 0,
+      token0: "",
+      token1: "",
+      tokenAddress: "",
+      isValid: false,
+      error: error instanceof Error ? error.message : "Failed to fetch token price",
+    };
+  }
+}
+
+/**
+ * Evaluates a price condition for price triggers
+ */
+export function evaluatePriceCondition(
+  currentPrice: number,
+  operator: string,
+  targetValue: number
+): boolean {
+  switch (operator) {
+    case '>':
+      return currentPrice > targetValue;
+    case '<':
+      return currentPrice < targetValue;
+    case '>=':
+      return currentPrice >= targetValue;
+    case '<=':
+      return currentPrice <= targetValue;
+    case '==':
+      return Math.abs(currentPrice - targetValue) < 0.0000001; // Float comparison tolerance
+    default:
+      return false;
+  }
 }
 
 /**

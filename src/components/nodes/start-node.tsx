@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { PlayIcon, PlusIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { PlayIcon, PlusIcon, ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ interface StartNodeData {
   onNodeClick?: () => void;
   isLastNode?: boolean;
   showNodeLabels?: boolean;
-  triggerMode?: 'MANUAL' | 'SCHEDULE';
+  triggerMode?: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression?: string | null;
   nextRunAt?: Date | null;
 }
@@ -28,7 +28,8 @@ export const StartNode = memo(({ data }: NodeProps) => {
   };
 
   const isScheduled = nodeData?.triggerMode === 'SCHEDULE';
-  const Icon = isScheduled ? ClockIcon : PlayIcon;
+  const isPriceTrigger = nodeData?.triggerMode === 'PRICE_TRIGGER';
+  const Icon = isPriceTrigger ? CurrencyDollarIcon : isScheduled ? ClockIcon : PlayIcon;
 
   return (
     <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
@@ -38,7 +39,7 @@ export const StartNode = memo(({ data }: NodeProps) => {
         </div>
         {nodeData?.showNodeLabels !== false && (
           <BaseNodeHeaderTitle className="font-normal text-sm text-center">
-            {isScheduled ? 'Scheduled' : 'Start'}
+            {isPriceTrigger ? 'Price' : isScheduled ? 'Scheduled' : 'Start'}
           </BaseNodeHeaderTitle>
         )}
       </div>

@@ -28,7 +28,7 @@ import { AmountSelector } from '@/components/amount-selector';
 import type { Node, Edge } from '@xyflow/react';
 import { CONFIG } from '@/lib/config';
 import { SCHEDULE_PRESETS, validateMinimumIntervalClient } from '@/lib/cron-utils';
-import { updateAutomationSchedule } from '@/lib/actions/automations';
+import { updateAutomationSchedule, updateAutomationPriceTrigger } from '@/lib/actions/automations';
 import { toast } from 'sonner';
 import { useTokenInfo } from '@/components/hooks/useTokenInfo';
 import { useNodeValidation } from '@/components/hooks/useNodeValidation';
@@ -119,9 +119,20 @@ interface NodeConfigSheetProps {
   automationId: string;
   walletAddress: string;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
-  triggerMode: 'MANUAL' | 'SCHEDULE';
+  triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression: string | null;
-  onScheduleUpdate: (triggerMode: 'MANUAL' | 'SCHEDULE', cronExpression: string | null, nextRunAt: Date | null) => void;
+  onScheduleUpdate: (triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER', cronExpression: string | null, nextRunAt: Date | null) => void;
+  // Price trigger props
+  priceTriggerLpAddress?: string | null;
+  priceTriggerOperator?: string | null;
+  priceTriggerValue?: number | null;
+  priceTriggerCooldownMinutes?: number | null;
+  onPriceTriggerUpdate?: (
+    lpAddress: string,
+    operator: string,
+    value: number,
+    cooldownMinutes: number
+  ) => void;
 }
 
 export function NodeConfigSheet({
@@ -140,6 +151,11 @@ export function NodeConfigSheet({
   triggerMode,
   cronExpression,
   onScheduleUpdate,
+  priceTriggerLpAddress,
+  priceTriggerOperator,
+  priceTriggerValue,
+  priceTriggerCooldownMinutes,
+  onPriceTriggerUpdate,
 }: NodeConfigSheetProps) {
   // Find previous node in the chain
   const previousNode = (() => {
@@ -157,7 +173,7 @@ export function NodeConfigSheet({
   const validation = useNodeValidation(formData, nodeType, automationId);
 
   // Schedule state for start node
-  const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE'>(triggerMode);
+  const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER'>(triggerMode);
   const [schedulePreset, setSchedulePreset] = useState<string>(
     SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || SCHEDULE_PRESETS[0].value
   );
@@ -166,7 +182,17 @@ export function NodeConfigSheet({
   const [cronError, setCronError] = useState<string | null>(null);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
+  // Price trigger state
+  const [priceLpAddress, setPriceLpAddress] = useState(priceTriggerLpAddress || '');
+  const [priceOperator, setPriceOperator] = useState(priceTriggerOperator || '<');
+  const [priceValue, setPriceValue] = useState(priceTriggerValue?.toString() || '');
+  const [priceCooldown, setPriceCooldown] = useState(priceTriggerCooldownMinutes?.toString() || '15');
+  const [priceError, setPriceError] = useState<string | null>(null);
+
   const isPro = userPlan === 'PRO' || userPlan === 'ULTRA';
+  
+  // Token info for LP address validation
+  const lpTokenInfo = useTokenInfo(priceLpAddress, 'lp');
 
   useEffect(() => {
     if (config) {
@@ -188,7 +214,14 @@ export function NodeConfigSheet({
     setShowAdvanced(false);
     setCustomCronExpression(cronExpression || '');
     setCronError(null);
-  }, [triggerMode, cronExpression]);
+    
+    // Reset price trigger state
+    setPriceLpAddress(priceTriggerLpAddress || '');
+    setPriceOperator(priceTriggerOperator || '<');
+    setPriceValue(priceTriggerValue?.toString() || '');
+    setPriceCooldown(priceTriggerCooldownMinutes?.toString() || '15');
+    setPriceError(null);
+  }, [triggerMode, cronExpression, priceTriggerLpAddress, priceTriggerOperator, priceTriggerValue, priceTriggerCooldownMinutes]);
 
   const handleSave = () => {
     if (!nodeId) return;
@@ -1144,12 +1177,11 @@ export function NodeConfigSheet({
   const handleSaveSchedule = async () => {
     setIsSavingSchedule(true);
     setCronError(null);
+    setPriceError(null);
 
     try {
-      let cronExprToSave: string | null = null;
-
       if (scheduleTriggerMode === 'SCHEDULE') {
-        cronExprToSave = schedulePreset;
+        const cronExprToSave = schedulePreset;
 
         // Basic client-side validation
         const validation = validateMinimumIntervalClient(cronExprToSave);
@@ -1158,26 +1190,89 @@ export function NodeConfigSheet({
           setIsSavingSchedule(false);
           return;
         }
+
+        const result = await updateAutomationSchedule(
+          automationId,
+          scheduleTriggerMode,
+          cronExprToSave
+        );
+
+        if (!result.success) {
+          setCronError(result.error || 'Failed to save schedule');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        onScheduleUpdate(scheduleTriggerMode, cronExprToSave, null);
+        toast.success('Schedule saved successfully');
+      } else if (scheduleTriggerMode === 'PRICE_TRIGGER') {
+        // Validate price trigger inputs
+        if (!priceLpAddress || priceLpAddress.trim() === '') {
+          setPriceError('LP address is required');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        if (!/^0x[a-fA-F0-9]{40}$/.test(priceLpAddress)) {
+          setPriceError('Invalid LP address format');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        const priceValueNum = parseFloat(priceValue);
+        if (isNaN(priceValueNum) || priceValueNum <= 0) {
+          setPriceError('Price value must be a positive number');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        const cooldownNum = parseInt(priceCooldown) || 15;
+        if (cooldownNum < 1 || cooldownNum > 1440) {
+          setPriceError('Cooldown must be between 1 and 1440 minutes');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        const result = await updateAutomationPriceTrigger(
+          automationId,
+          priceLpAddress,
+          priceOperator,
+          priceValueNum,
+          cooldownNum
+        );
+
+        if (!result.success) {
+          setPriceError(result.error || 'Failed to save price trigger');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        onScheduleUpdate(scheduleTriggerMode, null, null);
+        if (onPriceTriggerUpdate) {
+          onPriceTriggerUpdate(priceLpAddress, priceOperator, priceValueNum, cooldownNum);
+        }
+        toast.success('Price trigger saved successfully');
+      } else {
+        // MANUAL mode - just update trigger mode
+        const result = await updateAutomationSchedule(
+          automationId,
+          scheduleTriggerMode,
+          null
+        );
+
+        if (!result.success) {
+          setCronError(result.error || 'Failed to save');
+          setIsSavingSchedule(false);
+          return;
+        }
+
+        onScheduleUpdate(scheduleTriggerMode, null, null);
+        toast.success('Saved successfully');
       }
 
-      const result = await updateAutomationSchedule(
-        automationId,
-        scheduleTriggerMode,
-        cronExprToSave
-      );
-
-      if (!result.success) {
-        setCronError(result.error || 'Failed to save schedule');
-        setIsSavingSchedule(false);
-        return;
-      }
-
-      // Server calculates nextRunAt, we just update local state
-      onScheduleUpdate(scheduleTriggerMode, cronExprToSave, null);
-      toast.success('Schedule saved successfully');
       onOpenChange(false);
     } catch (error) {
-      setCronError(error instanceof Error ? error.message : 'Failed to save schedule');
+      setCronError(error instanceof Error ? error.message : 'Failed to save');
     } finally {
       setIsSavingSchedule(false);
     }
@@ -1234,10 +1329,11 @@ export function NodeConfigSheet({
         <label className="text-sm font-medium">Trigger Mode</label>
         <Select
           value={scheduleTriggerMode}
-          onValueChange={(value: 'MANUAL' | 'SCHEDULE') => {
-            if (value === 'SCHEDULE' && !isPro) return;
+          onValueChange={(value: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER') => {
+            if ((value === 'SCHEDULE' || value === 'PRICE_TRIGGER') && !isPro) return;
             setScheduleTriggerMode(value);
             setCronError(null);
+            setPriceError(null);
           }}
         >
           <SelectTrigger>
@@ -1251,12 +1347,20 @@ export function NodeConfigSheet({
                 {!isPro && <LockClosedIcon className="h-3 w-3 text-muted-foreground" />}
               </div>
             </SelectItem>
+            <SelectItem value="PRICE_TRIGGER" disabled={!isPro}>
+              <div className="flex items-center gap-2">
+                Price Trigger
+                {!isPro && <LockClosedIcon className="h-3 w-3 text-muted-foreground" />}
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
           {scheduleTriggerMode === 'MANUAL'
             ? 'Run this automation manually using the play button'
-            : 'Automatically run this automation on a schedule'}
+            : scheduleTriggerMode === 'SCHEDULE'
+            ? 'Automatically run this automation on a schedule'
+            : 'Trigger when LP price meets your condition'}
         </p>
       </div>
 
@@ -1267,7 +1371,7 @@ export function NodeConfigSheet({
             <span className="font-medium">Pro Feature</span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Upgrade to Pro to schedule your automations to run automatically.
+            Upgrade to Pro to use scheduled and price-triggered automations.
           </p>
         </div>
       )}
@@ -1297,9 +1401,94 @@ export function NodeConfigSheet({
             </Select>
           </div>
 
-
           {cronError && (
             <p className="text-xs text-destructive">{cronError}</p>
+          )}
+        </>
+      )}
+
+      {scheduleTriggerMode === 'PRICE_TRIGGER' && isPro && (
+        <>
+          <div className="grid gap-3">
+            <label htmlFor="priceLpAddress" className="text-sm font-medium">TOKEN/WPLS LP Pair Address</label>
+            <Input
+              id="priceLpAddress"
+              type="text"
+              placeholder="0x..."
+              value={priceLpAddress}
+              onChange={(e) => setPriceLpAddress(e.target.value)}
+              className={priceError && priceError.includes('LP address') ? 'border-destructive' : ''}
+            />
+            {lpTokenInfo.name && (
+              <p className="text-xs text-muted-foreground">{lpTokenInfo.name}</p>
+            )}
+            {lpTokenInfo.isLoading && (
+              <p className="text-xs text-muted-foreground">Loading pair info...</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Enter a TOKEN/WPLS liquidity pair address from PulseX
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Trigger when price is</label>
+            <div className="flex gap-2 items-center">
+              <Select
+                value={priceOperator}
+                onValueChange={(value) => setPriceOperator(value)}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="<">Less than</SelectItem>
+                  <SelectItem value=">">Greater than</SelectItem>
+                  <SelectItem value="<=">Less or equal</SelectItem>
+                  <SelectItem value=">=">Greater or equal</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                <Input
+                  type="text"
+                  placeholder="0.50"
+                  value={priceValue}
+                  onChange={(e) => setPriceValue(e.target.value)}
+                  className={`pl-7 ${priceError && priceError.includes('Price value') ? 'border-destructive' : ''}`}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              USD price per token (calculated from WPLS/DAI LP on-chain)
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <label htmlFor="priceCooldown" className="text-sm font-medium">Cooldown (minutes)</label>
+            <Input
+              id="priceCooldown"
+              type="number"
+              placeholder="15"
+              min={1}
+              max={1440}
+              value={priceCooldown}
+              onChange={(e) => setPriceCooldown(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Minimum time between triggers (1-1440 minutes). Prevents repeated triggers.
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-muted/50 border p-3">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium">How it works:</span> Every ~20 minutes, we calculate the token&apos;s USD price 
+              using on-chain LP reserves (TOKEN/WPLS × PLS/DAI). If your condition is met and the cooldown has passed, 
+              your automation triggers.
+            </p>
+          </div>
+
+          {priceError && (
+            <p className="text-xs text-destructive">{priceError}</p>
           )}
         </>
       )}

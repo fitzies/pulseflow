@@ -89,6 +89,10 @@ export default async function Page({ params }: PageProps) {
       triggerMode={automation.triggerMode}
       cronExpression={automation.cronExpression}
       nextRunAt={automation.nextRunAt}
+      priceTriggerLpAddress={automation.priceTriggerLpAddress}
+      priceTriggerOperator={automation.priceTriggerOperator}
+      priceTriggerValue={automation.priceTriggerValue}
+      priceTriggerCooldownMinutes={automation.priceTriggerCooldownMinutes}
     />
   );
 }

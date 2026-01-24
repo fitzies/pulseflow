@@ -123,9 +123,14 @@ interface AutomationFlowProps {
   showNodeLabels: boolean;
   betaFeatures: boolean;
   activeExecution?: { id: string; status: string } | null;
-  triggerMode: 'MANUAL' | 'SCHEDULE';
+  triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression: string | null;
   nextRunAt: Date | null;
+  // Price trigger props
+  priceTriggerLpAddress: string | null;
+  priceTriggerOperator: string | null;
+  priceTriggerValue: number | null;
+  priceTriggerCooldownMinutes: number | null;
 }
 
 const PULSECHAIN_RPC = 'https://rpc.pulsechain.com';
@@ -145,6 +150,10 @@ export function AutomationFlow({
   triggerMode: initialTriggerMode,
   cronExpression: initialCronExpression,
   nextRunAt: initialNextRunAt,
+  priceTriggerLpAddress: initialPriceTriggerLpAddress,
+  priceTriggerOperator: initialPriceTriggerOperator,
+  priceTriggerValue: initialPriceTriggerValue,
+  priceTriggerCooldownMinutes: initialPriceTriggerCooldownMinutes,
 }: AutomationFlowProps) {
   const nodesToUse = useMemo(() => {
     if (initialNodes && initialNodes.length > 0) {
@@ -172,7 +181,9 @@ export function AutomationFlow({
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(activeExecution?.id ?? null);
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
   const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
   const [currentRpcEndpoint, setCurrentRpcEndpoint] = useState(rpcEndpoint || PULSECHAIN_RPC);
@@ -184,6 +195,10 @@ export function AutomationFlow({
   const [triggerMode, setTriggerMode] = useState(initialTriggerMode);
   const [cronExpression, setCronExpression] = useState(initialCronExpression);
   const [nextRunAt, setNextRunAt] = useState(initialNextRunAt);
+  const [priceTriggerLpAddress, setPriceTriggerLpAddress] = useState(initialPriceTriggerLpAddress);
+  const [priceTriggerOperator, setPriceTriggerOperator] = useState(initialPriceTriggerOperator);
+  const [priceTriggerValue, setPriceTriggerValue] = useState(initialPriceTriggerValue);
+  const [priceTriggerCooldownMinutes, setPriceTriggerCooldownMinutes] = useState(initialPriceTriggerCooldownMinutes);
   const [aiChatOpen, setAiChatOpen] = useState(false);
 
   // Check if user has Pro/Ultra for AI access
@@ -561,10 +576,14 @@ export function AutomationFlow({
     setIsRunning(true);
     // Reset all node statuses
     setNodeStatuses({});
+    
+    // Create new AbortController for this execution
+    abortControllerRef.current = new AbortController();
 
     try {
       const response = await fetch(`/api/automations/${automationId}/run`, {
         method: 'POST',
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -611,6 +630,12 @@ export function AutomationFlow({
                 ...prev,
                 [data.nodeId]: 'error',
               }));
+            } else if (data.type === 'cancelled') {
+              // Handle cancellation event
+              setNodeStatuses((prev) => ({
+                ...prev,
+                [data.nodeId]: 'error',
+              }));
             } else if (data.type === 'done') {
               setActiveExecutionId(null);
               if (data.success) {
@@ -620,6 +645,8 @@ export function AutomationFlow({
                 const balance = await provider.getBalance(walletAddress);
                 const formattedBalance = formatEther(balance);
                 setPlsBalance(parseFloat(formattedBalance).toFixed(4));
+              } else if (data.cancelled) {
+                toast.info('Automation stopped');
               } else {
                 toast.error(data.error || 'Automation failed');
               }
@@ -628,13 +655,45 @@ export function AutomationFlow({
         }
       }
     } catch (error) {
+      // Ignore abort errors - they're expected when stopping
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       const parsed = parseBlockchainError(error);
       console.error('Automation error details:', parsed.technicalDetails);
       toast.error(parsed.userMessage);
     } finally {
       setIsRunning(false);
+      abortControllerRef.current = null;
     }
   }, [automationId, walletAddress, currentRpcEndpoint]);
+
+  const handleStop = useCallback(async () => {
+    setStopDialogOpen(false);
+    
+    try {
+      // Call the stop endpoint to cancel the execution
+      const response = await fetch(`/api/automations/${automationId}/stop`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to stop automation');
+        return;
+      }
+
+      // Abort the stream reader
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      toast.info('Stopping automation...');
+    } catch (error) {
+      console.error('Error stopping automation:', error);
+      toast.error('Failed to stop automation');
+    }
+  }, [automationId]);
 
   const lastNodeIds = useMemo(() => {
     // Find ALL nodes that have no outgoing edges (supports branching with multiple terminal nodes)
@@ -796,6 +855,16 @@ export function AutomationFlow({
             setCronExpression(newCronExpression);
             setNextRunAt(newNextRunAt);
           }}
+          priceTriggerLpAddress={priceTriggerLpAddress}
+          priceTriggerOperator={priceTriggerOperator}
+          priceTriggerValue={priceTriggerValue}
+          priceTriggerCooldownMinutes={priceTriggerCooldownMinutes}
+          onPriceTriggerUpdate={(lpAddress, operator, value, cooldownMinutes) => {
+            setPriceTriggerLpAddress(lpAddress);
+            setPriceTriggerOperator(operator);
+            setPriceTriggerValue(value);
+            setPriceTriggerCooldownMinutes(cooldownMinutes);
+          }}
         />
       )}
       <div className="absolute top-4 left-4 z-10 rounded-lg bg-card border p-3 shadow-lg min-w-[280px]">
@@ -882,6 +951,23 @@ export function AutomationFlow({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Automation</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the automation after the current node finishes. Already executed transactions cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStop} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Stop
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Player Controls - Bottom Center */}
       <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10">
         <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">
@@ -902,6 +988,7 @@ export function AutomationFlow({
             variant="ghost"
             size="icon"
             disabled={!isRunning}
+            onClick={() => setStopDialogOpen(true)}
             className="rounded-full h-10 w-10 text-destructive hover:text-destructive"
           >
             <StopIcon className="h-5 w-5" />

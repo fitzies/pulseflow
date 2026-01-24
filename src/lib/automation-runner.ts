@@ -2,8 +2,9 @@ import type { Node, Edge } from '@xyflow/react';
 import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
 import { parseBlockchainError } from './error-utils';
+import { prisma } from './prisma';
 
-export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken';
+export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken' | 'cancelled';
 
 export interface ProgressEvent {
   type: ProgressEventType;
@@ -16,16 +17,29 @@ export interface ProgressEvent {
 export type ProgressCallback = (event: ProgressEvent) => void;
 
 /**
+ * Check if an execution has been cancelled
+ */
+async function isExecutionCancelled(executionId: string): Promise<boolean> {
+  const execution = await prisma.execution.findUnique({
+    where: { id: executionId },
+    select: { status: true },
+  });
+  return execution?.status === 'CANCELLED';
+}
+
+/**
  * Execute an automation chain of nodes with branching support
  * Handles condition nodes that branch to true/false paths
  * Supports loop nodes that restart the chain from the beginning
+ * Supports cancellation via executionId check
  */
 export async function executeAutomationChain(
   automationId: string,
   nodes: Node[],
   edges: Edge[],
   contractAddress?: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  executionId?: string
 ): Promise<{ results: Array<{ nodeId: string; result: any }>; context: ExecutionContext }> {
   // Build graph structures for traversal
   const nodeMap = new Map<string, Node>();
@@ -86,6 +100,17 @@ export async function executeAutomationChain(
       const node = nodeMap.get(nodeId);
       if (!node || !node.type) {
         continue;
+      }
+      
+      // Check for cancellation before executing each node
+      if (executionId && await isExecutionCancelled(executionId)) {
+        onProgress?.({
+          type: 'cancelled',
+          nodeId: node.id,
+          nodeType: node.type,
+          error: 'Execution cancelled by user',
+        });
+        throw new Error('Execution cancelled by user');
       }
       
       executedNodes.add(nodeId);

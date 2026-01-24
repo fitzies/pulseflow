@@ -435,6 +435,122 @@ export async function updateAutomationSchedule(
   }
 }
 
+export async function updateAutomationPriceTrigger(
+  automationId: string,
+  lpAddress: string,
+  operator: string,
+  value: number,
+  cooldownMinutes: number
+) {
+  try {
+    // Get authenticated user from Clerk
+    const user = await currentUser();
+
+    if (!user) {
+      return {
+        success: false,
+        error: "Unauthorized. Please sign in.",
+      };
+    }
+
+    // Get user from database
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+    });
+
+    if (!dbUser) {
+      return {
+        success: false,
+        error: "User not found. Please contact support.",
+      };
+    }
+
+    // Check if user has PRO or ULTRA plan for price triggers
+    if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
+      return {
+        success: false,
+        error: "Price triggers are a Pro feature. Please upgrade your plan.",
+      };
+    }
+
+    // Fetch automation and verify ownership
+    const automation = await prisma.automation.findUnique({
+      where: { id: automationId },
+    });
+
+    if (!automation) {
+      return {
+        success: false,
+        error: "Automation not found.",
+      };
+    }
+
+    if (automation.userId !== dbUser.id) {
+      return {
+        success: false,
+        error: "You don't have permission to update this automation.",
+      };
+    }
+
+    // Validate inputs
+    if (!/^0x[a-fA-F0-9]{40}$/.test(lpAddress)) {
+      return {
+        success: false,
+        error: "Invalid LP address format.",
+      };
+    }
+
+    if (!['<', '>', '<=', '>=', '=='].includes(operator)) {
+      return {
+        success: false,
+        error: "Invalid operator.",
+      };
+    }
+
+    if (value <= 0) {
+      return {
+        success: false,
+        error: "Price value must be positive.",
+      };
+    }
+
+    if (cooldownMinutes < 1 || cooldownMinutes > 1440) {
+      return {
+        success: false,
+        error: "Cooldown must be between 1 and 1440 minutes.",
+      };
+    }
+
+    // Update automation with price trigger settings
+    await prisma.automation.update({
+      where: { id: automationId },
+      data: {
+        triggerMode: "PRICE_TRIGGER",
+        cronExpression: null,
+        nextRunAt: null,
+        priceTriggerLpAddress: lpAddress,
+        priceTriggerOperator: operator,
+        priceTriggerValue: value,
+        priceTriggerCooldownMinutes: cooldownMinutes,
+        // Don't reset lastTriggeredAt - preserve existing cooldown state
+      },
+    });
+
+    // Revalidate the automation page
+    revalidatePath(`/automations/${automationId}`);
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    console.error("Error updating automation price trigger:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update price trigger.",
+    };
+  }
+}
+
 export async function duplicateAutomation(sourceAutomationId: string, newName: string) {
   try {
     const user = await currentUser();

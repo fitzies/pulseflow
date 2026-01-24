@@ -63,6 +63,13 @@ model Automation {
   nextRunAt      DateTime?
   lastRunAt      DateTime?
 
+  // Price trigger fields (Pro feature)
+  priceTriggerLpAddress       String?   // LP pair address to monitor (must be PLS pair)
+  priceTriggerOperator        String?   // '<', '>', '<=', '>=', '=='
+  priceTriggerValue           Float?    // Target price threshold in PLS
+  priceTriggerCooldownMinutes Int?      @default(15) // Cooldown between triggers
+  priceTriggerLastTriggeredAt DateTime? // Last trigger time for cooldown
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -74,6 +81,7 @@ model Automation {
 enum TriggerMode {
   MANUAL
   SCHEDULE
+  PRICE_TRIGGER
 }
 
 model Execution {
@@ -112,6 +120,7 @@ enum ExecutionStatus {
   RUNNING
   SUCCESS
   FAILED
+  CANCELLED
 }
 
 model AIChat {

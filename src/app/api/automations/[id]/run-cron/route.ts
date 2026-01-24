@@ -130,7 +130,10 @@ export async function POST(
       const { results: nodeResults } = await executeAutomationChain(
         automationId,
         nodes,
-        edges
+        edges,
+        undefined,
+        undefined,
+        execution.id
       );
 
       // Log each node result
@@ -177,16 +180,20 @@ export async function POST(
       const errorMessage = executionError instanceof Error
         ? executionError.message
         : 'Unknown execution error';
+      
+      const isCancelled = errorMessage === 'Execution cancelled by user';
 
-      // Update execution status to FAILED
-      await prisma.execution.update({
-        where: { id: execution.id },
-        data: {
-          status: 'FAILED',
-          error: errorMessage,
-          finishedAt: new Date(),
-        },
-      });
+      // Update execution status (don't overwrite if already cancelled)
+      if (!isCancelled) {
+        await prisma.execution.update({
+          where: { id: execution.id },
+          data: {
+            status: 'FAILED',
+            error: errorMessage,
+            finishedAt: new Date(),
+          },
+        });
+      }
 
       // Still update next run time even if execution failed
       if (automation.cronExpression) {
@@ -200,9 +207,9 @@ export async function POST(
         });
       }
 
-      console.error(`[Cron] Automation ${automationId} failed:`, errorMessage);
+      console.error(`[Cron] Automation ${automationId} ${isCancelled ? 'cancelled' : 'failed'}:`, errorMessage);
       return new Response(
-        JSON.stringify({ success: false, error: errorMessage, executionId: execution.id }),
+        JSON.stringify({ success: false, error: errorMessage, executionId: execution.id, cancelled: isCancelled }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }

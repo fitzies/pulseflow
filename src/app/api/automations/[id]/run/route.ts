@@ -148,7 +148,8 @@ export async function POST(
               data: event.data ? serializeResult(event.data) : undefined,
               error: event.error,
             });
-          }
+          },
+          execution.id
         );
 
         // Log each node result
@@ -183,16 +184,20 @@ export async function POST(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown execution error';
+        
+        const isCancelled = errorMessage === 'Execution cancelled by user';
 
-        // Update execution status to FAILED
-        await prisma.execution.update({
-          where: { id: execution.id },
-          data: {
-            status: 'FAILED',
-            error: errorMessage,
-            finishedAt: new Date(),
-          },
-        });
+        // Update execution status (don't overwrite if already cancelled)
+        if (!isCancelled) {
+          await prisma.execution.update({
+            where: { id: execution.id },
+            data: {
+              status: 'FAILED',
+              error: errorMessage,
+              finishedAt: new Date(),
+            },
+          });
+        }
 
         // Send error completion event
         sendEvent({
@@ -200,6 +205,7 @@ export async function POST(
           success: false,
           error: errorMessage,
           executionId: execution.id,
+          cancelled: isCancelled,
         });
       } finally {
         if (!isControllerClosed) {
