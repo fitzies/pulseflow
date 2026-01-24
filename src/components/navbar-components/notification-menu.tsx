@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { CommandLineIcon } from "@heroicons/react/24/solid";
 
-type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED";
+type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
 interface Execution {
   id: string;
@@ -84,6 +84,8 @@ function getStatusIcon(status: ExecutionStatus) {
       return <CheckCircle2Icon className="text-green-500" size={14} />;
     case "FAILED":
       return <XCircleIcon className="text-red-500" size={14} />;
+    case "CANCELLED":
+      return <XCircleIcon className="text-yellow-500" size={14} />;
   }
 }
 
@@ -229,7 +231,8 @@ function ExecutionDialog({
                 <span className="text-muted-foreground">Status</span>
                 <span className={`font-medium ${executionDetails.status === "SUCCESS" ? "text-green-600" :
                   executionDetails.status === "FAILED" ? "text-red-600" :
-                    "text-blue-600"
+                    executionDetails.status === "CANCELLED" ? "text-yellow-600" :
+                      "text-blue-600"
                   }`}>
                   {executionDetails.status}
                 </span>
