@@ -223,6 +223,7 @@ interface SelectNodeDialogProps {
   onOpenChange: (open: boolean) => void;
   onSelectNode: (nodeType: NodeType) => void;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  isInsertingBetween?: boolean;
 }
 
 // Organize nodes into groups
@@ -259,6 +260,7 @@ export function SelectNodeDialog({
   onOpenChange,
   onSelectNode,
   userPlan,
+  isInsertingBetween = false,
 }: SelectNodeDialogProps) {
   const handleSelect = (nodeType: NodeType) => {
     onSelectNode(nodeType);
@@ -268,11 +270,13 @@ export function SelectNodeDialog({
   const renderNodeItem = (nodeType: NodeTypeOption) => {
     const Icon = nodeType.icon;
     const isLocked = !hasRequiredPlan(userPlan, nodeType.requiresPlan);
+    const isDisabledForInsert = isInsertingBetween && nodeType.type === 'condition';
+    const isDisabled = isLocked || isDisabledForInsert;
     return (
       <CommandItem
         key={nodeType.type}
-        onSelect={() => !isLocked && handleSelect(nodeType.type)}
-        disabled={isLocked}
+        onSelect={() => !isDisabled && handleSelect(nodeType.type)}
+        disabled={isDisabled}
         className="flex items-center gap-3"
       >
         <div className={cn('rounded-lg p-1.5', nodeType.iconBg)}>
@@ -284,6 +288,11 @@ export function SelectNodeDialog({
             {nodeType.requiresPlan && (
               <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
                 {nodeType.requiresPlan}
+              </span>
+            )}
+            {isDisabledForInsert && (
+              <span className="text-[10px] font-medium bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                Cannot insert
               </span>
             )}
           </div>

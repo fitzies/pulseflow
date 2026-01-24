@@ -539,29 +539,65 @@ export function AutomationFlow({
   }, [edges]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
-    const nodesAfter = getNodesAfter(nodeId);
+    const node = nodes.find((n) => n.id === nodeId);
+
+    if (node?.type === 'condition') {
+      // Condition nodes: count all downstream nodes
+      const nodesAfter = getNodesAfter(nodeId);
+      setNodesToDeleteCount(nodesAfter.length + 1);
+    } else {
+      // Regular nodes: only delete this one
+      setNodesToDeleteCount(1);
+    }
+
     setNodeToDelete(nodeId);
-    setNodesToDeleteCount(nodesAfter.length + 1); // +1 for the node itself
     setDeleteDialogOpen(true);
-  }, [getNodesAfter]);
+  }, [nodes, getNodesAfter]);
 
   const confirmDeleteNode = useCallback(() => {
     if (!nodeToDelete) return;
 
-    // Get all nodes to delete (the node + all nodes after it)
-    const nodesAfter = getNodesAfter(nodeToDelete);
-    const nodeIdsToDelete = new Set([nodeToDelete, ...nodesAfter]);
+    const nodeToDeleteData = nodes.find((n) => n.id === nodeToDelete);
 
-    // Remove all nodes
-    setNodes((prevNodes) => prevNodes.filter((node) => !nodeIdsToDelete.has(node.id)));
+    // Condition nodes: use cascading delete (current behavior)
+    if (nodeToDeleteData?.type === 'condition') {
+      const nodesAfter = getNodesAfter(nodeToDelete);
+      const nodeIdsToDelete = new Set([nodeToDelete, ...nodesAfter]);
+      setNodes((prevNodes) => prevNodes.filter((node) => !nodeIdsToDelete.has(node.id)));
+      setEdges((prevEdges) =>
+        prevEdges.filter((edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target))
+      );
+    } else {
+      // Regular nodes: delete only this node, reconnect previous to next
+      const incomingEdge = edges.find((e) => e.target === nodeToDelete);
+      const outgoingEdge = edges.find((e) => e.source === nodeToDelete);
 
-    // Remove all edges connected to deleted nodes
-    setEdges((prevEdges) =>
-      prevEdges.filter((edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target))
-    );
+      // Remove the node
+      setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeToDelete));
 
-    // Close the config sheet if it's open for a deleted node
-    if (selectedNodeId && nodeIdsToDelete.has(selectedNodeId)) {
+      // Update edges: remove connected edges, add reconnection edge if applicable
+      setEdges((prevEdges) => {
+        const filtered = prevEdges.filter(
+          (edge) => edge.source !== nodeToDelete && edge.target !== nodeToDelete
+        );
+
+        // If both incoming and outgoing exist, create bridge edge
+        if (incomingEdge && outgoingEdge) {
+          const bridgeEdge: Edge = {
+            id: `edge-${incomingEdge.source}-${outgoingEdge.target}`,
+            source: incomingEdge.source,
+            target: outgoingEdge.target,
+            sourceHandle: incomingEdge.sourceHandle,
+            type: 'buttonedge',
+          };
+          return [...filtered, bridgeEdge];
+        }
+        return filtered;
+      });
+    }
+
+    // Close config sheet if open for deleted node
+    if (selectedNodeId === nodeToDelete) {
       setConfigSheetOpen(false);
       setSelectedNodeId(null);
     }
@@ -570,7 +606,7 @@ export function AutomationFlow({
     setDeleteDialogOpen(false);
     setNodeToDelete(null);
     setNodesToDeleteCount(0);
-  }, [nodeToDelete, getNodesAfter, selectedNodeId]);
+  }, [nodeToDelete, nodes, edges, getNodesAfter, selectedNodeId]);
 
   const handleStart = useCallback(async () => {
     setIsRunning(true);
@@ -833,6 +869,7 @@ export function AutomationFlow({
         onOpenChange={setDialogOpen}
         onSelectNode={handleAddNode}
         userPlan={userPlan}
+        isInsertingBetween={!!targetNodeId}
       />
       {selectedNodeId && (
         <NodeConfigSheet
@@ -939,7 +976,7 @@ export function AutomationFlow({
             <AlertDialogDescription>
               {nodesToDeleteCount > 1
                 ? `This will delete this node and ${nodesToDeleteCount - 1} node${nodesToDeleteCount - 1 === 1 ? '' : 's'} that come after it. This action cannot be undone.`
-                : 'This will delete this node. This action cannot be undone.'}
+                : 'This will delete this node and reconnect the flow. This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
