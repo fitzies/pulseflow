@@ -97,7 +97,7 @@ model Execution {
   finishedAt DateTime?
 
   user       User           @relation(fields: [userId], references: [id])
-  automation Automation     @relation(fields: [automationId], references: [id])
+  automation Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
   logs       ExecutionLog[]
 }
 
@@ -113,7 +113,7 @@ model ExecutionLog {
 
   createdAt DateTime @default(now())
 
-  execution Execution @relation(fields: [executionId], references: [id])
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
 }
 
 enum ExecutionStatus {
