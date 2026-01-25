@@ -1593,31 +1593,36 @@ export async function executeNode(
       return { result: loopOutput, context: updatedContextLoop };
 
     case "gasGuard":
-      // Gas Guard - checks if previous transaction's gas price exceeded threshold
-      const maxGasGwei = parseFloat(nodeData.maxGasPrice) || 100;
+      // Gas Guard - checks current network gas price before proceeding
+      const maxGasBeats = parseFloat(nodeData.maxGasPrice) || 1000000;
+      let currentGasBeats: number | null = null;
+      let gasCheckSkipped = false;
 
-      // Get previous node's output which should contain gasPrice
-      if (!context.previousNodeId) {
-        throw new Error("Gas Guard: No previous node to check gas from");
+      // Try to fetch current network gas price from PulseChain stats API
+      try {
+        const statsResponse = await fetch('https://api.scan.pulsechain.com/api/v2/stats');
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json();
+          currentGasBeats = stats.gas_prices?.average ?? null;
+        }
+      } catch {
+        // API failed - will skip check
       }
 
-      const prevOutput = context.nodeOutputs.get(context.previousNodeId);
-      if (!prevOutput || prevOutput.gasPrice === undefined) {
-        throw new Error("Gas Guard: Previous node did not produce a transaction with gas price data");
-      }
-
-      // gasPrice is in wei, convert to gwei
-      const gasPriceWei = BigInt(prevOutput.gasPrice);
-      const gasPriceGwei = Number(gasPriceWei) / 1e9;
-
-      if (gasPriceGwei > maxGasGwei) {
-        throw new Error(`Gas Guard stopped automation: Gas price was ${gasPriceGwei.toFixed(2)} gwei, threshold was ${maxGasGwei} gwei`);
+      if (currentGasBeats !== null) {
+        if (currentGasBeats > maxGasBeats) {
+          throw new Error(`Gas Guard stopped: Current gas ${currentGasBeats.toFixed(0)} beats exceeds threshold ${maxGasBeats} beats`);
+        }
+      } else {
+        gasCheckSkipped = true;
+        console.warn('Gas Guard: Could not fetch gas price, skipping check');
       }
 
       const gasGuardOutput = {
         passed: true,
-        gasPriceGwei,
-        threshold: maxGasGwei,
+        currentGasBeats,
+        threshold: maxGasBeats,
+        skipped: gasCheckSkipped,
       };
 
       const updatedContextGasGuard = updateContextWithOutput(

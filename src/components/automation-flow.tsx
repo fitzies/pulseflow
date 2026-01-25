@@ -814,13 +814,6 @@ export function AutomationFlow({
   }, [nodes]);
 
   const handleDelete = useCallback(async () => {
-    // Check if wallet balance exceeds 100 PLS
-    const balance = parseFloat(plsBalance);
-    if (balance > 100) {
-      toast.error('Cannot delete automation: wallet balance exceeds 100 PLS. Please transfer funds out before deleting.');
-      return;
-    }
-
     try {
       const response = await fetch(`/api/automations/${automationId}`, {
         method: 'DELETE',
@@ -840,7 +833,7 @@ export function AutomationFlow({
       console.error('Delete automation error:', parsed.technicalDetails);
       toast.error(parsed.userMessage);
     }
-  }, [automationId, plsBalance]);
+  }, [automationId]);
 
   return (
     <div className="w-full h-[calc(100vh-4rem)] dark relative">

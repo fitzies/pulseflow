@@ -353,8 +353,8 @@ export function useNodeValidation(
 
       case 'gasGuard': {
         const maxGasPrice = formData.maxGasPrice;
-        if (maxGasPrice && parseFloat(maxGasPrice) > 1000) {
-          softWarnings.maxGasPrice = 'Gas price is very high, transaction may be expensive';
+        if (maxGasPrice && parseFloat(maxGasPrice) > 10000000) {
+          softWarnings.maxGasPrice = 'Threshold is very high - gas guard may not trigger';
         }
         break;
       }

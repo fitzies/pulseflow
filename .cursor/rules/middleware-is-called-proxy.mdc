@@ -1,10 +1,14 @@
 ---
 name: middleware-is-called-proxy
-description: This is a new rule
+description: Next.js 16 proxy file convention
 ---
 
 # Overview
 
-Renaming Middleware to Proxy
-Why This Error Occurred
-Middleware file convention is deprecated and has been renamed to proxy.
+In Next.js 16, the `middleware.ts` file convention was renamed to `proxy.ts`.
+
+The proxy file is located at `src/proxy.ts` and uses `export default clerkMiddleware(...)`.
+
+Reference: https://nextjs.org/docs/messages/middleware-to-proxy
+
+https://nextjs.org/docs/messages/middleware-to-proxy

@@ -419,8 +419,8 @@ export async function POST(
         const maxGasPrice = formData.maxGasPrice;
         if (maxGasPrice !== undefined && (isNaN(parseFloat(maxGasPrice)) || parseFloat(maxGasPrice) <= 0)) {
           validationResults.hardErrors.maxGasPrice = 'Gas price must be a positive number';
-        } else if (maxGasPrice && parseFloat(maxGasPrice) > 1000) {
-          validationResults.softWarnings.maxGasPrice = 'Gas price is very high, transaction may be expensive';
+        } else if (maxGasPrice && parseFloat(maxGasPrice) > 10000000) {
+          validationResults.softWarnings.maxGasPrice = 'Threshold is very high - gas guard may not trigger';
         }
         break;
       }

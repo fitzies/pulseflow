@@ -98,8 +98,9 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
   },
   gasGuard: {
     passed: 'boolean',
-    gasPriceGwei: 'number',
+    currentGasBeats: 'number',
     threshold: 'number',
+    skipped: 'boolean',
   },
 };
 

@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 const isPublicRoute = createRouteMatcher([
@@ -11,7 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/telegram/webhook",
 ]);
 
-const clerkProxy = clerkMiddleware(async (auth, request) => {
+export default clerkMiddleware(async (auth, request) => {
   // Add pathname header for server components
   const pathname = new URL(request.url).pathname;
   const response = NextResponse.next();
@@ -39,10 +39,6 @@ const clerkProxy = clerkMiddleware(async (auth, request) => {
 
   return response;
 });
-
-export async function proxy(request: NextRequest) {
-  return clerkProxy(request, {} as any);
-}
 
 export const config = {
   matcher: [

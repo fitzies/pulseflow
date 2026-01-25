@@ -242,6 +242,10 @@ export function NodeConfigSheet({
   const [priceCooldown, setPriceCooldown] = useState(priceTriggerCooldownMinutes?.toString() || '15');
   const [priceError, setPriceError] = useState<string | null>(null);
 
+  // Gas guard state - current network gas price
+  const [currentGasBeats, setCurrentGasBeats] = useState<number | null>(null);
+  const [gasLoading, setGasLoading] = useState(false);
+
   const isPro = userPlan === 'PRO' || userPlan === 'ULTRA';
 
   // Token info for LP address validation
@@ -275,6 +279,24 @@ export function NodeConfigSheet({
     setPriceCooldown(priceTriggerCooldownMinutes?.toString() || '15');
     setPriceError(null);
   }, [triggerMode, cronExpression, priceTriggerLpAddress, priceTriggerOperator, priceTriggerValue, priceTriggerCooldownMinutes]);
+
+  // Fetch current gas price when gas guard node is opened
+  useEffect(() => {
+    if (nodeType === 'gasGuard' && open) {
+      setGasLoading(true);
+      fetch('https://api.scan.pulsechain.com/api/v2/stats')
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data?.gas_prices?.average) {
+            setCurrentGasBeats(data.gas_prices.average);
+          }
+        })
+        .catch(() => {
+          // Silently fail - gas price display is optional
+        })
+        .finally(() => setGasLoading(false));
+    }
+  }, [nodeType, open]);
 
   const handleSave = () => {
     if (!nodeId) return;
@@ -1002,16 +1024,22 @@ export function NodeConfigSheet({
   const renderGasGuardConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <div className="grid gap-3">
-        <label htmlFor="maxGasPrice" className="text-sm font-medium">Max Gas Price (Gwei)</label>
+        <label htmlFor="maxGasPrice" className="text-sm font-medium">Max Gas Price (Beats)</label>
         <Input
           id="maxGasPrice"
           type="number"
-          placeholder="100"
+          placeholder="1000000"
           value={formData.maxGasPrice || ''}
           onChange={(e) => updateField('maxGasPrice', e.target.value)}
           className={validation.hardErrors.maxGasPrice ? 'border-destructive' : validation.softWarnings.maxGasPrice ? 'border-yellow-500' : ''}
         />
-        <p className="text-xs text-muted-foreground">Maximum gas price in Gwei. Automation will stop if gas exceeds this value.</p>
+        <p className="text-xs text-muted-foreground">
+          Maximum gas price in beats (wei). Automation will stop if network gas exceeds this.
+          {gasLoading && ' Loading current gas...'}
+          {!gasLoading && currentGasBeats !== null && (
+            <span className="text-primary font-medium"> Current: ~{Math.round(currentGasBeats).toLocaleString()} beats</span>
+          )}
+        </p>
         {validation.hardErrors.maxGasPrice && (
           <p className="text-xs text-destructive">{validation.hardErrors.maxGasPrice}</p>
         )}
