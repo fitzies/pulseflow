@@ -27,19 +27,23 @@ export const TransferNode = memo(({ data }: NodeProps) => {
     nodeData?.onNodeClick?.();
   };
 
+  const hasNotes = !!nodeData?.config?.notes;
+  const showLabels = nodeData?.showNodeLabels !== false;
+
   return (
-    <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
+    <BaseNode className="w-36 h-36 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
-      <div className="flex flex-col items-center justify-center p-4 gap-2">
+      <div className={`flex flex-col items-center justify-center h-full p-4 ${hasNotes ? 'gap-2' : showLabels ? 'gap-1' : ''}`}>
         <div className={`rounded-xl ${getNodeBackgroundColor('transfer')} p-3 flex items-center justify-center`}>
           <PaperAirplaneIcon className={`h-8 w-8 ${getNodeTextColor('transfer')}`} />
         </div>
-        {nodeData?.showNodeLabels !== false && (
+        {showLabels && (
           <>
             <BaseNodeHeaderTitle className="font-normal text-sm text-center">Transfer</BaseNodeHeaderTitle>
-            {nodeData?.config?.notes && (
+            {hasNotes && (
               <p className="text-xs text-muted-foreground text-center px-1 break-words">
-                {nodeData.config.notes}
+                {nodeData?.config?.notes}
+
               </p>
             )}
           </>

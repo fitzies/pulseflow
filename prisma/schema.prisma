@@ -27,8 +27,9 @@ model User {
 
   createdAt DateTime @default(now())
 
-  automations Automation[]
-  executions  Execution[]
+  automations       Automation[]
+  executions        Execution[]
+  pushSubscriptions PushSubscription[]
 }
 
 enum Plan {
@@ -152,4 +153,15 @@ model SharedAutomation {
   definition Json
   createdAt  DateTime @default(now())
   expiresAt  DateTime
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String   // Public key
+  auth      String   // Auth secret
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

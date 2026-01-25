@@ -2,6 +2,7 @@ import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import { executeAutomationChain, type ProgressEvent } from '@/lib/automation-runner';
 import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
+import { sendExecutionNotification } from '@/lib/push-notification';
 import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
@@ -175,6 +176,9 @@ export async function POST(
           },
         });
 
+        // Send push notification
+        await sendExecutionNotification(dbUser.id, automation.name, 'SUCCESS', execution.id);
+
         // Send completion event
         sendEvent({
           type: 'done',
@@ -198,6 +202,14 @@ export async function POST(
             },
           });
         }
+
+        // Send push notification
+        await sendExecutionNotification(
+          dbUser.id,
+          automation.name,
+          isCancelled ? 'CANCELLED' : 'FAILED',
+          execution.id
+        );
 
         // Send error completion event
         sendEvent({

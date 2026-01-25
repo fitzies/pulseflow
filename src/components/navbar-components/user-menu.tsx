@@ -1,15 +1,10 @@
 "use client";
 
 import {
-  BoltIcon,
-  BookOpenIcon,
   Globe,
-  Layers2Icon,
   LogOutIcon,
   PaperclipIcon,
-  PinIcon,
   User,
-  UserPenIcon,
 } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import Link from "next/link";
@@ -29,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PaperClipIcon } from "@heroicons/react/24/solid";
+import PushNotificationToggle from "@/components/push-notification-toggle";
 
 interface UserMenuProps {
   user: {
@@ -95,6 +90,7 @@ export default function UserMenu({ user }: UserMenuProps) {
               <span>Plans</span>
             </Link>
           </DropdownMenuItem>
+          <PushNotificationToggle />
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut()}>

@@ -28,9 +28,9 @@ export const TransferPLSNode = memo(({ data }: NodeProps) => {
   };
 
   return (
-    <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
+    <BaseNode className="w-36 h-36 cursor-pointer" onClick={handleNodeClick}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
-      <div className="flex flex-col items-center justify-center p-4 gap-2">
+      <div className="flex flex-col items-center justify-center h-full p-4 gap-2">
         <div className={`rounded-xl ${getNodeBackgroundColor('transferPLS')} p-3 flex items-center justify-center`}>
           <PaperAirplaneIcon className={`h-8 w-8 ${getNodeTextColor('transferPLS')}`} />
         </div>

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { executeAutomationChain } from '@/lib/automation-runner';
 import { getNextRunDate } from '@/lib/cron-utils.server';
 import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
+import { sendExecutionNotification } from '@/lib/push-notification';
 import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
@@ -171,6 +172,9 @@ export async function POST(
         });
       }
 
+      // Send push notification
+      await sendExecutionNotification(automation.user.id, automation.name, 'SUCCESS', execution.id);
+
       console.log(`[Cron] Automation ${automationId} completed successfully`);
       return new Response(
         JSON.stringify({ success: true, executionId: execution.id }),
@@ -206,6 +210,14 @@ export async function POST(
           },
         });
       }
+
+      // Send push notification
+      await sendExecutionNotification(
+        automation.user.id,
+        automation.name,
+        isCancelled ? 'CANCELLED' : 'FAILED',
+        execution.id
+      );
 
       console.error(`[Cron] Automation ${automationId} ${isCancelled ? 'cancelled' : 'failed'}:`, errorMessage);
       return new Response(
