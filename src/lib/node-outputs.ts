@@ -132,4 +132,5 @@ export function hasNodeOutput(nodeType: string, field: string): boolean {
   const outputs = NODE_OUTPUTS[nodeType];
   if (!outputs) return false;
   return field in outputs;
+  
 }

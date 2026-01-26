@@ -38,7 +38,7 @@ export const CheckTokenBalanceNode = memo(({ data }: NodeProps) => {
           <>
             <BaseNodeHeaderTitle className="font-normal text-sm text-center">Check Token Balance</BaseNodeHeaderTitle>
             {nodeData?.config?.notes && (
-              <p className="text-xs text-muted-foreground text-center px-1 break-words">
+              <p className="text-xs text-muted-foreground text-center px-1 wrap-break-word">
                 {nodeData.config.notes}
               </p>
             )}

@@ -106,7 +106,7 @@ export default async function Nav() {
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
-          <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none mr-2">
+          <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
             <Link href="/executions">
               {/* <ActivityIcon className="h-6 w-6" /> */}
               Executions
