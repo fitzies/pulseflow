@@ -1633,7 +1633,7 @@ export function NodeConfigSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-xl flex flex-col h-full">
+      <SheetContent className="md:max-w-xl flex flex-col h-full">
         <div className="flex-1 overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Configure {nodeType}</SheetTitle>

@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma";
 
 import Link from "next/link";
 import Logo from "@/components/logo";
-import RecentExecutions from "@/components/navbar-components/notification-menu";
-import ScheduledExecutionsMenu from "@/components/navbar-components/scheduled-executions-menu";
+// import RecentExecutions from "@/components/navbar-components/notification-menu";
+// import ScheduledExecutionsMenu from "@/components/navbar-components/scheduled-executions-menu";
 import UserMenu from "@/components/navbar-components/user-menu";
 import AutomationSelect from "@/components/navbar-components/automation-select";
+import { ActivityIcon } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -45,28 +46,6 @@ export default async function Nav() {
     orderBy: { createdAt: "desc" },
   });
 
-  // Get recent executions
-  const executionsData = await prisma.execution.findMany({
-    where: { userId: dbUser.id },
-    include: {
-      automation: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-    orderBy: { startedAt: "desc" },
-    take: 10,
-  });
-
-  // Serialize dates for client component
-  const executions = executionsData.map((execution) => ({
-    ...execution,
-    startedAt: execution.startedAt.toISOString(),
-    finishedAt: execution.finishedAt?.toISOString() || null,
-  }));
-
   const userDisplayName = user.firstName && user.lastName
     ? `${user.firstName} ${user.lastName}`
     : user.username || user.emailAddresses[0]?.emailAddress || "Account";
@@ -74,18 +53,6 @@ export default async function Nav() {
   const userEmail = user.emailAddresses[0]?.emailAddress || "";
 
   const hasPlan = dbUser.plan !== null;
-  const isPro = dbUser.plan === "PRO" || dbUser.plan === "ULTRA";
-
-  // Get latest scheduled execution timestamp for notification
-  const latestScheduledExecution = await prisma.execution.findFirst({
-    where: {
-      userId: dbUser.id,
-      wasScheduled: true,
-    },
-    orderBy: { startedAt: "desc" },
-    select: { startedAt: true },
-  });
-  const latestScheduledAt = latestScheduledExecution?.startedAt?.toISOString() || null;
 
   return (
     <header className="border-b px-4 md:px-6 fixed top-0 w-full z-50 bg-background">
@@ -139,9 +106,12 @@ export default async function Nav() {
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
-          <ScheduledExecutionsMenu isPro={isPro} latestScheduledAt={latestScheduledAt} />
-          <RecentExecutions executions={executions} />
-          {/* Upgrade button - only show if user doesn't have a plan */}
+          <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none mr-2">
+            <Link href="/executions">
+              {/* <ActivityIcon className="h-6 w-6" /> */}
+              Executions
+            </Link>
+          </Button>
           {/* User menu */}
           <UserMenu
             user={{
