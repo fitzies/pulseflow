@@ -24,7 +24,7 @@ function getExecutionType(
   return 'Normal';
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await currentUser();
 
   if (!user) {
@@ -45,11 +45,23 @@ export async function GET() {
     });
   }
 
-  // Fetch all executions with automation triggerMode
+  // Get query params
+  const { searchParams } = new URL(request.url);
+  const automationId = searchParams.get('automationId');
+
+  // Build where clause
+  const whereClause: any = {
+    userId: dbUser.id,
+  };
+
+  // Add automation filter if provided
+  if (automationId) {
+    whereClause.automationId = automationId;
+  }
+
+  // Fetch executions with automation triggerMode
   const executions = await prisma.execution.findMany({
-    where: {
-      userId: dbUser.id,
-    },
+    where: whereClause,
     include: {
       automation: {
         select: {

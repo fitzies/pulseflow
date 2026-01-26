@@ -7,7 +7,7 @@ import Logo from "@/components/logo";
 // import ScheduledExecutionsMenu from "@/components/navbar-components/scheduled-executions-menu";
 import UserMenu from "@/components/navbar-components/user-menu";
 import AutomationSelect from "@/components/navbar-components/automation-select";
-import { ActivityIcon } from "lucide-react";
+import { ActivityIcon, Menu } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import RecentExecutions from "./navbar-components/notification-menu";
+import { Bars3Icon, ViewColumnsIcon } from "@heroicons/react/24/solid";
+import { ExecutionsButton } from "./navbar-components/executions-button";
 
 export default async function Nav({ layout = "Automations" }: { layout?: "Automations" | "Executions" }) {
   const user = await currentUser();
@@ -129,14 +131,15 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
           </Breadcrumb>
         </div>
         {/* Right side */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {!hasPlan && (
             <Button asChild size="sm" variant="outline">
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
-          <RecentExecutions executions={serializedExecutions} />
-          {layout === "Automations" ? <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
+          <ExecutionsButton />
+          {/* <RecentExecutions executions={serializedExecutions} /> */}
+          {/* {layout === "Automations" ? <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
             <Link href="/executions">
               Executions
             </Link>
@@ -144,7 +147,7 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
             <Link href="/automations">
               Automations
             </Link>
-          </Button>}
+          </Button>} */}
           {/* User menu */}
           <UserMenu
             user={{
