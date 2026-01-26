@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default async function Nav() {
+export default async function Nav({ layout = "Automations" }: { layout?: "Automations" | "Executions" }) {
   const user = await currentUser();
 
   if (!user) {
@@ -84,7 +84,7 @@ export default async function Nav() {
                 </DropdownMenu>
               </BreadcrumbItem>
               <BreadcrumbItem className="max-md:hidden">
-                <BreadcrumbLink href="#">{userDisplayName}</BreadcrumbLink>
+                <BreadcrumbLink href="/automations">{userDisplayName}</BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="max-md:hidden">
                 {" "}
@@ -92,7 +92,7 @@ export default async function Nav() {
               </BreadcrumbSeparator>
               <BreadcrumbItem className="max-md:hidden">
                 <BreadcrumbLink asChild>
-                  <Link href="/automations">Automations</Link>
+                  {layout === "Automations" ? <Link href="/automations">Automations</Link> : <Link href="/executions">Executions</Link>}
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <AutomationSelect automations={automations} />
@@ -106,12 +106,15 @@ export default async function Nav() {
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
-          <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
+          {layout === "Automations" ? <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
             <Link href="/executions">
-              {/* <ActivityIcon className="h-6 w-6" /> */}
               Executions
             </Link>
-          </Button>
+          </Button> : <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
+            <Link href="/automations">
+              Automations
+            </Link>
+          </Button>}
           {/* User menu */}
           <UserMenu
             user={{

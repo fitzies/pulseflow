@@ -170,12 +170,12 @@ export function ExecutionDialog({
       <DialogContent className="w-full max-w-2xl sm:min-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {executionDetails && getStatusIcon(executionDetails.status)}
+            {/* {executionDetails && getStatusIcon(executionDetails.status)} */}
             <span>Execution Details</span>
           </DialogTitle>
-          <DialogDescription className="wrap-break-word">
+          {/* <DialogDescription className="wrap-break-word">
             {executionDetails?.automation.name}
-          </DialogDescription>
+          </DialogDescription> */}
         </DialogHeader>
 
         {loading && (
@@ -194,16 +194,7 @@ export function ExecutionDialog({
           <div className="space-y-6">
             {/* Metadata */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Status</span>
-                <span className={`font-medium ${executionDetails.status === "SUCCESS" ? "text-green-600" :
-                  executionDetails.status === "FAILED" ? "text-red-600" :
-                    executionDetails.status === "CANCELLED" ? "text-yellow-600" :
-                      "text-blue-600"
-                  }`}>
-                  {executionDetails.status}
-                </span>
-              </div>
+
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Started</span>
                 <span className="font-medium">{formatFullDate(executionDetails.startedAt)}</span>
@@ -220,13 +211,23 @@ export function ExecutionDialog({
                   <span className="font-medium">{duration}s</span>
                 </div>
               )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Status</span>
+                <span className={`font-medium ${executionDetails.status === "SUCCESS" ? "text-green-600" :
+                  executionDetails.status === "FAILED" ? "text-red-400" :
+                    executionDetails.status === "CANCELLED" ? "text-yellow-600" :
+                      "text-blue-600"
+                  }`}>
+                  {executionDetails.status}
+                </span>
+              </div>
             </div>
 
             {/* Error Section */}
             {executionDetails.status === "FAILED" && executionDetails.error && (
               <div className="rounded-md bg-destructive/10 p-4">
-                <div className="text-sm font-semibold text-destructive mb-1">Error</div>
-                <div className="text-sm text-destructive wrap-break-word break-all whitespace-pre-wrap">
+                <div className="text-sm font-semibold text-red-400 mb-1">Error</div>
+                <div className="text-sm text-red-400 wrap-break-word break-all whitespace-pre-wrap">
                   {executionDetails.error}
                 </div>
               </div>

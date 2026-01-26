@@ -113,7 +113,7 @@ export default async function HomeNav() {
           {user ? (
             <>
               <Button asChild className="text-sm" size="sm" variant="ghost">
-                <Link href="/automations">Dashboard</Link>
+                <Link href="/automations">Automations</Link>
               </Button>
               <UserMenu
                 user={{

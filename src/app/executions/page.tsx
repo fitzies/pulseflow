@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   CheckCircle2Icon,
@@ -16,8 +23,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { ExecutionDialog } from "@/components/execution-dialog";
 import OrginTable from "@/components/origin-table";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 type ExecutionType = "Normal" | "Scheduled" | "Price Triggered";
@@ -140,6 +148,7 @@ export default function ExecutionsPage() {
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState<FilterType>("All");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchExecutions = useCallback(async () => {
     setLoading(true);
@@ -176,9 +185,24 @@ export default function ExecutionsPage() {
   };
 
   const filteredData = useMemo(() => {
-    if (filter === "All") return executions;
-    return executions.filter((e) => e.executionType === filter);
-  }, [executions, filter]);
+    let result = executions;
+
+    // Apply type filter
+    if (filter !== "All") {
+      result = result.filter((e) => e.executionType === filter);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((e) =>
+        e.automation.name.toLowerCase().includes(query) ||
+        e.error?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [executions, filter, searchQuery]);
 
   const emptyMessage = useMemo(() => {
     if (filter === "All") return "No executions yet";
@@ -191,7 +215,7 @@ export default function ExecutionsPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold">Executions</h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <p className="text-muted-foreground text-sm mt-1 md:block hidden">
               View and manage all your automation executions
             </p>
           </div>
@@ -206,21 +230,6 @@ export default function ExecutionsPage() {
             {/* <span className="ml-2">Refresh</span> */}
           </Button>
         </div>
-
-        {/* Filter Buttons */}
-        <div className="flex gap-2 flex-wrap">
-          {(["All", "Normal", "Scheduled", "Price Triggered"] as FilterType[]).map((filterType) => (
-            <Button
-              key={filterType}
-              variant={filter === filterType ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(filterType)}
-              className="h-8"
-            >
-              {filterType}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {loading && !isRefreshing ? (
@@ -233,7 +242,29 @@ export default function ExecutionsPage() {
         </div>
       ) : (
         <Card>
-          <CardContent>
+          {/* Filters and Search */}
+          <CardHeader className="flex items-center gap-4">
+            <Input
+              placeholder="Search executions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-sm"
+            />
+            <div className="flex gap-2 flex-wrap ml-auto">
+              <Select onValueChange={(value) => setFilter(value as FilterType)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All" defaultValue={"all"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="Normal">Normal</SelectItem>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
+                  <SelectItem value="Price Triggered">Price Triggered</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent >
             <OrginTable
               columns={columns as ColumnDef<Execution, any>[]}
               data={filteredData}
@@ -242,7 +273,7 @@ export default function ExecutionsPage() {
               enablePagination={true}
               enableFilters={false}
               enableColumnVisibility={true}
-              initialPageSize={10}
+              initialPageSize={25}
               emptyMessage={emptyMessage}
             />
           </CardContent>

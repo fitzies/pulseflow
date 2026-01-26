@@ -17,6 +17,7 @@ import { EditAutomationNameButton } from "@/components/edit-automation-name-butt
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 import { AutomationNodeIcons } from "@/components/automation-node-icons";
 import { Status, StatusIndicator } from "@/components/kibo-ui/status";
+import { HoverCard } from "@/components/ui/hover-card";
 
 export default async function Page() {
   const user = await currentUser();
@@ -133,6 +134,7 @@ export default async function Page() {
                       definition={automation.definition}
                       automationName={automation.name}
                     />
+                    {/* <HoverCard> TODO: Add hovercard */}
                     <Status
                       className="rounded-full px-0 py-0 border-0 pl-2"
                       status={
@@ -148,6 +150,7 @@ export default async function Page() {
                     >
                       <StatusIndicator />
                     </Status>
+                    {/* </HoverCard> */}
                   </div>
                 </CardFooter>
               </Card>
