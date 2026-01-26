@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import RecentExecutions from "./navbar-components/notification-menu";
 
 export default async function Nav({ layout = "Automations" }: { layout?: "Automations" | "Executions" }) {
   const user = await currentUser();
@@ -45,6 +46,34 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
     where: { userId: dbUser.id },
     orderBy: { createdAt: "desc" },
   });
+
+  // Get recent executions
+  const executions = await prisma.execution.findMany({
+    where: { userId: dbUser.id },
+    include: {
+      automation: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: { startedAt: "desc" },
+    take: 10, // Limit to recent executions for the nav menu
+  });
+
+  // Serialize executions for the client component
+  const serializedExecutions = executions.map((execution) => ({
+    id: execution.id,
+    status: execution.status as "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED",
+    error: execution.error,
+    startedAt: execution.startedAt.toISOString(),
+    finishedAt: execution.finishedAt?.toISOString() || null,
+    automation: {
+      id: execution.automation.id,
+      name: execution.automation.name,
+    },
+  }));
 
   const userDisplayName = user.firstName && user.lastName
     ? `${user.firstName} ${user.lastName}`
@@ -106,6 +135,7 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
+          <RecentExecutions executions={serializedExecutions} />
           {layout === "Automations" ? <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
             <Link href="/executions">
               Executions
