@@ -173,10 +173,6 @@ export function AutomationExecutionsDialog({
       }
       const data = await response.json();
       setExecutions(data);
-      // If we have an automationId and executions, set the automation name as search query
-      if (automationId && data.length > 0 && data[0].automation?.name) {
-        setSearchQuery(data[0].automation.name);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
