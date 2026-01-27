@@ -69,6 +69,7 @@ interface OrginTableProps<TData> {
   initialPageSize?: number;
   emptyMessage?: string;
   className?: string;
+  allowPageSizeChange?: boolean;
 }
 
 export default function OrginTable<TData extends { id: string }>({
@@ -82,6 +83,7 @@ export default function OrginTable<TData extends { id: string }>({
   initialPageSize = 10,
   emptyMessage = "No results.",
   className,
+  allowPageSizeChange = true,
 }: OrginTableProps<TData>) {
   const id = useId();
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -310,28 +312,30 @@ export default function OrginTable<TData extends { id: string }>({
       {enablePagination && (
         <div className="flex items-center justify-between gap-8">
           {/* Results per page */}
-          <div className="flex items-center gap-3">
-            <Label className="max-sm:sr-only" htmlFor={id}>
-              Rows per page
-            </Label>
-            <Select
-              onValueChange={(value) => {
-                table.setPageSize(Number(value));
-              }}
-              value={table.getState().pagination.pageSize.toString()}
-            >
-              <SelectTrigger className="w-fit whitespace-nowrap" id={id}>
-                <SelectValue placeholder="Select number of results" />
-              </SelectTrigger>
-              <SelectContent className="[&_*[role=option]>span]:start-auto [&_*[role=option]>span]:end-2 [&_*[role=option]]:ps-2 [&_*[role=option]]:pe-8">
-                {[5, 10, 25, 50].map((pageSize) => (
-                  <SelectItem key={pageSize} value={pageSize.toString()}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {allowPageSizeChange && (
+            <div className="flex items-center gap-3">
+              <Label className="max-sm:sr-only" htmlFor={id}>
+                Rows per page
+              </Label>
+              <Select
+                onValueChange={(value) => {
+                  table.setPageSize(Number(value));
+                }}
+                value={table.getState().pagination.pageSize.toString()}
+              >
+                <SelectTrigger className="w-fit whitespace-nowrap" id={id}>
+                  <SelectValue placeholder="Select number of results" />
+                </SelectTrigger>
+                <SelectContent className="[&_*[role=option]>span]:start-auto [&_*[role=option]>span]:end-2 [&_*[role=option]]:ps-2 [&_*[role=option]]:pe-8">
+                  {[5, 10, 25, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={pageSize.toString()}>
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* Page number information */}
           <div className="flex grow justify-end whitespace-nowrap text-muted-foreground text-sm">
             <p

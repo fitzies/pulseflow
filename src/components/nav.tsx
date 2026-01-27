@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import RecentExecutions from "./navbar-components/notification-menu";
 import { Bars3Icon, ViewColumnsIcon } from "@heroicons/react/24/solid";
-import { ExecutionsButton } from "./navbar-components/executions-button";
+import { ExecutionsButton } from "./navbar-components/automation-executions-dialog";
 
 export default async function Nav({ layout = "Automations" }: { layout?: "Automations" | "Executions" }) {
   const user = await currentUser();
