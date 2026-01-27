@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/auth(.*)",
+  "/guides(.*)",
   "/api/cron(.*)",
   "/api/automations/(.*)/run-cron",
   "/api/stripe/webhooks",

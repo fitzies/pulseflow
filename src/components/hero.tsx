@@ -33,7 +33,7 @@ export const Hero = (props: ProductTeaserCardProps) => {
     primaryButtonText = "Create your first flow",
     primaryButtonHref = AUTH_URLS.signUp,
     secondaryButtonText = "View node library",
-    secondaryButtonHref = AUTH_URLS.signUp,
+    secondaryButtonHref = "/guides/nodes",
   } = props
 
 

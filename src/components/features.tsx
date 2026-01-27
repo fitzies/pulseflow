@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 type StatItem = {
   value: string
@@ -124,11 +125,13 @@ export const Features = () => {
               directly on-chain using isolated wallets and deterministic execution.
             </p>
 
-            <Button variant="outline" className="mt-5 group bg-transparent">
-              <span className="relative z-10 flex items-center gap-1">
-                Explore the automation engine
-                <ArrowRight className="w-4 h-4 -mr-1 transition-transform duration-150 group-hover:translate-x-1" />
-              </span>
+            <Button asChild variant="outline" className="mt-5 group bg-transparent">
+              <Link href={"/guides/overview"}>
+                <span className="relative z-10 flex items-center gap-1">
+                  Explore the automation engine
+                  <ArrowRight className="w-4 h-4 -mr-1 transition-transform duration-150 group-hover:translate-x-1" />
+                </span>
+              </Link>
             </Button>
           </div>
 
