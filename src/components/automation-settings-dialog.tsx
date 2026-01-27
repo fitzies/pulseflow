@@ -160,6 +160,7 @@ export function AutomationSettingsDialog({
               <SlippageSelector
                 value={defaultSlippage}
                 onChange={setDefaultSlippage}
+                showNodePrecedenceMessage={true}
               />
             </div>
 

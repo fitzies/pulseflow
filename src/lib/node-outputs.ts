@@ -71,10 +71,14 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     gasUsed: 'bigint',
   },
   burnToken: {
+    amount: 'bigint',
+    token: 'address',
     gasPrice: 'bigint',
     gasUsed: 'bigint',
   },
   claimToken: {
+    amount: 'bigint',
+    token: 'address',
     gasPrice: 'bigint',
     gasUsed: 'bigint',
   },

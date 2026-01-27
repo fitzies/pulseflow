@@ -1476,7 +1476,11 @@ export async function executeNode(
         contractAddress
       );
 
-      const outputBurn = createTxOutput(receiptBurn);
+      const outputBurn = {
+        amount: burnAmount,
+        token: nodeData.token || "",
+        ...createTxOutput(receiptBurn),
+      };
       const updatedContextBurn = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputBurn);
 
       return { result: receiptBurn, context: updatedContextBurn };
@@ -1491,7 +1495,11 @@ export async function executeNode(
         contractAddress
       );
 
-      const outputClaim = createTxOutput(receiptClaim);
+      const outputClaim = {
+        amount: claimAmount,
+        token: nodeData.token || "",
+        ...createTxOutput(receiptClaim),
+      };
       const updatedContextClaim = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputClaim);
 
       return { result: receiptClaim, context: updatedContextClaim };

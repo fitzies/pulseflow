@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface SlippageSelectorProps {
   value: number; // decimal value (e.g., 0.01 for 1%)
   onChange: (value: number) => void;
+  showNodePrecedenceMessage?: boolean; // Show message about node settings taking precedence
 }
 
 const PRESETS = [
@@ -15,7 +16,7 @@ const PRESETS = [
   { label: '10%', value: 0.1 },
 ];
 
-export function SlippageSelector({ value, onChange }: SlippageSelectorProps) {
+export function SlippageSelector({ value, onChange, showNodePrecedenceMessage = false }: SlippageSelectorProps) {
   const handlePresetClick = (presetValue: number) => {
     onChange(presetValue);
   };
@@ -40,9 +41,11 @@ export function SlippageSelector({ value, onChange }: SlippageSelectorProps) {
           </Button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-      Your transaction will be reverted if the price moves against you by more than this percentage. Note that your node settings will take precedence over this value.
-      </p>
+      {showNodePrecedenceMessage && (
+        <p className="text-xs text-muted-foreground">
+          Your transaction will be reverted if the price moves against you by more than this percentage. Note that your node settings will take precedence over this value.
+        </p>
+      )}
     </div>
   );
 }
