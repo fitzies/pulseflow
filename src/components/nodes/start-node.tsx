@@ -3,10 +3,10 @@
 import { memo } from 'react';
 import { PlayIcon, PlusIcon, ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
-import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
+import { BaseNode } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
-import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
+import { getNodeBackgroundColor, getNodeTextColor, NODE_WRAPPER_CLASS, NODE_WIDTH_CLASS, NODE_HEIGHT_CLASS, NODE_LABEL_CONTAINER_CLASS, NODE_TITLE_CLASS, NODE_NOTES_CLASS } from './node-colors';
 
 interface StartNodeData {
   onAddNode?: () => void;
@@ -35,41 +35,43 @@ export const StartNode = memo(({ data }: NodeProps) => {
   const Icon = isPriceTrigger ? CurrencyDollarIcon : isScheduled ? ClockIcon : PlayIcon;
 
   return (
-    <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
-      <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className={`rounded-xl ${getNodeBackgroundColor('start')} p-3 flex items-center justify-center relative`}>
-          <Icon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
+    <div className={NODE_WRAPPER_CLASS}>
+      <BaseNode className={`${NODE_WIDTH_CLASS} ${NODE_HEIGHT_CLASS} cursor-pointer`} onClick={handleNodeClick}>
+        <div className="flex items-center justify-center p-3">
+          <div className={`rounded-xl ${getNodeBackgroundColor('start')} p-3 flex items-center justify-center relative`}>
+            <Icon className={`h-8 w-8 ${getNodeTextColor('start')}`} />
+          </div>
         </div>
-        {nodeData?.showNodeLabels !== false && (
-          <>
-            <BaseNodeHeaderTitle className="font-normal text-sm text-center">
-              {isPriceTrigger ? 'Price Trigger' : isScheduled ? 'Scheduled' : 'Start'}
-            </BaseNodeHeaderTitle>
-            {nodeData?.config?.notes && (
-              <p className="text-xs text-muted-foreground text-center px-1 break-words">
-                {nodeData.config.notes}
-              </p>
-            )}
-          </>
+        <Handle type="source" position={Position.Bottom} id="start-output" className="opacity-0" />
+        {nodeData?.isLastNode && (
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddClick();
+              }}
+              size="sm"
+              variant="secondary"
+              className="rounded-full"
+            >
+              <PlusIcon className="h-2.5 w-2.5" />
+            </Button>
+          </div>
         )}
-      </div>
-      <Handle type="source" position={Position.Bottom} id="start-output" className="opacity-0" />
-      {nodeData?.isLastNode && (
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddClick();
-            }}
-            size="sm"
-            variant="secondary"
-            className="rounded-full"
-          >
-            <PlusIcon className="h-2.5 w-2.5" />
-          </Button>
+      </BaseNode>
+      {nodeData?.showNodeLabels !== false && (
+        <div className={NODE_LABEL_CONTAINER_CLASS}>
+          <span className={NODE_TITLE_CLASS}>
+            {isPriceTrigger ? 'Price Trigger' : isScheduled ? 'Scheduled' : 'Start'}
+          </span>
+          {nodeData?.config?.notes && (
+            <p className={NODE_NOTES_CLASS}>
+              {nodeData.config.notes}
+            </p>
+          )}
         </div>
       )}
-    </BaseNode>
+    </div>
   );
 });
 

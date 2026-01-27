@@ -17,7 +17,11 @@ import { EditAutomationNameButton } from "@/components/edit-automation-name-butt
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 import { AutomationNodeIcons } from "@/components/automation-node-icons";
 import { Status, StatusIndicator } from "@/components/kibo-ui/status";
-import { HoverCard } from "@/components/ui/hover-card";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card";
 
 export default async function Page() {
   const user = await currentUser();
@@ -134,23 +138,69 @@ export default async function Page() {
                       definition={automation.definition}
                       automationName={automation.name}
                     />
-                    {/* <HoverCard> TODO: Add hovercard */}
-                    <Status
-                      className="rounded-full px-0 py-0 border-0 pl-2"
-                      status={
-                        isRunning
-                          ? "online"
-                          : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt
-                            ? "maintenance"
-                            : automation.isActive
-                              ? "online"
-                              : "offline"
-                      }
-                      variant="outline"
-                    >
-                      <StatusIndicator />
-                    </Status>
-                    {/* </HoverCard> */}
+                    <HoverCard>
+                      <HoverCardTrigger asChild>
+                        <div>
+                          <Status
+                            className="rounded-full px-0 py-0 border-0 pl-2 cursor-help"
+                            status={
+                              isRunning
+                                ? "online"
+                                : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt
+                                  ? "maintenance"
+                                  : automation.isActive
+                                    ? "online"
+                                    : "offline"
+                            }
+                            variant="outline"
+                          >
+                            <StatusIndicator />
+                          </Status>
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent>
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-semibold">Automation Status</h4>
+                          {isRunning ? (
+                            <div>
+                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                                Online - Running
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                This automation is currently executing.
+                              </p>
+                            </div>
+                          ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
+                            <div>
+                              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                                Maintenance - Scheduled
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                This automation runs on a schedule. Next run: {new Date(automation.nextRunAt).toLocaleString()}
+                              </p>
+                            </div>
+                          ) : automation.isActive ? (
+                            <div>
+                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                                Online - Active
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                This automation is active and ready to run when triggered.
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                Offline - Inactive
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                This automation is currently disabled and will not execute.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
                   </div>
                 </CardFooter>
               </Card>

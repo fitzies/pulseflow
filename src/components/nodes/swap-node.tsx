@@ -3,10 +3,10 @@
 import { memo } from 'react';
 import { ArrowsRightLeftIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
-import { BaseNode, BaseNodeHeaderTitle } from '@/components/base-node';
+import { BaseNode } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
-import { getNodeBackgroundColor, getNodeTextColor } from './node-colors';
+import { getNodeBackgroundColor, getNodeTextColor, NODE_WRAPPER_CLASS, NODE_WIDTH_CLASS, NODE_HEIGHT_CLASS, NODE_LABEL_CONTAINER_CLASS, NODE_TITLE_CLASS, NODE_NOTES_CLASS } from './node-colors';
 
 interface SwapNodeData {
   onAddNode?: () => void;
@@ -28,40 +28,42 @@ export const SwapNode = memo(({ data }: NodeProps) => {
   };
 
   return (
-    <BaseNode className="w-32 cursor-pointer" onClick={handleNodeClick}>
-      <Handle type="target" position={Position.Top} className="opacity-0" />
-      <div className="flex flex-col items-center justify-center p-4 gap-2">
-        <div className={`rounded-xl ${getNodeBackgroundColor('swap')} p-3 flex items-center justify-center`}>
-          <ArrowsRightLeftIcon className={`h-8 w-8 ${getNodeTextColor('swap')}`} />
+    <div className={NODE_WRAPPER_CLASS}>
+      <BaseNode className={`${NODE_WIDTH_CLASS} ${NODE_HEIGHT_CLASS} cursor-pointer`} onClick={handleNodeClick}>
+        <Handle type="target" position={Position.Top} className="opacity-0" />
+        <div className="flex items-center justify-center p-3">
+          <div className={`rounded-xl ${getNodeBackgroundColor('swap')} p-3 flex items-center justify-center`}>
+            <ArrowsRightLeftIcon className={`h-8 w-8 ${getNodeTextColor('swap')}`} />
+          </div>
         </div>
-        {nodeData?.showNodeLabels !== false && (
-          <>
-            <BaseNodeHeaderTitle className="font-normal text-sm text-center">Swap</BaseNodeHeaderTitle>
-            {nodeData?.config?.notes && (
-              <p className="text-xs text-muted-foreground text-center px-1 break-words">
-                {nodeData.config.notes}
-              </p>
-            )}
-          </>
+        <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
+        {nodeData?.isLastNode && (
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddClick();
+              }}
+              size="sm"
+              variant="secondary"
+              className="rounded-full"
+            >
+              <PlusIcon className="h-2.5 w-2.5" />
+            </Button>
+          </div>
         )}
-      </div>
-      <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
-      {nodeData?.isLastNode && (
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddClick();
-            }}
-            size="sm"
-            variant="secondary"
-            className="rounded-full"
-          >
-            <PlusIcon className="h-2.5 w-2.5" />
-          </Button>
+      </BaseNode>
+      {nodeData?.showNodeLabels !== false && (
+        <div className={NODE_LABEL_CONTAINER_CLASS}>
+          <span className={NODE_TITLE_CLASS}>Swap</span>
+          {nodeData?.config?.notes && (
+            <p className={NODE_NOTES_CLASS}>
+              {nodeData.config.notes}
+            </p>
+          )}
         </div>
       )}
-    </BaseNode>
+    </div>
   );
 });
 

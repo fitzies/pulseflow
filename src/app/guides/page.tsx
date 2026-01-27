@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'fs/promises';
 import path from 'path';
 import Link from 'next/link';
+import Image from 'next/image';
 
 async function getGuides() {
   const guidesDir = path.join(process.cwd(), 'public', 'guides');
@@ -33,8 +34,9 @@ export default async function GuidesPage() {
           <Link
             key={guide.slug}
             href={`/guides/${guide.slug}`}
-            className="block p-4 rounded-lg border border-border hover:bg-muted transition-colors"
+            className="p-4 rounded-lg border border-border hover:bg-muted transition-colors flex flex-col gap-4"
           >
+            <div className='bg-secondary w-full h-60 rounded-lg' />
             <h2 className="text-lg font-medium">{guide.title}</h2>
           </Link>
         ))}

@@ -923,9 +923,6 @@ export function AutomationFlow({
         </div>
         <div className="text-sm font-semibold mb-3">{currentName}</div>
 
-        <div className="text-xs text-muted-foreground mb-1">Automation ID</div>
-        <div className="text-sm">{automationId}</div>
-
         <div className="text-xs text-muted-foreground mt-3 mb-1">Wallet Address</div>
         <button
           onClick={copyToClipboard}

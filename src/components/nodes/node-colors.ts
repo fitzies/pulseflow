@@ -1,9 +1,40 @@
 /**
- * Centralized node color configuration
+ * Centralized node color and layout configuration
  * All node colors use blue, indigo, violet, purple, or fuchsia with shades 400-600
  * 
  * Using literal class names so Tailwind CSS can detect them at build time
  */
+
+// ============================================
+// NODE LAYOUT CONFIGURATION
+// ============================================
+
+/** Classes for the outer wrapper div (flex container) */
+export const NODE_WRAPPER_CLASS = 'flex flex-col items-center';
+
+/** Width class for the BaseNode card (icon container) */
+export const NODE_WIDTH_CLASS = 'w-24 flex flex-col items-center justify-center';
+export const NODE_HEIGHT_CLASS = 'h-24';
+
+/** Width class for condition node (slightly wider for True/False labels) */
+export const NODE_WIDTH_CONDITION_CLASS = 'w-28';
+export const NODE_HEIGHT_CONDITION_CLASS = 'h-28';
+
+/** Classes for the label container below the node */
+export const NODE_LABEL_CONTAINER_CLASS = 'mt-2 text-center max-w-40';
+
+/** Classes for wider labels (longer text like "Remove Liquidity PLS") */
+export const NODE_LABEL_CONTAINER_WIDE_CLASS = 'mt-2 text-center max-w-40';
+
+/** Classes for the title text */
+export const NODE_TITLE_CLASS = 'text-sm font-medium';
+
+/** Classes for the notes text */
+export const NODE_NOTES_CLASS = 'text-xs text-muted-foreground break-all';
+
+// ============================================
+// NODE TYPES
+// ============================================
 
 export type NodeType =
   | 'start'

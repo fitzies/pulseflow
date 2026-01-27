@@ -2,6 +2,7 @@
 
 import {
   Globe,
+  HelpCircle,
   LogOutIcon,
   PaperclipIcon,
   User,
@@ -95,7 +96,7 @@ export default function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/guides">
-            <PaperclipIcon aria-hidden="true" className="opacity-60" size={16} />
+            <HelpCircle aria-hidden="true" className="opacity-60" size={16} />
             <span>Guides</span>
           </Link>
         </DropdownMenuItem>

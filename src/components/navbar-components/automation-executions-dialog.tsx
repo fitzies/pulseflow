@@ -231,9 +231,9 @@ export function AutomationExecutionsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="min-w-[90rem] ">
+        <DialogContent className="w-[95vw] max-w-full sm:w-full md:min-w-[90rem]">
           <DialogHeader className="flex justify-between">
-            <DialogTitle className="text-2xl font-bold">
+            <DialogTitle className="text-xl sm:text-2xl font-bold">
               Executions
             </DialogTitle>
             <DialogDescription>
@@ -254,16 +254,16 @@ export function AutomationExecutionsDialog({
           ) : (
             <Card className="bg-transparent">
               {/* Filters and Search */}
-              <CardHeader className="flex items-center gap-4">
+              <CardHeader className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                 <Input
                   placeholder="Search executions..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="max-w-sm"
+                  className="w-full sm:max-w-sm"
                 />
-                <div className="flex gap-2 flex-wrap ml-auto">
+                <div className="flex gap-2 flex-wrap sm:ml-auto">
                   <Select onValueChange={(value) => setFilter(value as FilterType)}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]">
                       <SelectValue placeholder="All" defaultValue={"all"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -275,7 +275,7 @@ export function AutomationExecutionsDialog({
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-x-auto">
                 <OrginTable
                   columns={columns as ColumnDef<Execution, any>[]}
                   data={filteredData}
