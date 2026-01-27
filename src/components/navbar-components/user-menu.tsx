@@ -93,6 +93,13 @@ export default function UserMenu({ user }: UserMenuProps) {
           <PushNotificationToggle />
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/guides">
+            <PaperclipIcon aria-hidden="true" className="opacity-60" size={16} />
+            <span>Guides</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOut()}>
           <LogOutIcon aria-hidden="true" className="opacity-60" size={16} />
           <span>Logout</span>

@@ -84,7 +84,7 @@ export default async function Page() {
 
       {/* Empty State */}
       {automations.length === 0 ? (
-        <Card className="py-12 bg-transparent border-transparent">
+        <Card className="py-12 bg-transparent border-transparent shadow-none">
           <CardContent className="flex flex-col items-center justify-center text-center">
             <h3 className="text-lg font-semibold mb-2">No automations yet</h3>
             <p className="text-muted-foreground mb-6 text-sm">
