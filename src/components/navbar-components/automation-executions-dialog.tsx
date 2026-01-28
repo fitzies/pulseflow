@@ -208,13 +208,13 @@ export function AutomationExecutionsDialog({
     }
 
     // Apply search filter
-    // if (searchQuery.trim()) {
-    //   const query = searchQuery.toLowerCase();
-    //   result = result.filter((e) =>
-    //     e.automation.name.toLowerCase().includes(query) ||
-    //     e.error?.toLowerCase().includes(query)
-    //   );
-    // }
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((e) =>
+        e.automation.name.toLowerCase().includes(query) ||
+        e.error?.toLowerCase().includes(query)
+      );
+    }
 
     return result;
   }, [executions, filter, searchQuery]);
@@ -317,7 +317,7 @@ export function ExecutionsButton() {
         <ClockIcon className="h-5 w-5" />
       </Button>
       <AutomationExecutionsDialog
-        automationId={currentAutomationId || undefined}
+        automationId={undefined}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
