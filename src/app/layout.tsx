@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import HomeNavWrapper from "@/components/home-nav-wrapper";
 import HomeNav from "@/components/home-nav";
 import { Analytics } from "@vercel/analytics/next"
+// Code rabbit
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
