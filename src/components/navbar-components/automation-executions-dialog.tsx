@@ -258,9 +258,9 @@ export function AutomationExecutionsDialog({
                   className="w-full sm:max-w-sm"
                 />
                 <div className="flex gap-2 flex-wrap sm:ml-auto">
-                  <Select onValueChange={(value) => setFilter(value as FilterType)}>
+                  <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
                     <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="All" defaultValue={"all"} />
+                      <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All</SelectItem>

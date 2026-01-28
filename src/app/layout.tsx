@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import HomeNavWrapper from "@/components/home-nav-wrapper";
 import HomeNav from "@/components/home-nav";
+import { Analytics } from "@vercel/analytics/next"
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <Analytics />
             <HomeNavWrapper>
               <HomeNav />
             </HomeNavWrapper>
