@@ -37,6 +37,8 @@ import {
   GasGuardNode,
   ConditionNode,
   TelegramNode,
+  VariableNode,
+  CalculatorNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -96,6 +98,8 @@ const nodeTypes: NodeTypes = {
   gasGuard: withStatusIndicator(GasGuardNode),
   condition: withStatusIndicator(ConditionNode),
   telegram: withStatusIndicator(TelegramNode),
+  variable: withStatusIndicator(VariableNode),
+  calculator: withStatusIndicator(CalculatorNode),
 };
 
 const edgeTypes: EdgeTypes = {
@@ -612,7 +616,7 @@ export function AutomationFlow({
     setIsRunning(true);
     // Reset all node statuses
     setNodeStatuses({});
-    
+
     // Create new AbortController for this execution
     abortControllerRef.current = new AbortController();
 
@@ -706,7 +710,7 @@ export function AutomationFlow({
 
   const handleStop = useCallback(async () => {
     setStopDialogOpen(false);
-    
+
     try {
       // Call the stop endpoint to cancel the execution
       const response = await fetch(`/api/automations/${automationId}/stop`, {

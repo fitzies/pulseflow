@@ -416,6 +416,7 @@ export function NodeConfigSheet({
           fieldName={swapMode === 'exactOut' ? 'amountOut' : 'amountIn'}
           nodeType="swap"
           formData={formData}
+          nodes={nodes}
         />
         <div className="grid gap-3">
           <label className="text-sm font-medium">Token Path</label>
@@ -496,6 +497,7 @@ export function NodeConfigSheet({
           nodeType="swapFromPLS"
           formData={formData}
           isPLSAmount={swapMode !== 'exactOut'}
+          nodes={nodes}
         />
         <div className="grid gap-3">
           <label className="text-sm font-medium">Token Path</label>
@@ -579,6 +581,7 @@ export function NodeConfigSheet({
           nodeType="swapToPLS"
           formData={formData}
           isPLSAmount={swapMode === 'exactOut'}
+          nodes={nodes}
         />
         <div className="grid gap-3">
           <label className="text-sm font-medium">Token Path</label>
@@ -658,6 +661,7 @@ export function NodeConfigSheet({
         fieldName="amount"
         nodeType="transfer"
         formData={formData}
+        nodes={nodes}
       />
       {renderNotesField()}
     </div>
@@ -684,6 +688,7 @@ export function NodeConfigSheet({
         nodeType="transferPLS"
         formData={formData}
         isPLSAmount={true}
+        nodes={nodes}
       />
     </div>
   );
@@ -719,6 +724,7 @@ export function NodeConfigSheet({
         fieldName="amountADesired"
         nodeType="addLiquidity"
         formData={formData}
+        nodes={nodes}
       />
       <AmountSelector
         value={formData.amountBDesired}
@@ -734,6 +740,7 @@ export function NodeConfigSheet({
           baseAmountField: 'amountADesired',
           pairedTokenField: 'tokenB',
         }}
+        nodes={nodes}
       />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
@@ -770,6 +777,7 @@ export function NodeConfigSheet({
           pairedTokenField: 'token',
           isPLS: true,
         }}
+        nodes={nodes}
       />
       <AmountSelector
         value={formData.plsAmount}
@@ -787,6 +795,7 @@ export function NodeConfigSheet({
           pairedTokenField: 'token',
           isPLS: true,
         }}
+        nodes={nodes}
       />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
@@ -827,6 +836,7 @@ export function NodeConfigSheet({
         fieldName="liquidity"
         nodeType="removeLiquidity"
         formData={formData}
+        nodes={nodes}
       />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
@@ -857,6 +867,7 @@ export function NodeConfigSheet({
         fieldName="liquidity"
         nodeType="removeLiquidityPLS"
         formData={formData}
+        nodes={nodes}
       />
       <SlippageSelector
         value={formData.slippage ?? 0.01}
@@ -890,6 +901,7 @@ export function NodeConfigSheet({
         fieldName="amount"
         nodeType="burnToken"
         formData={formData}
+        nodes={nodes}
       />
       {renderNotesField()}
     </div>
@@ -919,6 +931,7 @@ export function NodeConfigSheet({
         fieldName="amount"
         nodeType="claimToken"
         formData={formData}
+        nodes={nodes}
       />
       {renderNotesField()}
     </div>
@@ -1083,6 +1096,12 @@ export function NodeConfigSheet({
       case 'removeLiquidityPLS':
         outputFields.push({ value: 'amountA', label: 'Token A Amount' });
         outputFields.push({ value: 'amountB', label: 'Token B Amount' });
+        break;
+      case 'variable':
+        outputFields.push({ value: 'value', label: 'Variable Value' });
+        break;
+      case 'calculator':
+        outputFields.push({ value: 'result', label: 'Calculator Result' });
         break;
     }
 
@@ -1329,6 +1348,167 @@ export function NodeConfigSheet({
     } finally {
       setIsSavingSchedule(false);
     }
+  };
+
+  // Get all variable nodes from the flow (for showing in selects)
+  const getVariableNodes = () => {
+    return nodes
+      .filter((n) => {
+        if (n.type !== 'variable') return false;
+        const data = n.data as { config?: { variableName?: string } } | undefined;
+        return data?.config?.variableName;
+      })
+      .map((n) => ({
+        id: n.id,
+        name: ((n.data as { config?: { variableName?: string } })?.config?.variableName) || '',
+      }));
+  };
+
+  const renderVariableConfig = () => {
+    const sourceType = formData.sourceType || 'previousOutput';
+    const previousOutputFields = getPreviousOutputFields();
+    const hasPreviousNode = previousNodeType !== null;
+
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label htmlFor="variableName" className="text-sm font-medium">Variable Name</label>
+          <Input
+            id="variableName"
+            type="text"
+            placeholder="myVariable"
+            value={formData.variableName || ''}
+            onChange={(e) => {
+              // Only allow alphanumeric and underscore
+              const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+              updateField('variableName', value);
+            }}
+          />
+          <p className="text-xs text-muted-foreground">
+            Use letters, numbers, and underscores. Access as ${'{'}${formData.variableName || 'name'}{'}'} in calculator.
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Source</label>
+          <Select
+            value={sourceType}
+            onValueChange={(value) => updateField('sourceType', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="static">Static Value</SelectItem>
+              <SelectItem value="previousOutput" disabled={!hasPreviousNode || previousOutputFields.length === 0}>
+                Previous Output {!hasPreviousNode ? '(no previous node)' : previousOutputFields.length === 0 ? '(no outputs)' : ''}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {sourceType === 'static' && (
+          <div className="grid gap-3">
+            <label htmlFor="staticValue" className="text-sm font-medium">Value</label>
+            <Input
+              id="staticValue"
+              type="text"
+              placeholder="100"
+              value={formData.staticValue || ''}
+              onChange={(e) => updateField('staticValue', e.target.value)}
+            />
+          </div>
+        )}
+
+        {sourceType === 'previousOutput' && previousOutputFields.length > 0 && (
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Output Field</label>
+            <Select
+              value={formData.outputField || previousOutputFields[0]?.value}
+              onValueChange={(value) => updateField('outputField', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {previousOutputFields.map((field) => (
+                  <SelectItem key={field.value} value={field.value}>
+                    {field.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {renderNotesField()}
+      </div>
+    );
+  };
+
+  const renderCalculatorConfig = () => {
+    const variableNodes = getVariableNodes();
+
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label htmlFor="expression" className="text-sm font-medium">Expression</label>
+          <Textarea
+            id="expression"
+            placeholder="3 + 4 * 2 / (1 - 5)"
+            value={formData.expression || ''}
+            onChange={(e) => updateField('expression', e.target.value)}
+            rows={4}
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            Enter a math expression. Use {'{{variableName}}'} to reference variables.
+          </p>
+        </div>
+
+        {variableNodes.length > 0 && (
+          <div className="rounded-lg bg-muted/50 border p-3">
+            <p className="text-xs font-medium mb-2">Available Variables</p>
+            <div className="flex flex-wrap gap-2">
+              {variableNodes.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => {
+                    const currentExpr = formData.expression || '';
+                    updateField('expression', currentExpr + `{{${v.name}}}`);
+                  }}
+                  className="text-xs font-mono bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded hover:bg-emerald-500/30 transition-colors"
+                >
+                  {'{{' + v.name + '}}'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-lg bg-muted/50 border p-3">
+          <p className="text-xs font-medium mb-2">Supported Operations</p>
+          <div className="text-xs text-muted-foreground space-y-1 font-mono">
+            <p>+ - Addition</p>
+            <p>- - Subtraction</p>
+            <p>* - Multiplication</p>
+            <p>/ - Division</p>
+            <p>( ) - Parentheses</p>
+            <p>** - Power (e.g., 2**3 = 8)</p>
+            <p>% - Modulo</p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3">
+          <p className="text-xs text-cyan-400">
+            The result will be available as previousOutput for the next node.
+          </p>
+        </div>
+
+        {renderNotesField()}
+      </div>
+    );
   };
 
   const renderTelegramConfig = () => (
@@ -1616,6 +1796,10 @@ export function NodeConfigSheet({
         return renderConditionConfig();
       case 'telegram':
         return renderTelegramConfig();
+      case 'variable':
+        return renderVariableConfig();
+      case 'calculator':
+        return renderCalculatorConfig();
       case 'checkBalance':
       default:
         return (

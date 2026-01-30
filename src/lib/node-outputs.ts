@@ -106,6 +106,14 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     threshold: 'number',
     skipped: 'boolean',
   },
+  variable: {
+    value: 'bigint',
+  },
+  calculator: {
+    result: 'bigint',
+  },
+  telegram: null, // no numeric output
+  condition: null, // handled separately (branching)
 };
 
 /**

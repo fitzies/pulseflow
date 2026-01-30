@@ -13,6 +13,8 @@ import {
   ArrowPathIcon,
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
+  VariableIcon,
+  CalculatorIcon,
 } from '@heroicons/react/24/solid';
 import { MessageCircle } from 'lucide-react';
 import {
@@ -47,7 +49,9 @@ export type NodeType =
   | 'loop'
   | 'gasGuard'
   | 'condition'
-  | 'telegram';
+  | 'telegram'
+  | 'variable'
+  | 'calculator';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -216,6 +220,22 @@ const nodeTypes: NodeTypeOption[] = [
     iconBg: getNodeBackgroundColor('telegram'),
     iconColor: getNodeTextColor('telegram'),
   },
+  {
+    type: 'variable',
+    label: 'Variable',
+    description: 'Store a named variable',
+    icon: VariableIcon,
+    iconBg: getNodeBackgroundColor('variable'),
+    iconColor: getNodeTextColor('variable'),
+  },
+  {
+    type: 'calculator',
+    label: 'Calculator',
+    description: 'Math expressions with variables',
+    icon: CalculatorIcon,
+    iconBg: getNodeBackgroundColor('calculator'),
+    iconColor: getNodeTextColor('calculator'),
+  },
 ];
 
 interface SelectNodeDialogProps {
@@ -241,6 +261,7 @@ const nodeGroups = {
     ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
   ),
   external: nodeTypes.filter((n) => ['telegram'].includes(n.type)),
+  utilities: nodeTypes.filter((n) => ['variable', 'calculator'].includes(n.type)),
 };
 
 const planHierarchy: Record<string, number> = {
@@ -330,6 +351,7 @@ export function SelectNodeDialog({
         {renderGroup('Checks', nodeGroups.checks)}
         {renderGroup('Token Operations', nodeGroups.tokenOperations)}
         {renderGroup('Control Flow', nodeGroups.controlFlow)}
+        {renderGroup('Utilities', nodeGroups.utilities)}
         {renderGroup('External', nodeGroups.external, false)}
       </CommandList>
     </CommandDialog>

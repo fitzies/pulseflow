@@ -19,3 +19,5 @@ export { LoopNode } from './loop-node';
 export { GasGuardNode } from './gas-guard-node';
 export { ConditionNode } from './condition-node';
 export { TelegramNode } from './telegram-node';
+export { VariableNode } from './variable-node';
+export { CalculatorNode } from './calculator-node';

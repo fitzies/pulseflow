@@ -12,7 +12,8 @@ export type AmountValue =
   | { type: 'previousOutput'; field: string; percentage: number } // Use output from previous node
   | { type: 'currentBalance'; token: string; percentage: number } // Use current wallet balance
   | { type: 'lpRatio'; baseTokenField: string; baseAmountField: string; pairedToken: string } // New: field reference for dynamic resolution
-  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string }; // Legacy: stored token value (auto-fixed at runtime)
+  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string } // Legacy: stored token value (auto-fixed at runtime)
+  | { type: 'variable'; variableName: string }; // Reference a named variable from the flow
 
 /**
  * Execution context that tracks outputs from executed nodes
@@ -21,6 +22,7 @@ export interface ExecutionContext {
   nodeOutputs: Map<string, Record<string, any>>; // nodeId -> output
   previousNodeId: string | null;
   previousNodeType: string | null;
+  variables: Map<string, bigint>; // variableName -> value
 }
 
 /**
@@ -31,6 +33,7 @@ export function createExecutionContext(): ExecutionContext {
     nodeOutputs: new Map(),
     previousNodeId: null,
     previousNodeType: null,
+    variables: new Map(),
   };
 }
 
@@ -98,6 +101,15 @@ export async function resolveAmount(
     throw new Error('lpRatio type requires nodeData context - use resolveLpRatioAmount instead');
   }
 
+  // Handle variable reference
+  if (amountConfig.type === 'variable') {
+    const variableValue = context.variables.get(amountConfig.variableName);
+    if (variableValue === undefined) {
+      throw new Error(`Variable '${amountConfig.variableName}' not found. Make sure a Variable node sets it before use.`);
+    }
+    return variableValue;
+  }
+
   throw new Error(`Unknown amount config type: ${(amountConfig as any).type}`);
 }
 
@@ -115,7 +127,12 @@ export async function resolveAmountWithNodeData(
     return resolveAmount(amountConfig, context, automationId);
   }
 
-  if (amountConfig.type !== 'lpRatio') {
+  if (amountConfig.type !== 'lpRatio' && amountConfig.type !== 'variable') {
+    return resolveAmount(amountConfig, context, automationId);
+  }
+
+  // Handle variable type
+  if (amountConfig.type === 'variable') {
     return resolveAmount(amountConfig, context, automationId);
   }
 
@@ -228,6 +245,7 @@ export function updateContextWithOutput(
     ...context,
     previousNodeId: nodeId,
     previousNodeType: nodeType,
+    variables: new Map(context.variables), // Clone the map
   };
 
   if (output) {
@@ -235,6 +253,78 @@ export function updateContextWithOutput(
   }
 
   return newContext;
+}
+
+/**
+ * Set a variable in the execution context
+ */
+export function setVariable(
+  context: ExecutionContext,
+  variableName: string,
+  value: bigint
+): ExecutionContext {
+  const newContext = {
+    ...context,
+    variables: new Map(context.variables),
+  };
+  newContext.variables.set(variableName, value);
+  return newContext;
+}
+
+/**
+ * Get a variable from the execution context
+ */
+export function getVariable(
+  context: ExecutionContext,
+  variableName: string
+): bigint | undefined {
+  return context.variables.get(variableName);
+}
+
+/**
+ * Evaluate a math expression with variable substitution
+ * Supports: +, -, *, /, **, %, parentheses, and {{variableName}} syntax
+ */
+export function evaluateExpression(
+  expression: string,
+  context: ExecutionContext
+): bigint {
+  if (!expression || expression.trim() === '') {
+    return 0n;
+  }
+
+  // Replace {{variableName}} with actual values
+  let processedExpr = expression.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
+    const value = context.variables.get(varName);
+    if (value === undefined) {
+      throw new Error(`Variable '${varName}' not found in expression`);
+    }
+    return value.toString();
+  });
+
+  // Clean up whitespace
+  processedExpr = processedExpr.trim();
+
+  try {
+    // Use Function constructor to evaluate the expression safely
+    // Only allow numbers and basic math operators
+    if (!/^[\d\s+\-*/%().]+$/.test(processedExpr)) {
+      throw new Error('Expression contains invalid characters');
+    }
+
+    // Evaluate the expression as a number
+    const result = Function(`"use strict"; return (${processedExpr})`)();
+    
+    if (typeof result !== 'number' || !isFinite(result)) {
+      throw new Error('Expression did not evaluate to a valid number');
+    }
+
+    // Convert to bigint (wei) - assumes the result is in ether units
+    // Multiply by 1e18 and floor to get wei
+    return BigInt(Math.floor(result * 1e18));
+  } catch (error) {
+    throw new Error(`Failed to evaluate expression: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**

@@ -14,6 +14,8 @@ import {
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
   PlayIcon,
+  VariableIcon,
+  CalculatorIcon,
 } from '@heroicons/react/24/solid';
 import { MessageCircle } from 'lucide-react';
 import { getNodeBackgroundColor, getNodeTextColor } from '@/components/nodes/node-colors';
@@ -41,6 +43,8 @@ const nodeIconMap: Record<string, React.ComponentType<{ className?: string }>> =
   gasGuard: ShieldCheckIcon,
   condition: QuestionMarkCircleIcon,
   telegram: MessageCircle,
+  variable: VariableIcon,
+  calculator: CalculatorIcon,
 };
 
 interface AutomationNodeIconsProps {

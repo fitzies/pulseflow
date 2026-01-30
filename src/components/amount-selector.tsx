@@ -9,15 +9,24 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from '@/components/ui/select';
 import type { AmountValue } from '@/lib/execution-context';
 import { getNumericOutputFields } from '@/lib/node-outputs';
 import { WPLS } from '@/lib/abis';
+import type { Node } from '@xyflow/react';
 
 interface LpQuoteState {
   loading: boolean;
   error: string | null;
   quotedAmount: string | null;
+}
+
+interface VariableInfo {
+  id: string;
+  name: string;
 }
 
 interface AmountSelectorProps {
@@ -37,6 +46,8 @@ interface AmountSelectorProps {
     pairedTokenField: string; // e.g., 'tokenB' or 'token' for PLS
     isPLS?: boolean; // If pairing with PLS
   };
+  // All nodes in the flow (for extracting variables)
+  nodes?: Node[];
 }
 
 export function AmountSelector({
@@ -50,7 +61,15 @@ export function AmountSelector({
   formData,
   isPLSAmount = false,
   lpRatioConfig,
+  nodes = [],
 }: AmountSelectorProps) {
+  // Extract variable nodes from the flow
+  const variableNodes: VariableInfo[] = nodes
+    .filter((n) => n.type === 'variable' && (n.data as { config?: { variableName?: string } })?.config?.variableName)
+    .map((n) => ({
+      id: n.id,
+      name: (n.data as { config?: { variableName?: string } })?.config?.variableName || '',
+    }));
   // For PLS amounts, check if previous node outputs PLS
   const previousOutputIsPLS = (() => {
     if (!isPLSAmount || !previousNodeType) return false;
@@ -60,6 +79,9 @@ export function AmountSelector({
     
     // removeLiquidityPLS outputs amountPLS
     if (previousNodeType === 'removeLiquidityPLS') return true;
+    
+    // Calculator and variable nodes output generic values - allow for any amount
+    if (previousNodeType === 'calculator' || previousNodeType === 'variable') return true;
     
     // For swap nodes, check if path ends with WPLS
     if (previousNodeType === 'swap') {
@@ -104,6 +126,10 @@ export function AmountSelector({
     }
     return value;
   })();
+
+  // Check if current value is a variable reference
+  const isVariableValue = normalizedValue.type === 'variable';
+  const selectedVariableName = isVariableValue ? (normalizedValue as { type: 'variable'; variableName: string }).variableName : null;
 
   const [customPercentage, setCustomPercentage] = useState<string>(
     normalizedValue.type === 'previousOutput'
@@ -183,7 +209,14 @@ export function AmountSelector({
     return () => clearTimeout(timeoutId);
   }, [normalizedValue.type, lpRatioConfig, formData, getBaseAmountValue]);
 
-  const handleModeChange = (mode: 'static' | 'previousOutput' | 'lpRatio') => {
+  const handleModeChange = (mode: string) => {
+    // Check if this is a variable selection (prefixed with 'var:')
+    if (mode.startsWith('var:')) {
+      const variableName = mode.slice(4);
+      onChange({ type: 'variable', variableName } as AmountValue);
+      return;
+    }
+
     if (mode === 'static') {
       onChange({ type: 'static', value: '' });
     } else if (mode === 'lpRatio' && lpRatioConfig && formData) {
@@ -197,7 +230,7 @@ export function AmountSelector({
         baseAmountField: lpRatioConfig.baseAmountField, // Field name, not value!
         pairedToken: lpRatioConfig.isPLS ? 'PLS' : (formData[lpRatioConfig.pairedTokenField] || ''),
       });
-    } else {
+    } else if (mode === 'previousOutput') {
       // Use numeric fields only
       const defaultField = availableFields[0] || 'amountOut';
       onChange({
@@ -233,41 +266,55 @@ export function AmountSelector({
       
       {/* Mode Selector */}
       <Select
-        value={normalizedValue.type}
-        onValueChange={(value) =>
-          handleModeChange(value as 'static' | 'previousOutput' | 'lpRatio')
-        }
+        value={isVariableValue ? `var:${selectedVariableName}` : normalizedValue.type}
+        onValueChange={handleModeChange}
       >
         <SelectTrigger>
-          <SelectValue />
+          <SelectValue placeholder="Select source" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="static">Custom Amount</SelectItem>
-          <SelectItem 
-            value="previousOutput" 
-            disabled={
-              !previousNodeType || 
-              availableFields.length === 0 || 
-              (isPLSAmount && !previousOutputIsPLS)
-            }
-          >
-            Previous Output {
-              !previousNodeType 
-                ? '(no previous node)' 
-                : availableFields.length === 0 
-                  ? '(no outputs)' 
-                  : isPLSAmount && !previousOutputIsPLS
-                    ? '(previous output is not PLS)'
-                    : ''
-            }
-          </SelectItem>
-          {canUseLPRatio && (
+          <SelectGroup>
+            <SelectLabel>Source</SelectLabel>
+            <SelectItem value="static">Custom Amount</SelectItem>
             <SelectItem 
-              value="lpRatio"
-              disabled={!hasValidLPConfig}
+              value="previousOutput" 
+              disabled={
+                !previousNodeType || 
+                availableFields.length === 0 || 
+                (isPLSAmount && !previousOutputIsPLS)
+              }
             >
-              Auto from LP Ratio {!hasValidLPConfig ? lpRatioDisabledReason : ''}
+              Previous Output {
+                !previousNodeType 
+                  ? '(no previous node)' 
+                  : availableFields.length === 0 
+                    ? '(no outputs)' 
+                    : isPLSAmount && !previousOutputIsPLS
+                      ? '(previous output is not PLS)'
+                      : ''
+              }
             </SelectItem>
+            {canUseLPRatio && (
+              <SelectItem 
+                value="lpRatio"
+                disabled={!hasValidLPConfig}
+              >
+                Auto from LP Ratio {!hasValidLPConfig ? lpRatioDisabledReason : ''}
+              </SelectItem>
+            )}
+          </SelectGroup>
+          {variableNodes.length > 0 && (
+            <>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Variables</SelectLabel>
+                {variableNodes.map((v) => (
+                  <SelectItem key={v.id} value={`var:${v.name}`}>
+                    ${v.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </>
           )}
         </SelectContent>
       </Select>
@@ -345,6 +392,15 @@ export function AmountSelector({
               max="100"
             />
           </div>
+        </div>
+      )}
+
+      {/* Variable */}
+      {isVariableValue && selectedVariableName && (
+        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 p-3">
+          <p className="text-sm text-emerald-400">
+            Will use the value of variable <span className="font-mono font-medium">${selectedVariableName}</span>
+          </p>
         </div>
       )}
 

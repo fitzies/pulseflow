@@ -3,6 +3,8 @@ import {
   JsonRpcProvider,
   Wallet,
   MaxUint256,
+  parseEther,
+  formatEther,
   type ContractTransactionReceipt,
   type ContractTransactionResponse
 } from "ethers";
@@ -11,7 +13,7 @@ import { getWalletFromEncryptedKey } from "./wallet-generation";
 import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from "./abis";
 import { CONFIG } from "./config";
 import type { ExecutionContext, AmountValue } from "./execution-context";
-import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput } from "./execution-context";
+import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
 
 // WPLS address for price calculations
 const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
@@ -1821,6 +1823,82 @@ export async function executeNode(
 
       return { result: telegramOutput, context: updatedContextTelegram };
 
+    case "variable":
+      // Variable node - stores a named variable in the execution context
+      const variableName = nodeData.variableName;
+      if (!variableName) {
+        throw new Error("Variable name is required");
+      }
+
+      let variableValue: bigint;
+      const variableSourceType = nodeData.sourceType || 'previousOutput';
+
+      if (variableSourceType === 'static') {
+        // Static value - parse as ether
+        const staticValue = nodeData.staticValue || '0';
+        variableValue = parseEther(staticValue);
+      } else if (variableSourceType === 'previousOutput') {
+        // Get from previous node output
+        if (!context.previousNodeId) {
+          throw new Error("No previous node output available for variable");
+        }
+        const prevOutputVar = context.nodeOutputs.get(context.previousNodeId);
+        if (!prevOutputVar) {
+          throw new Error(`Previous node ${context.previousNodeId} has no output`);
+        }
+        const outputField = nodeData.outputField || 'amountOut';
+        const fieldValueVar = prevOutputVar[outputField];
+        if (fieldValueVar === undefined || fieldValueVar === null) {
+          throw new Error(`Previous node output does not have field: ${outputField}`);
+        }
+        variableValue = typeof fieldValueVar === 'bigint' ? fieldValueVar : BigInt(fieldValueVar.toString());
+      } else {
+        throw new Error(`Unknown variable source type: ${variableSourceType}`);
+      }
+
+      // Store the variable in context
+      const contextWithVariable = setVariable(context, variableName, variableValue);
+
+      const variableOutput = {
+        variableName,
+        value: variableValue,
+        valueFormatted: formatEther(variableValue),
+      };
+
+      const updatedContextVariable = updateContextWithOutput(
+        contextWithVariable,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        variableOutput
+      );
+
+      return { result: variableOutput, context: updatedContextVariable };
+
+    case "calculator":
+      // Calculator node - evaluates a math expression with variable substitution
+      const expression = nodeData.expression;
+      if (!expression) {
+        throw new Error("Expression is required for calculator node");
+      }
+
+      // Evaluate the expression (handles {{variableName}} substitution)
+      const calculatedValue = evaluateExpression(expression, context);
+
+      const calculatorOutput = {
+        expression,
+        result: calculatedValue,
+        resultFormatted: formatEther(calculatedValue),
+      };
+
+      const updatedContextCalculator = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        calculatorOutput
+      );
+
+      return { result: calculatorOutput, context: updatedContextCalculator };
+
     default:
       throw new Error(`Unknown node type: ${nodeType}`);
   }
@@ -1840,6 +1918,7 @@ export async function executeNodeLegacy(
     nodeOutputs: new Map(),
     previousNodeId: null,
     previousNodeType: null,
+    variables: new Map(),
   };
   const { result } = await executeNode(automationId, nodeType, nodeData, context, contractAddress);
   return result;
