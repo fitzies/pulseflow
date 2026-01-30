@@ -13,6 +13,7 @@ import {
   ArrowPathIcon,
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
+  BuildingOfficeIcon,
   VariableIcon,
   CalculatorIcon,
 } from '@heroicons/react/24/solid';
@@ -45,6 +46,7 @@ export type NodeType =
   | 'checkLPTokenAmounts'
   | 'burnToken'
   | 'claimToken'
+  | 'getParent'
   | 'wait'
   | 'loop'
   | 'gasGuard'
@@ -169,6 +171,14 @@ const nodeTypes: NodeTypeOption[] = [
     iconColor: getNodeTextColor('claimToken'),
   },
   {
+    type: 'getParent',
+    label: 'Get Parent',
+    description: 'Get parent contract address (playground tokens only)',
+    icon: BuildingOfficeIcon,
+    iconBg: getNodeBackgroundColor('getParent'),
+    iconColor: getNodeTextColor('getParent'),
+  },
+  {
     type: 'checkLPTokenAmounts',
     label: 'Check LP',
     description: 'Check LP token amounts',
@@ -256,7 +266,7 @@ const nodeGroups = {
   checks: nodeTypes.filter((n) =>
     ['checkBalance', 'checkTokenBalance', 'checkLPTokenAmounts'].includes(n.type)
   ),
-  tokenOperations: nodeTypes.filter((n) => ['burnToken', 'claimToken'].includes(n.type)),
+  playgrounds: nodeTypes.filter((n) => ['burnToken', 'claimToken', 'getParent'].includes(n.type)),
   controlFlow: nodeTypes.filter((n) =>
     ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
   ),
@@ -349,7 +359,7 @@ export function SelectNodeDialog({
         {renderGroup('Liquidity', nodeGroups.liquidity)}
         {renderGroup('Transfers', nodeGroups.transfers)}
         {renderGroup('Checks', nodeGroups.checks)}
-        {renderGroup('Token Operations', nodeGroups.tokenOperations)}
+        {renderGroup('Playgrounds', nodeGroups.playgrounds)}
         {renderGroup('Control Flow', nodeGroups.controlFlow)}
         {renderGroup('Utilities', nodeGroups.utilities)}
         {renderGroup('External', nodeGroups.external, false)}

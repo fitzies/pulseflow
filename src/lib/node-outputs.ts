@@ -82,6 +82,9 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
     gasPrice: 'bigint',
     gasUsed: 'bigint',
   },
+  getParent: {
+    parentAddress: 'address',
+  },
   checkLPTokenAmounts: {
     lpBalance: 'bigint',
     token0: 'address',

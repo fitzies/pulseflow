@@ -245,14 +245,16 @@ Pause execution for a specified duration.
 
 ### 17. Loop Node
 
-Repeat a section of your automation multiple times.
+Restart your automation from the beginning when this node is encountered.
 
 **Configuration:**
 
-- **Loop Count:** Number of iterations (1-3)
+- **Loop Count:** Number of times to restart from the start node (1-3)
 - **Notes:** Custom description
 
-**Use Case:** Execute multiple small swaps, compound strategies, or batch operations.
+**Behavior:** When execution reaches this node, it stops and restarts from the start node. After the specified number of restarts, execution continues past this node. For example, with Loop Count = 1: execution runs until the loop node, restarts once from the start, then when it reaches the loop node again, it continues past it.
+
+**Use Case:** Execute multiple small swaps, compound strategies, or batch operations that need to restart from the beginning.
 
 ### 18. Gas Guard Node
 

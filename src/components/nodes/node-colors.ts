@@ -53,6 +53,7 @@ export type NodeType =
   | 'checkPrice'
   | 'burnToken'
   | 'claimToken'
+  | 'getParent'
   | 'wait'
   | 'loop'
   | 'gasGuard'
@@ -84,6 +85,7 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   checkPrice: { background: 'bg-violet-400/20', text: 'text-violet-400' },
   burnToken: { background: 'bg-fuchsia-600/20', text: 'text-fuchsia-600' },
   claimToken: { background: 'bg-indigo-500/20', text: 'text-indigo-500' },
+  getParent: { background: 'bg-violet-500/20', text: 'text-violet-500' },
   wait: { background: 'bg-blue-500/20', text: 'text-blue-500' },
   loop: { background: 'bg-violet-400/20', text: 'text-violet-400' },
   gasGuard: { background: 'bg-purple-500/20', text: 'text-purple-500' },

@@ -937,6 +937,25 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const renderGetParentConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <AddressInput
+        id="token"
+        value={formData.token || ''}
+        onChange={(e) => updateField('token', e.target.value)}
+        label="Token Address"
+        fieldName="token"
+        hardError={validation.hardErrors.token}
+        softWarning={validation.softWarnings.token}
+        expectedType="token"
+      />
+      <p className="text-xs text-muted-foreground px-4">
+        Only playground tokens are allowed. Playground tokens have a parent() function.
+      </p>
+      {renderNotesField()}
+    </div>
+  );
+
   const renderCheckLPTokenAmountsConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
       <AddressInput
@@ -1022,7 +1041,7 @@ export function NodeConfigSheet({
           onChange={(e) => updateField('loopCount', Math.min(3, Math.max(1, parseInt(e.target.value) || 1)))}
           className={validation.hardErrors.loopCount ? 'border-destructive' : validation.softWarnings.loopCount ? 'border-yellow-500' : ''}
         />
-        <p className="text-xs text-muted-foreground">Number of times to restart the automation (1-3). Loops back to start node.</p>
+        <p className="text-xs text-muted-foreground">Number of times to restart from the start node (1-3). Execution stops at this node and restarts from the beginning. After the specified number of restarts, execution continues past this node.</p>
         {validation.hardErrors.loopCount && (
           <p className="text-xs text-destructive">{validation.hardErrors.loopCount}</p>
         )}
@@ -1782,6 +1801,8 @@ export function NodeConfigSheet({
         return renderBurnTokenConfig();
       case 'claimToken':
         return renderClaimTokenConfig();
+      case 'getParent':
+        return renderGetParentConfig();
       case 'checkLPTokenAmounts':
         return renderCheckLPTokenAmountsConfig();
       case 'wait':

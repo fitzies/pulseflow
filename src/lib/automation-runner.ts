@@ -30,7 +30,7 @@ async function isExecutionCancelled(executionId: string): Promise<boolean> {
 /**
  * Execute an automation chain of nodes with branching support
  * Handles condition nodes that branch to true/false paths
- * Supports loop nodes that restart the chain from the beginning
+ * Supports loop nodes that restart the chain from the beginning when encountered
  * Supports cancellation via executionId check
  */
 export async function executeAutomationChain(
@@ -61,21 +61,23 @@ export async function executeAutomationChain(
     throw new Error('No start node found in automation');
   }
   
-  // Initialize context with loop tracking
+  // Track loop nodes and their restart counts
+  const loopNodeRestartCounts = new Map<string, number>();
+  
+  // Initialize context
   let context = createExecutionContext();
   (context as any).currentIteration = 0;
   
   const allResults: Array<{ nodeId: string; result: any }> = [];
-  let maxLoopCount = 1;
-  let currentIteration = 0;
+  let restartCount = 0;
   
-  // Execute with loop support
-  do {
-    currentIteration++;
-    (context as any).currentIteration = currentIteration;
+  // Execute with loop support - restart from start when loop node is encountered
+  while (true) {
+    restartCount++;
+    (context as any).currentIteration = restartCount;
     
     // Reset context outputs for new iteration (keep iteration count)
-    if (currentIteration > 1) {
+    if (restartCount > 1) {
       context.nodeOutputs = new Map();
       context.previousNodeId = null;
       context.previousNodeType = null;
@@ -87,6 +89,7 @@ export async function executeAutomationChain(
     // Get the first node after start
     const startEdges = outgoingEdges.get(startNode.id) || [];
     let currentNodeIds: string[] = startEdges.map((e) => e.target);
+    let shouldRestart = false;
     
     // Execute nodes in order, handling branching
     while (currentNodeIds.length > 0) {
@@ -125,7 +128,7 @@ export async function executeAutomationChain(
         type: 'node_start',
         nodeId: node.id,
         nodeType: node.type,
-        data: currentIteration > 1 ? { iteration: currentIteration } : undefined,
+        data: restartCount > 1 ? { iteration: restartCount } : undefined,
       });
       
       try {
@@ -141,14 +144,62 @@ export async function executeAutomationChain(
         // Update context for next node
         context = updatedContext;
         
-        // Track loop configuration if this is a loop node
+        // Handle loop node - check if we should restart or continue
         if (node.type === 'loop' && result?.loopCount) {
-          maxLoopCount = Math.min(3, Math.max(1, result.loopCount));
+          const loopCount = Math.min(3, Math.max(1, result.loopCount));
+          const currentRestartCount = loopNodeRestartCounts.get(node.id) || 0;
+          
+          // If we haven't reached the loop count, restart from beginning
+          if (currentRestartCount < loopCount) {
+            loopNodeRestartCounts.set(node.id, currentRestartCount + 1);
+            shouldRestart = true;
+            
+            allResults.push({
+              nodeId: node.id,
+              result: { ...result, iteration: restartCount, restarting: true },
+            });
+            
+            // Notify: node completed with restart
+            onProgress?.({
+              type: 'node_complete',
+              nodeId: node.id,
+              nodeType: node.type,
+              data: { ...result, iteration: restartCount, restarting: true },
+            });
+            
+            // Break out of inner while loop to restart from start
+            break;
+          } else {
+            // We've reached the loop count, continue past the loop node
+            loopNodeRestartCounts.set(node.id, currentRestartCount);
+            
+            allResults.push({
+              nodeId: node.id,
+              result: { ...result, iteration: restartCount, restarting: false },
+            });
+            
+            // Notify: node completed, continuing past loop
+            onProgress?.({
+              type: 'node_complete',
+              nodeId: node.id,
+              nodeType: node.type,
+              data: { ...result, iteration: restartCount, restarting: false },
+            });
+            
+            // Continue execution past the loop node
+            const nodeOutgoingEdges = outgoingEdges.get(node.id) || [];
+            for (const edge of nodeOutgoingEdges) {
+              if (!executedNodes.has(edge.target)) {
+                currentNodeIds.push(edge.target);
+              }
+            }
+            continue;
+          }
         }
         
         allResults.push({
           nodeId: node.id,
-          result: { ...result, iteration: currentIteration },
+          result: { ...result, iteration: restartCount },
         });
         
         // Notify: node completed
@@ -156,7 +207,7 @@ export async function executeAutomationChain(
           type: 'node_complete',
           nodeId: node.id,
           nodeType: node.type,
-          data: { ...result, iteration: currentIteration },
+          data: { ...result, iteration: restartCount },
         });
         
         // Determine next nodes to execute
@@ -211,7 +262,13 @@ export async function executeAutomationChain(
         );
       }
     }
-  } while (currentIteration < maxLoopCount);
+    
+    // If we hit a loop node that triggered a restart, continue the outer loop
+    // Otherwise, execution is complete
+    if (!shouldRestart) {
+      break;
+    }
+  }
   
   return { results: allResults, context };
 }

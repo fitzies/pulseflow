@@ -308,6 +308,28 @@ export async function checkIsPlaygroundToken(tokenAddress: string): Promise<bool
 }
 
 /**
+ * Gets parent contract address from a playground token (read-only operation)
+ */
+export async function getParentAddress(
+  automationId: string,
+  token: string,
+  contractAddress?: string
+): Promise<string> {
+  // Verify it's a playground token
+  const isPlayground = await checkIsPlaygroundToken(token);
+  if (!isPlayground) {
+    throw new Error("Token is not a playground token");
+  }
+
+  // Get parent address
+  const provider = getProvider();
+  const playgroundToken = new Contract(token, playgroundTokenABI, provider);
+  const parentAddress = await playgroundToken.parent();
+
+  return parentAddress;
+}
+
+/**
  * Gets wallet from automation ID
  */
 async function getWalletFromAutomation(automationId: string): Promise<Wallet> {
@@ -1506,6 +1528,31 @@ export async function executeNode(
 
       return { result: receiptClaim, context: updatedContextClaim };
 
+    case "getParent":
+      // Read-only operation - get parent address from playground token
+      if (!nodeData.token) {
+        throw new Error("Token address is required for getParent");
+      }
+
+      const parentAddress = await getParentAddress(
+        automationId,
+        nodeData.token,
+        contractAddress
+      );
+
+      const outputGetParent = {
+        parentAddress: parentAddress,
+      };
+
+      const updatedContextGetParent = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        outputGetParent
+      );
+
+      return { result: outputGetParent, context: updatedContextGetParent };
+
     case "checkBalance":
       // This is a read operation, no transaction needed
       const walletCheck = await getWalletFromAutomation(automationId);
@@ -1585,7 +1632,9 @@ export async function executeNode(
       return { result: { delaySeconds }, context: updatedContextWait };
 
     case "loop":
-      // Loop node - signals automation runner to restart from beginning
+      // Loop node - acts as a restart checkpoint
+      // When encountered, execution stops here and restarts from the start node
+      // After the specified number of restarts, execution continues past this node
       const loopCount = Math.min(3, Math.max(1, parseInt(nodeData.loopCount) || 1));
       const loopOutput = {
         loopCount,
