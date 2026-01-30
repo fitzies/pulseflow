@@ -63,6 +63,7 @@ import { AutomationSettingsDialog } from '@/components/automation-settings-dialo
 import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
 import { AIChatButton } from '@/components/ai-chat-button';
 import { AIChatPanel } from '@/components/ai-chat-panel';
+import { AutomationExecutionsDialog } from '@/components/navbar-components/automation-executions-dialog';
 
 // Higher-order component to wrap nodes with status indicator
 function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
@@ -206,6 +207,7 @@ export function AutomationFlow({
   const [priceTriggerValue, setPriceTriggerValue] = useState(initialPriceTriggerValue);
   const [priceTriggerCooldownMinutes, setPriceTriggerCooldownMinutes] = useState(initialPriceTriggerCooldownMinutes);
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [executionsDialogOpen, setExecutionsDialogOpen] = useState(false);
 
   // Check if user has Pro/Ultra for AI access
   const hasAiAccess = userPlan === 'PRO' || userPlan === 'ULTRA';
@@ -903,7 +905,7 @@ export function AutomationFlow({
           }}
         />
       )}
-      <div className="absolute top-4 left-4 z-10 rounded-lg bg-card border p-3 shadow-lg min-w-[280px]">
+      <div className="absolute top-4 left-4 z-10 rounded-lg bg-card border px-3 py-2 shadow-lg min-w-[280px]">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs text-muted-foreground">Automation</div>
           <div className="flex items-center gap-1">
@@ -948,6 +950,14 @@ export function AutomationFlow({
         <div className="text-sm">
           {isLoadingBalance ? 'Loading...' : `${plsBalance} PLS`}
         </div>
+        <Button 
+          className='w-full mt-5 mb-1' 
+          size={"sm"} 
+          variant={"outline"}
+          onClick={() => setExecutionsDialogOpen(true)}
+        >
+          Executions
+        </Button>
       </div>
 
       <AutomationSettingsDialog
@@ -1048,6 +1058,12 @@ export function AutomationFlow({
           onFlowUpdated={handleAiFlowUpdated}
         />
       )}
+
+      <AutomationExecutionsDialog
+        automationId={automationId}
+        open={executionsDialogOpen}
+        onOpenChange={setExecutionsDialogOpen}
+      />
     </div>
   );
 }
