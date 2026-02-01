@@ -631,41 +631,64 @@ export function NodeConfigSheet({
     );
   };
 
-  const renderTransferConfig = () => (
-    <div className="grid flex-1 auto-rows-min gap-6 px-4">
-      <AddressInput
-        id="token"
-        value={formData.token || ''}
-        onChange={(e) => updateField('token', e.target.value)}
-        label="Token Address"
-        fieldName="token"
-        hardError={validation.hardErrors.token}
-        softWarning={validation.softWarnings.token}
-        expectedType="token"
-      />
-      <AddressInput
-        id="to"
-        value={formData.to || ''}
-        onChange={(e) => updateField('to', e.target.value)}
-        label="To Address"
-        fieldName="to"
-        hardError={validation.hardErrors.to}
-        showTokenName={false}
-      />
-      <AmountSelector
-        value={formData.amount}
-        onChange={(value) => updateField('amount', value)}
-        previousNodeType={previousNodeType}
-        previousNodeConfig={previousNodeConfig}
-        label="Amount"
-        fieldName="amount"
-        nodeType="transfer"
-        formData={formData}
-        nodes={nodes}
-      />
-      {renderNotesField()}
-    </div>
-  );
+  const renderTransferConfig = () => {
+    const tokenType = formData.tokenType || 'token';
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Token Type</label>
+          <Select
+            value={tokenType}
+            onValueChange={(value) => updateField('tokenType', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="token">Regular Token (ERC20)</SelectItem>
+              <SelectItem value="lp">LP Token</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {tokenType === 'token'
+              ? 'Transfer a regular ERC20 token'
+              : 'Transfer LP tokens from a liquidity pool'}
+          </p>
+        </div>
+        <AddressInput
+          id="token"
+          value={formData.token || ''}
+          onChange={(e) => updateField('token', e.target.value)}
+          label={tokenType === 'lp' ? 'LP Token Address' : 'Token Address'}
+          fieldName="token"
+          hardError={validation.hardErrors.token}
+          softWarning={validation.softWarnings.token}
+          expectedType={tokenType as 'token' | 'lp'}
+        />
+        <AddressInput
+          id="to"
+          value={formData.to || ''}
+          onChange={(e) => updateField('to', e.target.value)}
+          label="To Address"
+          fieldName="to"
+          hardError={validation.hardErrors.to}
+          showTokenName={false}
+        />
+        <AmountSelector
+          value={formData.amount}
+          onChange={(value) => updateField('amount', value)}
+          previousNodeType={previousNodeType}
+          previousNodeConfig={previousNodeConfig}
+          label="Amount"
+          fieldName="amount"
+          nodeType="transfer"
+          formData={formData}
+          nodes={nodes}
+        />
+        {renderNotesField()}
+      </div>
+    );
+  };
 
   const renderTransferPLSConfig = () => (
     <div className="grid flex-1 auto-rows-min gap-6 px-4">
