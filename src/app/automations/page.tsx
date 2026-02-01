@@ -4,24 +4,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardHeader,
-  CardTitle,
   CardContent,
-  CardDescription,
-  CardFooter,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
-import { ShareAutomationButton } from "@/components/share-automation-button";
-import { AutomationSettingsButton } from "@/components/automation-settings-button";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
-import { AutomationNodeIcons } from "@/components/automation-node-icons";
-import { Status, StatusIndicator } from "@/components/kibo-ui/status";
-import {
-  HoverCard,
-  HoverCardTrigger,
-  HoverCardContent,
-} from "@/components/ui/hover-card";
+import AutomationsHeader from "@/components/automations-header";
+import { getProvider } from "@/lib/blockchain-functions";
 
 export default async function Page() {
   const user = await currentUser();
@@ -50,10 +38,13 @@ export default async function Page() {
   // Check plan status
   const hasPlan = dbUser.plan !== null;
 
-  // Get user's automations with running execution status
+  // Get user's automations with execution stats
   const automations = await prisma.automation.findMany({
     where: { userId: dbUser.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { isFavorite: "desc" },
+      { createdAt: "desc" },
+    ],
     select: {
       id: true,
       name: true,
@@ -66,11 +57,68 @@ export default async function Page() {
       showNodeLabels: true,
       betaFeatures: true,
       communityVisible: true,
+      isFavorite: true,
+      walletAddress: true,
       executions: {
         where: { status: "RUNNING" },
         take: 1,
       },
+      _count: {
+        select: { executions: true },
+      },
     },
+  });
+
+  // Fetch PLS balances for all automation wallets
+  const provider = getProvider();
+  const walletAddresses = automations.map((a) => a.walletAddress);
+  const balancePromises = walletAddresses.map((address) =>
+    provider.getBalance(address).catch(() => BigInt(0))
+  );
+  const balances = await Promise.all(balancePromises);
+  const totalPlsBalance = balances.reduce((sum, bal) => sum + bal, BigInt(0)).toString();
+
+  // Get success counts for each automation
+  const successCounts = await prisma.execution.groupBy({
+    by: ["automationId"],
+    where: {
+      automationId: { in: automations.map((a) => a.id) },
+      status: "SUCCESS",
+    },
+    _count: { id: true },
+  });
+
+  const successCountMap = new Map(
+    successCounts.map((s) => [s.automationId, s._count.id])
+  );
+
+  // Enrich automations with success count
+  const automationsWithStats = automations.map((automation) => ({
+    ...automation,
+    successCount: successCountMap.get(automation.id) ?? 0,
+  }));
+
+  // Calculate total success rate across all automations
+  const totalExecutions = automationsWithStats.reduce((sum, a) => sum + a._count.executions, 0);
+  const totalSuccessCount = automationsWithStats.reduce((sum, a) => sum + a.successCount, 0);
+  const totalSuccessRate = totalExecutions > 0 ? Math.round((totalSuccessCount / totalExecutions) * 100) : 0;
+
+  // Calculate additional stats
+  const scheduledAutomations = automations.filter((a) => a.triggerMode === "SCHEDULE").length;
+  
+  // Get failed executions count
+  const failedExecutionsCount = await prisma.execution.count({
+    where: {
+      userId: dbUser.id,
+      status: "FAILED",
+    },
+  });
+
+  // Get last execution time
+  const lastExecution = await prisma.execution.findFirst({
+    where: { userId: dbUser.id },
+    orderBy: { startedAt: "desc" },
+    select: { startedAt: true },
   });
 
   // Get plan limit and check if user can create more
@@ -80,150 +128,67 @@ export default async function Page() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Header with Create Button */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Automations</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage your automated automations
-          </p>
-        </div>
-        <CreateAutomationDialog
+      {/* Empty State */}
+      {automations.length === 0 ? (
+        <>
+          {/* Header with Create Button */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Automations</h1>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Manage your automated automations
+              </p>
+            </div>
+            <CreateAutomationDialog
+              hasPlan={hasPlan}
+              canCreateMore={canCreateMore}
+              currentCount={currentCount}
+              limit={planLimit}
+              automations={[]}
+            />
+          </div>
+          <Card className="py-12 bg-transparent border-transparent shadow-none">
+            <CardContent className="flex flex-col items-center justify-center text-center">
+              <h3 className="text-lg font-semibold mb-2">No automations yet</h3>
+              <p className="text-muted-foreground mb-6 text-sm">
+                {hasPlan
+                  ? "Get started by creating your first automation."
+                  : "Upgrade to a plan to create automations."}
+              </p>
+              {hasPlan && (
+                <CreateAutomationDialog
+                  hasPlan={hasPlan}
+                  buttonText="Create Your First Automation"
+                  canCreateMore={canCreateMore}
+                  currentCount={currentCount}
+                  limit={planLimit}
+                  automations={[]}
+                />
+              )}
+              {!hasPlan && (
+                <Button asChild variant="default">
+                  <Link href="/plans">View Plans</Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <AutomationsHeader
+          automations={automationsWithStats}
           hasPlan={hasPlan}
           canCreateMore={canCreateMore}
           currentCount={currentCount}
-          limit={planLimit}
-          automations={automations.map((a) => ({ id: a.id, name: a.name }))}
+          planLimit={planLimit}
+          userPlan={dbUser.plan}
+          automationNames={automations.map((a) => ({ id: a.id, name: a.name }))}
+          totalSuccessRate={totalSuccessRate}
+          totalPlsBalance={totalPlsBalance}
+          scheduledAutomations={scheduledAutomations}
+          totalExecutions={totalExecutions}
+          failedExecutions={failedExecutionsCount}
+          lastExecutionTime={lastExecution?.startedAt ?? null}
         />
-      </div>
-
-      {/* Empty State */}
-      {automations.length === 0 ? (
-        <Card className="py-12 bg-transparent border-transparent shadow-none">
-          <CardContent className="flex flex-col items-center justify-center text-center">
-            <h3 className="text-lg font-semibold mb-2">No automations yet</h3>
-            <p className="text-muted-foreground mb-6 text-sm">
-              {hasPlan
-                ? "Get started by creating your first automation."
-                : "Upgrade to a plan to create automations."}
-            </p>
-            {hasPlan && (
-              <CreateAutomationDialog
-                hasPlan={hasPlan}
-                buttonText="Create Your First Automation"
-                canCreateMore={canCreateMore}
-                currentCount={currentCount}
-                limit={planLimit}
-                automations={[]}
-              />
-            )}
-            {!hasPlan && (
-              <Button asChild variant="default">
-                <Link href="/plans">View Plans</Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        /* Grid Layout */
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {automations.map((automation) => {
-            const isRunning = automation.executions.length > 0;
-            return (
-              <Card key={automation.id} className="h-full flex flex-col hover:scale-[102%] duration-300">
-                <CardContent>
-                  <Link href={`/automations/${automation.id}`} className="flex items-center justify-center w-full h-40 border rounded-xl p-2">
-                    <AutomationNodeIcons definition={automation.definition} />
-                  </Link>
-                </CardContent>
-                <CardFooter className="flex items-center justify-between px-6!">
-                  <div className="flex items-center gap-2">
-                    <p>{automation.name}</p>
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <ShareAutomationButton
-                      definition={automation.definition}
-                      automationName={automation.name}
-                    />
-                    <AutomationSettingsButton
-                      automationId={automation.id}
-                      initialName={automation.name}
-                      initialDefaultSlippage={automation.defaultSlippage ?? 0.01}
-                      initialRpcEndpoint={automation.rpcEndpoint}
-                      initialShowNodeLabels={automation.showNodeLabels ?? true}
-                      initialBetaFeatures={automation.betaFeatures ?? false}
-                      initialCommunityVisible={automation.communityVisible ?? false}
-                      userPlan={dbUser.plan}
-                    />
-                    <HoverCard>
-                      <HoverCardTrigger asChild>
-                        <div>
-                          <Status
-                            className="rounded-full px-0 py-0 border-0 pl-2 cursor-help"
-                            status={
-                              isRunning
-                                ? "online"
-                                : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt
-                                  ? "maintenance"
-                                  : automation.isActive
-                                    ? "online"
-                                    : "offline"
-                            }
-                            variant="outline"
-                          >
-                            <StatusIndicator />
-                          </Status>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent>
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold">Automation Status</h4>
-                          {isRunning ? (
-                            <div>
-                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                                Online - Running
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                This automation is currently executing.
-                              </p>
-                            </div>
-                          ) : automation.triggerMode === 'SCHEDULE' && automation.nextRunAt ? (
-                            <div>
-                              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                                Maintenance - Scheduled
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                This automation runs on a schedule. Next run: {new Date(automation.nextRunAt).toLocaleString()}
-                              </p>
-                            </div>
-                          ) : automation.isActive ? (
-                            <div>
-                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                                Online - Active
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                This automation is active and ready to run when triggered.
-                              </p>
-                            </div>
-                          ) : (
-                            <div>
-                              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                                Offline - Inactive
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                This automation is currently disabled and will not execute.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  </div>
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
       )}
 
       {/* Plan requirement or limit reached message */}
