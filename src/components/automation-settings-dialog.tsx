@@ -21,6 +21,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { SlippageSelector } from '@/components/slippage-selector';
 import { toast } from 'sonner';
 import { Cog6ToothIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
@@ -177,13 +185,24 @@ export function AutomationSettingsDialog({
                   <span className="ml-2 text-xs text-muted-foreground">(PRO feature)</span>
                 )}
               </label>
-              <Input
-                id="rpcEndpoint"
+              <Select
                 value={rpcEndpoint}
-                onChange={(e) => setRpcEndpoint(e.target.value)}
-                placeholder="https://rpc.pulsechain.com"
+                onValueChange={setRpcEndpoint}
                 disabled={!isProUser}
-              />
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select RPC endpoint" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="https://rpc.pulsechain.com">rpc.pulsechain.com</SelectItem>
+                    <SelectItem value="https://rpc-pulsechain.g4mm4.io">rpc-pulsechain.g4mm4.io</SelectItem>
+                    <SelectItem value="https://rpc.pulsechainstats.com">rpc.pulsechainstats.com</SelectItem>
+                    <SelectItem value="https://rpc.pulsechainrpc.com">rpc.pulsechainrpc.com</SelectItem>
+                    <SelectItem value="https://pulsechain-rpc.publicnode.com">pulsechain-rpc.publicnode.com</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
               {!isProUser && (
                 <div className="text-xs text-muted-foreground">
                   Upgrade to PRO to use custom RPC endpoints
