@@ -85,6 +85,7 @@ export default async function Page({ params }: PageProps) {
       rpcEndpoint={automation.rpcEndpoint}
       showNodeLabels={automation.showNodeLabels ?? true}
       betaFeatures={automation.betaFeatures ?? false}
+      communityVisible={automation.communityVisible ?? false}
       activeExecution={activeExecution ? { id: activeExecution.id, status: activeExecution.status } : null}
       triggerMode={automation.triggerMode}
       cronExpression={automation.cronExpression}

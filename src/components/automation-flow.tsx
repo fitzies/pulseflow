@@ -129,6 +129,7 @@ interface AutomationFlowProps {
   rpcEndpoint: string | null;
   showNodeLabels: boolean;
   betaFeatures: boolean;
+  communityVisible: boolean;
   activeExecution?: { id: string; status: string } | null;
   triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression: string | null;
@@ -153,6 +154,7 @@ export function AutomationFlow({
   rpcEndpoint,
   showNodeLabels: initialShowNodeLabels,
   betaFeatures: initialBetaFeatures,
+  communityVisible: initialCommunityVisible,
   activeExecution,
   triggerMode: initialTriggerMode,
   cronExpression: initialCronExpression,
@@ -193,6 +195,7 @@ export function AutomationFlow({
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
   const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
+  const [communityVisible, setCommunityVisible] = useState(initialCommunityVisible);
   const [currentRpcEndpoint, setCurrentRpcEndpoint] = useState(rpcEndpoint || PULSECHAIN_RPC);
   const [currentName, setCurrentName] = useState(automationName);
   const [currentDefaultSlippage, setCurrentDefaultSlippage] = useState(defaultSlippage);
@@ -950,9 +953,9 @@ export function AutomationFlow({
         <div className="text-sm">
           {isLoadingBalance ? 'Loading...' : `${plsBalance} PLS`}
         </div>
-        <Button 
-          className='w-full mt-5 mb-1' 
-          size={"sm"} 
+        <Button
+          className='w-full mt-5 mb-1'
+          size={"sm"}
           variant={"outline"}
           onClick={() => setExecutionsDialogOpen(true)}
         >
@@ -969,6 +972,7 @@ export function AutomationFlow({
         initialRpcEndpoint={rpcEndpoint}
         initialShowNodeLabels={showNodeLabels}
         initialBetaFeatures={betaFeatures}
+        initialCommunityVisible={communityVisible}
         userPlan={userPlan}
         onSettingsUpdate={handleSettingsUpdate}
         onReset={handleReset}

@@ -9,7 +9,7 @@ export async function PATCH(
   try {
     const { id: automationId } = await params;
     const body = await request.json();
-    const { name, defaultSlippage, rpcEndpoint, showNodeLabels, betaFeatures } = body;
+    const { name, defaultSlippage, rpcEndpoint, showNodeLabels, betaFeatures, communityVisible } = body;
 
     // Get authenticated user from Clerk
     const user = await currentUser();
@@ -72,6 +72,10 @@ export async function PATCH(
 
     if (betaFeatures !== undefined) {
       updateData.betaFeatures = betaFeatures;
+    }
+
+    if (communityVisible !== undefined) {
+      updateData.communityVisible = communityVisible;
     }
 
     // Only allow RPC endpoint update if user is PRO/ULTRA

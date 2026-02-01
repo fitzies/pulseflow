@@ -36,6 +36,8 @@ import {
   duplicateAutomation,
   createAutomationFromShare,
 } from "@/lib/actions/automations";
+import { Checkbox } from "./ui/checkbox";
+import { cn } from "@/lib/utils";
 
 type DialogMode = "new" | "duplicate" | "import" | null;
 
@@ -61,6 +63,7 @@ export function CreateAutomationDialog({
   const [error, setError] = useState<string | null>(null);
   const [selectedAutomationId, setSelectedAutomationId] = useState<string>("");
   const [shareString, setShareString] = useState("");
+  const [communityVisible, setCommunityVisible] = useState(false);
   const router = useRouter();
 
   const handleClose = () => {
@@ -68,6 +71,7 @@ export function CreateAutomationDialog({
     setError(null);
     setSelectedAutomationId("");
     setShareString("");
+    setCommunityVisible(false);
   };
 
   const handleNewSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -85,7 +89,7 @@ export function CreateAutomationDialog({
     }
 
     try {
-      const result = await createAutomation(name);
+      const result = await createAutomation(name, communityVisible);
 
       if (result.success) {
         handleClose();
@@ -121,7 +125,7 @@ export function CreateAutomationDialog({
     }
 
     try {
-      const result = await duplicateAutomation(selectedAutomationId, name);
+      const result = await duplicateAutomation(selectedAutomationId, name, communityVisible);
 
       if (result.success) {
         handleClose();
@@ -157,7 +161,7 @@ export function CreateAutomationDialog({
     }
 
     try {
-      const result = await createAutomationFromShare(shareString.trim(), name);
+      const result = await createAutomationFromShare(shareString.trim(), name, communityVisible);
 
       if (result.success) {
         handleClose();
@@ -246,6 +250,32 @@ export function CreateAutomationDialog({
                 disabled={isLoading}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label htmlFor="community-visible" className="text-sm font-medium">
+                  Community Visible
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  Visible to other users (wallet details remain private)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommunityVisible(!communityVisible)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  communityVisible ? 'bg-primary' : 'bg-muted'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    communityVisible ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -302,6 +332,31 @@ export function CreateAutomationDialog({
                 disabled={isLoading}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label htmlFor="dup-community-visible" className="text-sm font-medium">
+                  Community Visible
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  Visible to other users (wallet details remain private)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommunityVisible(!communityVisible)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  communityVisible ? 'bg-primary' : 'bg-muted'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    communityVisible ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -353,6 +408,31 @@ export function CreateAutomationDialog({
                 required
                 disabled={isLoading}
               />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label htmlFor="import-community-visible" className="text-sm font-medium">
+                  Community Visible
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  Visible to other users (wallet details remain private)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommunityVisible(!communityVisible)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  communityVisible ? 'bg-primary' : 'bg-muted'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    communityVisible ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
             </div>
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">

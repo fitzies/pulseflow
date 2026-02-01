@@ -244,18 +244,18 @@ const columns = [
     cell: (info) => {
       const error = info.getValue();
       const isSkeletonRow = info.row.original.id.startsWith("skeleton-");
-      
+
       // Only show skeleton if it's actually a skeleton row (loading state)
       // If it's real data with null/empty error, show "-" (successful execution)
       if (isEmpty(error) && isSkeletonRow) {
         return <div className="bg-stone-800 animate-pulse rounded-md h-4 w-12" />;
       }
-      
+
       // Real data: show "-" for no error, or the error text
       if (!error) {
         return <span className="text-muted-foreground">-</span>;
       }
-      
+
       return (
         <span className="text-sm text-red-500 truncate max-w-[150px] block" title={error}>
           {error}
@@ -269,12 +269,14 @@ type FilterType = "All" | ExecutionType;
 
 interface AutomationExecutionsDialogProps {
   automationId?: string;
+  initialExecutionId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function AutomationExecutionsDialog({
   automationId,
+  initialExecutionId,
   open,
   onOpenChange,
 }: AutomationExecutionsDialogProps) {
@@ -313,12 +315,19 @@ export function AutomationExecutionsDialog({
   useEffect(() => {
     if (open) {
       fetchExecutions();
-      // Reset view when dialog opens
-      setView("list");
-      setSelectedExecutionId(null);
-      setExecutionDetails(null);
+      // If initialExecutionId is provided, open directly to that execution's detail view
+      if (initialExecutionId) {
+        setView("detail");
+        setSelectedExecutionId(initialExecutionId);
+        fetchExecutionDetails(initialExecutionId);
+      } else {
+        // Reset view when dialog opens without initial execution
+        setView("list");
+        setSelectedExecutionId(null);
+        setExecutionDetails(null);
+      }
     }
-  }, [open, fetchExecutions]);
+  }, [open, fetchExecutions, initialExecutionId]);
 
   const fetchExecutionDetails = useCallback(async (id: string) => {
     setDetailsLoading(true);
@@ -529,7 +538,7 @@ export function AutomationExecutionsDialog({
                       executionDetails.status === "FAILED" ? "text-red-400" :
                         executionDetails.status === "CANCELLED" ? "text-yellow-600" :
                           "text-blue-600"
-                    }`}>
+                      }`}>
                       {executionDetails.status}
                     </span>
                   </div>
@@ -605,6 +614,7 @@ export function ExecutionsButton() {
       <Button
         variant="ghost"
         size="sm"
+        className="rounded-full aspect-square cursor-pointer w-9 h-9"
         onClick={() => setDialogOpen(true)}
       >
         <ClockIcon className="h-5 w-5" />

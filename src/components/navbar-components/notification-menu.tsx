@@ -9,6 +9,8 @@ import {
   CopyIcon,
   CheckIcon,
   RefreshCwIcon,
+  Bell,
+  BellDot,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -26,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CommandLineIcon } from "@heroicons/react/24/solid";
+import { BellAlertIcon, BellIcon, CommandLineIcon } from "@heroicons/react/24/solid";
 
 type ExecutionStatus = "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 
@@ -338,11 +340,11 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
         <PopoverTrigger asChild>
           <Button
             aria-label="View recent executions"
-            className="relative h-8 px-3 shadow-none"
+            className=" px-3 shadow-none h-9 w-9 rounded-full cursor-pointer"
             size="sm"
             variant="ghost"
           >
-            <CommandLineIcon aria-hidden="true" className={`h-9 w-9`} />
+            <BellIcon aria-hidden="true" className={`h-9 w-9`} />
             {/* <span className="text-sm">Executions</span> */}
             {
               runningCount > 0 && (
@@ -356,7 +358,7 @@ export default function RecentExecutions({ executions }: RecentExecutionsProps) 
         </PopoverTrigger >
         <PopoverContent className="w-80 p-1">
           <div className="flex items-center justify-between gap-4 px-3 py-2">
-            <div className="font-semibold text-sm">Recent Executions</div>
+            <div className="font-semibold text-sm">Notifications</div>
             <Button
               variant="ghost"
               size="sm"

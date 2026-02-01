@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import RecentExecutions from "./navbar-components/notification-menu";
+import { SearchCommandButton } from "./navbar-components/search-command-button";
 import { Bars3Icon, ViewColumnsIcon } from "@heroicons/react/24/solid";
 import { ExecutionsButton } from "./navbar-components/automation-executions-dialog";
 
@@ -75,6 +76,12 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
       id: execution.automation.id,
       name: execution.automation.name,
     },
+  }));
+
+  // Serialize automations for the client component (just id and name)
+  const serializedAutomations = automations.map((automation) => ({
+    id: automation.id,
+    name: automation.name,
   }));
 
   const userDisplayName = user.firstName && user.lastName
@@ -131,14 +138,19 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
           </Breadcrumb>
         </div>
         {/* Right side */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {!hasPlan && (
             <Button asChild size="sm" variant="outline">
               <Link href="/plans">Upgrade</Link>
             </Button>
           )}
+          <SearchCommandButton
+            automations={serializedAutomations}
+            executions={serializedExecutions}
+          />
+          <RecentExecutions executions={serializedExecutions} />
           <ExecutionsButton />
-          {/* <RecentExecutions executions={serializedExecutions} /> */}
+          {/* <RecentExecutions /> */}
           {/* {layout === "Automations" ? <Button asChild size="sm" variant="ghost" className="h-8 px-3 shadow-none">
             <Link href="/executions">
               Executions

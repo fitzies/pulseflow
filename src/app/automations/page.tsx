@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
 import { ShareAutomationButton } from "@/components/share-automation-button";
-import { EditAutomationNameButton } from "@/components/edit-automation-name-button";
+import { AutomationSettingsButton } from "@/components/automation-settings-button";
 import { getPlanLimit, canCreateAutomation } from "@/lib/plan-limits";
 import { AutomationNodeIcons } from "@/components/automation-node-icons";
 import { Status, StatusIndicator } from "@/components/kibo-ui/status";
@@ -54,7 +54,18 @@ export default async function Page() {
   const automations = await prisma.automation.findMany({
     where: { userId: dbUser.id },
     orderBy: { createdAt: "desc" },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      definition: true,
+      triggerMode: true,
+      nextRunAt: true,
+      isActive: true,
+      defaultSlippage: true,
+      rpcEndpoint: true,
+      showNodeLabels: true,
+      betaFeatures: true,
+      communityVisible: true,
       executions: {
         where: { status: "RUNNING" },
         take: 1,
@@ -130,13 +141,19 @@ export default async function Page() {
                     <p>{automation.name}</p>
                   </div>
                   <div className="flex items-center justify-center gap-2">
-                    <EditAutomationNameButton
-                      automationId={automation.id}
-                      currentName={automation.name}
-                    />
                     <ShareAutomationButton
                       definition={automation.definition}
                       automationName={automation.name}
+                    />
+                    <AutomationSettingsButton
+                      automationId={automation.id}
+                      initialName={automation.name}
+                      initialDefaultSlippage={automation.defaultSlippage ?? 0.01}
+                      initialRpcEndpoint={automation.rpcEndpoint}
+                      initialShowNodeLabels={automation.showNodeLabels ?? true}
+                      initialBetaFeatures={automation.betaFeatures ?? false}
+                      initialCommunityVisible={automation.communityVisible ?? false}
+                      userPlan={dbUser.plan}
                     />
                     <HoverCard>
                       <HoverCardTrigger asChild>

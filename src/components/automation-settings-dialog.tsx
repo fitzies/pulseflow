@@ -35,6 +35,7 @@ interface AutomationSettingsDialogProps {
   initialRpcEndpoint: string | null;
   initialShowNodeLabels: boolean;
   initialBetaFeatures: boolean;
+  initialCommunityVisible: boolean;
   userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
   onSettingsUpdate?: () => void;
   onReset?: () => void;
@@ -50,6 +51,7 @@ export function AutomationSettingsDialog({
   initialRpcEndpoint,
   initialShowNodeLabels,
   initialBetaFeatures,
+  initialCommunityVisible,
   userPlan,
   onSettingsUpdate,
   onReset,
@@ -60,6 +62,7 @@ export function AutomationSettingsDialog({
   const [rpcEndpoint, setRpcEndpoint] = useState(initialRpcEndpoint || 'https://rpc.pulsechain.com');
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
   const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
+  const [communityVisible, setCommunityVisible] = useState(initialCommunityVisible);
   const [isSaving, setIsSaving] = useState(false);
   const [showPrivateKeyDialog, setShowPrivateKeyDialog] = useState(false);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
@@ -74,9 +77,10 @@ export function AutomationSettingsDialog({
       setRpcEndpoint(initialRpcEndpoint || 'https://rpc.pulsechain.com');
       setShowNodeLabels(initialShowNodeLabels);
       setBetaFeatures(initialBetaFeatures);
+      setCommunityVisible(initialCommunityVisible);
       setPrivateKey(null);
     }
-  }, [open, initialName, initialDefaultSlippage, initialRpcEndpoint, initialShowNodeLabels, initialBetaFeatures]);
+  }, [open, initialName, initialDefaultSlippage, initialRpcEndpoint, initialShowNodeLabels, initialBetaFeatures, initialCommunityVisible]);
 
   const isProUser = userPlan === 'PRO' || userPlan === 'ULTRA';
 
@@ -94,6 +98,7 @@ export function AutomationSettingsDialog({
           rpcEndpoint: isProUser ? rpcEndpoint : undefined,
           showNodeLabels,
           betaFeatures,
+          communityVisible
         }),
       });
 
@@ -187,7 +192,7 @@ export function AutomationSettingsDialog({
             </div>
 
             {/* Node Labels Toggle */}
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <label htmlFor="showNodeLabels" className="text-sm font-medium">
                   Show Node Labels
@@ -211,7 +216,7 @@ export function AutomationSettingsDialog({
                   )}
                 />
               </button>
-            </div>
+            </div> */}
 
             {/* Beta Features Toggle */}
             <div className="flex items-center justify-between">
@@ -240,6 +245,32 @@ export function AutomationSettingsDialog({
               </button>
             </div>
 
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label htmlFor="communityVisible" className="text-sm font-medium">
+                  Community Visible
+                </label>
+                <div className="text-xs text-muted-foreground">
+                  Visible to other users (wallet details remain private)
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommunityVisible(!communityVisible)}
+                className={cn(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                  communityVisible ? 'bg-primary' : 'bg-muted'
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    communityVisible ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+
             {/* Reveal Private Key */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Private Key</label>
@@ -247,7 +278,7 @@ export function AutomationSettingsDialog({
                 type="button"
                 variant="outline"
                 onClick={() => setShowPrivateKeyDialog(true)}
-                className="w-full"
+                className="w-full mt-1"
               >
                 {privateKey ? (
                   <>
@@ -284,7 +315,7 @@ export function AutomationSettingsDialog({
             {/* Reset Automation */}
             <div className="space-y-2 border-t pt-4">
               <label className="text-sm font-medium text-destructive">Danger Zone</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-1">
                 <Button
                   type="button"
                   variant="destructive"

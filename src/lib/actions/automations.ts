@@ -10,7 +10,7 @@ import { validateMinimumInterval, getNextRunDate } from "@/lib/cron-utils.server
 import type { Node, Edge } from "@xyflow/react";
 import type { TriggerMode } from "@prisma/client";
 
-export async function createAutomation(name: string) {
+export async function createAutomation(name: string, communityVisible: boolean = false) {
   try {
     // Get authenticated user from Clerk
     const user = await currentUser();
@@ -72,6 +72,7 @@ export async function createAutomation(name: string) {
         walletEncKey: encryptedKey,
         definition: {},
         isActive: false,
+        communityVisible,
       },
     });
 
@@ -562,7 +563,7 @@ export async function updateAutomationPriceTrigger(
   }
 }
 
-export async function duplicateAutomation(sourceAutomationId: string, newName: string) {
+export async function duplicateAutomation(sourceAutomationId: string, newName: string, communityVisible: boolean = false) {
   try {
     const user = await currentUser();
 
@@ -624,6 +625,7 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
         defaultSlippage: sourceAutomation.defaultSlippage,
         rpcEndpoint: sourceAutomation.rpcEndpoint,
         showNodeLabels: sourceAutomation.showNodeLabels,
+        communityVisible,
       },
     });
 
@@ -693,7 +695,7 @@ export async function createShareCode(definition: unknown) {
   }
 }
 
-export async function createAutomationFromShare(shareString: string, name: string) {
+export async function createAutomationFromShare(shareString: string, name: string, communityVisible: boolean = false) {
   const { extractShareCode } = await import("@/lib/automation-share");
 
   try {
@@ -769,6 +771,7 @@ export async function createAutomationFromShare(shareString: string, name: strin
           edges: definition?.edges || [],
         } as any,
         isActive: false,
+        communityVisible,
       },
     });
 
