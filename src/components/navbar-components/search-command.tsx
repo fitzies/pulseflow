@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CommandDialog,
@@ -70,16 +70,12 @@ export function SearchCommand({
   const [executionDialogOpen, setExecutionDialogOpen] = useState(false);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
-  // Filter automations based on search query
-  const filteredAutomations = automations.filter((automation) =>
-    automation.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Filter executions based on search query (search in automation name or error)
-  const filteredExecutions = executions.filter(
-    (execution) =>
-      execution.automation.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Reset search query when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      setSearchQuery("");
+    }
+  }, [open]);
 
   const handleAutomationSelect = (automationId: string) => {
     router.push(`/automations/${automationId}`);
@@ -100,33 +96,33 @@ export function SearchCommand({
         open={open}
         onOpenChange={setOpen}
         title="Search Automations"
-        description="Type a command or search..."
+        description="Search automations and executions..."
       >
         <CommandInput
-          placeholder="Type a command or search..."
+          placeholder="Search automations and executions..."
           value={searchQuery}
           onValueChange={setSearchQuery}
         />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Automations">
-            {filteredAutomations.map((automation) => (
+            {automations.map((automation) => (
               <CommandItem
                 key={automation.id}
-                value={`automation-${automation.id}`}
+                value={automation.name}
                 onSelect={() => handleAutomationSelect(automation.id)}
               >
                 {automation.name}
               </CommandItem>
             ))}
           </CommandGroup>
-          {filteredExecutions.length > 0 && <CommandSeparator />}
-          {filteredExecutions.length > 0 && (
+          {executions.length > 0 && <CommandSeparator />}
+          {executions.length > 0 && (
             <CommandGroup heading="Executions">
-              {filteredExecutions.slice(0, 10).map((execution) => (
+              {executions.slice(0, 10).map((execution) => (
                 <CommandItem
                   key={execution.id}
-                  value={`execution-${execution.id}`}
+                  value={`${execution.automation.name} ${execution.id}`}
                   onSelect={() => handleExecutionSelect(execution.id)}
                 >
                   <div className="flex items-center gap-2 w-full">
