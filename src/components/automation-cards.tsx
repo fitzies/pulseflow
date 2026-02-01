@@ -333,7 +333,7 @@ export default function AutomationCards({
   userPlan: "BASIC" | "PRO" | "ULTRA" | null;
 }) {
   return (
-    <Card className="shadow-none bg-stone-900/60 col-span-3">
+    <Card className="shadow-none bg-stone-900/60 md:col-span-3 col-span-4">
       <CardContent className="flex flex-col gap-3">
         {automations.map((automation, index) => (
           <AutomationRow

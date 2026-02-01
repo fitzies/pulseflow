@@ -402,7 +402,7 @@ export function useNodeValidation(
         serverValidationFields.push('path');
         break;
       case 'transfer':
-        serverValidationFields.push('token', 'amount');
+        serverValidationFields.push('token', 'amount', 'tokenType');
         break;
       case 'transferPLS':
         serverValidationFields.push('plsAmount');
@@ -505,6 +505,7 @@ export function useNodeValidation(
     formData.tokenAddress,
     formData.lpPairAddress,
     formData.conditionType,
+    formData.tokenType,
   ]);
 
   return validation;

@@ -167,16 +167,27 @@ export async function POST(
 
       case 'transfer': {
         const token = formData.token;
+        const tokenType = formData.tokenType || 'token'; // Default to token for backwards compatibility
         if (!token) {
-          validationResults.hardErrors.token = 'Token address is required';
+          validationResults.hardErrors.token = tokenType === 'lp' ? 'LP token address is required' : 'Token address is required';
         } else if (!validateAddress(token)) {
           validationResults.hardErrors.token = 'Invalid address format';
         } else {
           const tokenCheck = await validateTokenOnly(token);
-          if (tokenCheck.isLP) {
-            validationResults.hardErrors.token = 'LP pair address not allowed. Please use a token address.';
-          } else if (!tokenCheck.isValid) {
-            validationResults.hardErrors.token = 'Invalid token contract';
+          if (tokenType === 'lp') {
+            // Expecting LP token - validate it's actually an LP
+            if (!tokenCheck.isLP && tokenCheck.isValid) {
+              validationResults.softWarnings.token = 'This appears to be a regular token, not an LP token';
+            } else if (!tokenCheck.isValid && !tokenCheck.isLP) {
+              validationResults.hardErrors.token = 'Invalid LP token contract';
+            }
+          } else {
+            // Expecting regular token - block LP addresses
+            if (tokenCheck.isLP) {
+              validationResults.hardErrors.token = 'LP pair address not allowed. Please use a token address.';
+            } else if (!tokenCheck.isValid) {
+              validationResults.hardErrors.token = 'Invalid token contract';
+            }
           }
         }
         const to = formData.to;

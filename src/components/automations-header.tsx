@@ -97,7 +97,7 @@ export default function AutomationsHeader({
       {/* Automation Cards */}
       {filteredAutomations.length > 0 && (
         <div className="w-full grid grid-cols-4 gap-4 items-start">
-          <Card className="col-span-1 shadow-none bg-stone-900/60 self-start">
+          <Card className="col-span-1 shadow-none bg-stone-900/60 self-start md:block hidden">
             <CardContent className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Total Automations</p>
