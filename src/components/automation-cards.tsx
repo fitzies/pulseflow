@@ -195,18 +195,35 @@ function AutomationRow({
           </Link>
           <div className="flex items-center gap-3">
             {isFavorite && (
-              <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+              <HoverCard>
+                <HoverCardTrigger>
+                  <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                </HoverCardTrigger>
+                <HoverCardContent>
+                  <p className="text-sm">Favorite</p>
+                </HoverCardContent>
+              </HoverCard>
             )}
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Heart className="h-4 w-4" />
-              <span className="text-sm">0</span>
-            </div>
+            <HoverCard>
+              <HoverCardTrigger>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Heart className="h-4 w-4" />
+                  <span className="text-sm">0</span>
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent>
+                <p className="text-sm">Community likes</p>
+              </HoverCardContent>
+            </HoverCard>
             <HoverCard>
               <HoverCardTrigger>
                 <span className="text-sm text-muted-foreground">
                   {successRate !== null ? `${successRate}%` : "--"}
                 </span>
               </HoverCardTrigger>
+              <HoverCardContent>
+                <p className="text-sm">Success rate</p>
+              </HoverCardContent>
             </HoverCard>
             <Badge
               variant={

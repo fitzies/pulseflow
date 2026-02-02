@@ -39,3 +39,24 @@ export async function withRetry<T>(
   }
   throw new Error("Retry attempts exhausted");
 }
+
+/**
+ * Get or create a database user for the given Clerk user ID
+ * This was moved out of middleware since Prisma can't run on Edge runtime
+ */
+export async function getOrCreateDbUser(clerkId: string) {
+  let dbUser = await prisma.user.findUnique({
+    where: { clerkId },
+  });
+
+  if (!dbUser) {
+    dbUser = await prisma.user.create({
+      data: {
+        clerkId,
+        plan: null,
+      },
+    });
+  }
+
+  return dbUser;
+}
