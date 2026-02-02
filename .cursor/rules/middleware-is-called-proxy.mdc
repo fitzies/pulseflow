@@ -1,22 +1,16 @@
 ---
-name: middleware-uses-deprecated-name
-description: Using middleware.ts for Clerk compatibility
+name: middleware-is-called-proxy
+description: Next.js 16 proxy file convention
 ---
 
 # Overview
 
-This project uses `src/middleware.ts` instead of the Next.js 16 `proxy.ts` convention.
+In Next.js 16, the `middleware.ts` file convention was renamed to `proxy.ts`.
 
-## Why middleware.ts instead of proxy.ts?
+The proxy file is located at `src/proxy.ts` and uses `export default clerkMiddleware(...)`.
 
-Clerk v6.x still scans for `middleware.ts` to verify `clerkMiddleware()` is configured. If using `proxy.ts`, server actions calling `currentUser()` or `auth()` fail with: "Clerk can't detect usage of clerkMiddleware()".
+## No Prisma in Proxy
 
-Next.js 16 shows a deprecation warning but still fully supports `middleware.ts`. Once Clerk updates their detection logic for Next.js 16's `proxy.ts` convention, this file can be renamed.
-
-**Do not rename to `proxy.ts`** until Clerk supports it.
-
-## No Prisma in Middleware
-
-Middleware runs on Edge runtime, which doesn't support Prisma without Accelerate/Driver Adapters. User sync was moved to `getOrCreateDbUser()` in `src/lib/prisma.ts`.
+Proxy/middleware runs on Edge runtime, which doesn't support Prisma without Accelerate/Driver Adapters. User sync is handled via `getOrCreateDbUser()` in `src/lib/prisma.ts`.
 
 Reference: https://nextjs.org/docs/messages/middleware-to-proxy
