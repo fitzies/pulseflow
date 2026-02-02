@@ -7,6 +7,7 @@ import AutomationCards from "@/components/automation-cards";
 import { Prisma, TriggerMode } from "@prisma/client";
 import { ExecutionDialog } from "@/components/execution-dialog";
 import { AutomationStatsCard } from "@/components/automation-stats-card";
+import { SuccessRateCard } from "@/components/success-rate-card";
 import { RecentExecutionsCard } from "@/components/recent-executions-card";
 
 type AutomationWithStats = {
@@ -119,9 +120,9 @@ export default function AutomationsHeader({
               totalExecutions={totalExecutions}
               failedExecutions={failedExecutions}
               lastExecutionTime={lastExecutionTime}
-              totalSuccessRate={totalSuccessRate}
               totalPlsBalance={totalPlsBalance}
             />
+            <SuccessRateCard totalSuccessRate={totalSuccessRate} />
             <RecentExecutionsCard
               recentExecutions={recentExecutions}
               onExecutionClick={(executionId) => {

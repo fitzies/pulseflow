@@ -7,7 +7,6 @@ interface AutomationStatsCardProps {
   totalExecutions: number;
   failedExecutions: number;
   lastExecutionTime: Date | null;
-  totalSuccessRate: number;
   totalPlsBalance: string;
 }
 
@@ -17,7 +16,6 @@ export function AutomationStatsCard({
   totalExecutions,
   failedExecutions,
   lastExecutionTime,
-  totalSuccessRate,
   totalPlsBalance,
 }: AutomationStatsCardProps) {
   return (
@@ -53,10 +51,6 @@ export function AutomationStatsCard({
                 })
                 : "--"}
             </p>
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Success Rate</p>
-            <p className="text-sm">{totalSuccessRate}%</p>
           </div>
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Total PLS Balance</p>
