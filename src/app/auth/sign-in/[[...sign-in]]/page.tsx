@@ -6,7 +6,7 @@ export default function SignInPage() {
       <SignIn
         routing="path"
         path="/auth/sign-in"
-        redirectUrl="/"
+        fallbackRedirectUrl="/"
         signUpUrl="/auth/sign-up"
         appearance={{
           elements: {
