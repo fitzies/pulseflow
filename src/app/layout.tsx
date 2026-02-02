@@ -6,7 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import HomeNavWrapper from "@/components/home-nav-wrapper";
 import HomeNav from "@/components/home-nav";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/next";
+import { IconPreferenceProvider } from "@/components/icon-preference-provider";
 // Code rabbit
 
 const dmSans = DM_Sans({
@@ -41,12 +42,14 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Analytics />
-            <HomeNavWrapper>
-              <HomeNav />
-            </HomeNavWrapper>
-            <Toaster />
-            {children}
+            <IconPreferenceProvider>
+              <Analytics />
+              <HomeNavWrapper>
+                <HomeNav />
+              </HomeNavWrapper>
+              <Toaster />
+              {children}
+            </IconPreferenceProvider>
           </ThemeProvider>
         </body>
       </html>

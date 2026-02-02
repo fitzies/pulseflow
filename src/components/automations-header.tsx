@@ -9,6 +9,7 @@ import { ExecutionDialog } from "@/components/execution-dialog";
 import { AutomationStatsCard } from "@/components/automation-stats-card";
 import { SuccessRateCard } from "@/components/success-rate-card";
 import { RecentExecutionsCard } from "@/components/recent-executions-card";
+import { ViewSettingsButton } from "./view-settings-button";
 
 type AutomationWithStats = {
   id: string;
@@ -77,7 +78,9 @@ export default function AutomationsHeader({
   recentExecutions,
 }: AutomationsHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(
+    null
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const filteredAutomations = useMemo(() => {
@@ -93,7 +96,7 @@ export default function AutomationsHeader({
   return (
     <>
       {/* Header with Search Input and Create Button */}
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex items-center justify-between gap-2">
         <Input
           type="text"
           placeholder="Search automations..."
@@ -101,6 +104,7 @@ export default function AutomationsHeader({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1"
         />
+        <ViewSettingsButton />
         <CreateAutomationDialog
           hasPlan={hasPlan}
           canCreateMore={canCreateMore}
@@ -133,22 +137,22 @@ export default function AutomationsHeader({
           </div>
           <div className="flex flex-col w-full col-span-3 gap-3">
             <p className="ml-1">Automations</p>
-            <AutomationCards automations={filteredAutomations} userPlan={userPlan} />
+            <AutomationCards
+              automations={filteredAutomations}
+              userPlan={userPlan}
+            />
           </div>
         </div>
-      )
-      }
+      )}
 
       {/* No Results Message */}
-      {
-        searchQuery.trim() && filteredAutomations.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-muted-foreground">
-              No automations found matching "{searchQuery}"
-            </p>
-          </div>
-        )
-      }
+      {searchQuery.trim() && filteredAutomations.length === 0 && (
+        <div className="py-12 text-center">
+          <p className="text-muted-foreground">
+            No automations found matching "{searchQuery}"
+          </p>
+        </div>
+      )}
 
       {/* Execution Dialog */}
       <ExecutionDialog

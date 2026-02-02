@@ -31,6 +31,7 @@ import { createShareCode } from "@/lib/actions/automations";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
+import { useIconPreference } from "@/hooks/use-icon-preference";
 
 type AutomationWithExecutions = {
   id: string;
@@ -65,6 +66,7 @@ function AutomationRow({
   isLast: boolean;
 }) {
   const router = useRouter();
+  const { iconStyle } = useIconPreference();
   const [executionsDialogOpen, setExecutionsDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -184,7 +186,7 @@ function AutomationRow({
             className="flex items-center gap-3"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-md border">
-              <img src={`https://api.dicebear.com/9.x/thumbs/svg?seed=${automation.id}`} className="rounded-md" />
+              <img src={`https://api.dicebear.com/9.x/${iconStyle}/svg?seed=${automation.id}`} className="rounded-md" />
             </div>
             <div className="flex flex-col">
               <span className="font-medium">{automation.name}</span>
