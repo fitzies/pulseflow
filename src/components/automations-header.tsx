@@ -104,7 +104,9 @@ export default function AutomationsHeader({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1"
         />
-        <ViewSettingsButton />
+        <div className="hidden md:block">
+          <ViewSettingsButton />
+        </div>
         <CreateAutomationDialog
           hasPlan={hasPlan}
           canCreateMore={canCreateMore}
@@ -117,7 +119,7 @@ export default function AutomationsHeader({
       {/* Automation Cards */}
       {filteredAutomations.length > 0 && (
         <div className="w-full grid grid-cols-4 gap-6 items-start">
-          <div className="flex flex-col gap-3 col-span-1 w-full">
+          <div className="hidden md:flex flex-col gap-3 col-span-1 w-full">
             <AutomationStatsCard
               currentCount={currentCount}
               scheduledAutomations={scheduledAutomations}
@@ -135,8 +137,8 @@ export default function AutomationsHeader({
               }}
             />
           </div>
-          <div className="flex flex-col w-full col-span-3 gap-3">
-            <p className="ml-1">Automations</p>
+          <div className="flex flex-col w-full col-span-4 md:col-span-3 gap-3">
+            <p className="ml-1 hidden md:block">Automations</p>
             <AutomationCards
               automations={filteredAutomations}
               userPlan={userPlan}
