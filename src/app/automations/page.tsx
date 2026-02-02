@@ -105,7 +105,7 @@ export default async function Page() {
 
   // Calculate additional stats
   const scheduledAutomations = automations.filter((a) => a.triggerMode === "SCHEDULE").length;
-  
+
   // Get failed executions count
   const failedExecutionsCount = await prisma.execution.count({
     where: {
@@ -120,6 +120,34 @@ export default async function Page() {
     orderBy: { startedAt: "desc" },
     select: { startedAt: true },
   });
+
+  // Get recent executions (latest 5)
+  const recentExecutions = await prisma.execution.findMany({
+    where: { userId: dbUser.id },
+    include: {
+      automation: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: { startedAt: "desc" },
+    take: 5,
+  });
+
+  // Serialize executions for the client component
+  const serializedExecutions = recentExecutions.map((execution) => ({
+    id: execution.id,
+    status: execution.status as "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED",
+    error: execution.error,
+    startedAt: execution.startedAt.toISOString(),
+    finishedAt: execution.finishedAt?.toISOString() || null,
+    automation: {
+      id: execution.automation.id,
+      name: execution.automation.name,
+    },
+  }));
 
   // Get plan limit and check if user can create more
   const currentCount = automations.length;
@@ -188,6 +216,7 @@ export default async function Page() {
           totalExecutions={totalExecutions}
           failedExecutions={failedExecutionsCount}
           lastExecutionTime={lastExecution?.startedAt ?? null}
+          recentExecutions={serializedExecutions}
         />
       )}
 

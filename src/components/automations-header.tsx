@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { CreateAutomationDialog } from "@/components/create-automation-dialog";
 import AutomationCards from "@/components/automation-cards";
 import { Prisma, TriggerMode } from "@prisma/client";
-import { Card, CardContent } from "./ui/card";
-import { formatUnits } from "ethers";
+import { ExecutionDialog } from "@/components/execution-dialog";
+import { AutomationStatsCard } from "@/components/automation-stats-card";
+import { RecentExecutionsCard } from "@/components/recent-executions-card";
 
 type AutomationWithStats = {
   id: string;
@@ -45,6 +46,17 @@ interface AutomationsHeaderProps {
   totalExecutions: number;
   failedExecutions: number;
   lastExecutionTime: Date | null;
+  recentExecutions: Array<{
+    id: string;
+    status: "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+    error: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+    automation: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 export default function AutomationsHeader({
@@ -61,8 +73,11 @@ export default function AutomationsHeader({
   totalExecutions,
   failedExecutions,
   lastExecutionTime,
+  recentExecutions,
 }: AutomationsHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const filteredAutomations = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -97,61 +112,49 @@ export default function AutomationsHeader({
       {/* Automation Cards */}
       {filteredAutomations.length > 0 && (
         <div className="w-full grid grid-cols-4 gap-4 items-start">
-          <Card className="col-span-1 shadow-none bg-stone-900/60 self-start md:block hidden">
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Total Automations</p>
-                <p className="text-sm">{currentCount}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Scheduled</p>
-                <p className="text-sm">{scheduledAutomations}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Total Executions</p>
-                <p className="text-sm">{totalExecutions}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Failed Executions</p>
-                <p className="text-sm">{failedExecutions}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Last Execution</p>
-                <p className="text-sm">
-                  {lastExecutionTime
-                    ? new Date(lastExecutionTime).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })
-                    : "--"}
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Success Rate</p>
-                <p className="text-sm">{totalSuccessRate}%</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Total PLS Balance</p>
-                <p className="text-sm">
-                  {Number(formatUnits(totalPlsBalance, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} PLS
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <AutomationCards automations={filteredAutomations} userPlan={userPlan} />
+          <div className="flex flex-col gap-3 col-span-1 w-full">
+            <AutomationStatsCard
+              currentCount={currentCount}
+              scheduledAutomations={scheduledAutomations}
+              totalExecutions={totalExecutions}
+              failedExecutions={failedExecutions}
+              lastExecutionTime={lastExecutionTime}
+              totalSuccessRate={totalSuccessRate}
+              totalPlsBalance={totalPlsBalance}
+            />
+            <RecentExecutionsCard
+              recentExecutions={recentExecutions}
+              onExecutionClick={(executionId) => {
+                setSelectedExecutionId(executionId);
+                setDialogOpen(true);
+              }}
+            />
+          </div>
+          <div className="flex flex-col w-full col-span-3 gap-3">
+            <p className="ml-1">Automations</p>
+            <AutomationCards automations={filteredAutomations} userPlan={userPlan} />
+          </div>
         </div>
-      )}
+      )
+      }
 
       {/* No Results Message */}
-      {searchQuery.trim() && filteredAutomations.length === 0 && (
-        <div className="py-12 text-center">
-          <p className="text-muted-foreground">
-            No automations found matching "{searchQuery}"
-          </p>
-        </div>
-      )}
+      {
+        searchQuery.trim() && filteredAutomations.length === 0 && (
+          <div className="py-12 text-center">
+            <p className="text-muted-foreground">
+              No automations found matching "{searchQuery}"
+            </p>
+          </div>
+        )
+      }
+
+      {/* Execution Dialog */}
+      <ExecutionDialog
+        executionId={selectedExecutionId}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </>
   );
 }
