@@ -112,7 +112,7 @@ export default function AutomationsHeader({
 
       {/* Automation Cards */}
       {filteredAutomations.length > 0 && (
-        <div className="w-full grid grid-cols-4 gap-4 items-start">
+        <div className="w-full grid grid-cols-4 gap-6 items-start">
           <div className="flex flex-col gap-3 col-span-1 w-full">
             <AutomationStatsCard
               currentCount={currentCount}

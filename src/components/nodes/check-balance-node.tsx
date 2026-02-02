@@ -55,7 +55,7 @@ export const CheckBalanceNode = memo(({ data }: NodeProps) => {
       </BaseNode>
       {nodeData?.showNodeLabels !== false && (
         <div className={NODE_LABEL_CONTAINER_CLASS}>
-          <span className={NODE_TITLE_CLASS}>Check Balance</span>
+          <span className={NODE_TITLE_CLASS}>Check PLS Balance</span>
           {nodeData?.config?.notes && (
             <p className={NODE_NOTES_CLASS}>
               {nodeData.config.notes}

@@ -1115,8 +1115,10 @@ export function NodeConfigSheet({
     switch (previousNodeType) {
       case 'swap':
       case 'swapFromPLS':
-      case 'swapToPLS':
         outputFields.push({ value: 'amountOut', label: 'Amount Out (tokens received)' });
+        break;
+      case 'swapToPLS':
+        outputFields.push({ value: 'amountOut', label: 'Amount Out (PLS received)' });
         break;
       case 'checkBalance':
         outputFields.push({ value: 'balance', label: 'PLS Balance' });
