@@ -36,9 +36,10 @@ interface UserMenuProps {
     imageUrl: string;
     username: string | null;
   };
+  hasPassword?: boolean;
 }
 
-export default function UserMenu({ user }: UserMenuProps) {
+export default function UserMenu({ user, hasPassword }: UserMenuProps) {
   const { signOut } = useClerk();
 
   const displayName = user.firstName && user.lastName
@@ -55,11 +56,14 @@ export default function UserMenu({ user }: UserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="h-auto p-0 hover:bg-transparent" variant="ghost">
+        <Button className="h-auto p-0 hover:bg-transparent relative" variant="ghost">
           <Avatar>
             <AvatarImage alt="Profile image" src={user.imageUrl} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
+          {!hasPassword && (
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-w-64">
@@ -74,9 +78,14 @@ export default function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/account">
-              <User aria-hidden="true" className="opacity-60" size={16} />
-              <span>Account</span>
+            <Link href="/account" className="flex items-center justify-between w-full">
+              <span className="flex items-center gap-2">
+                <User aria-hidden="true" className="opacity-60" size={16} />
+                <span>Account</span>
+              </span>
+              {!hasPassword && (
+                <span className="h-2 w-2 rounded-full bg-destructive" />
+              )}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

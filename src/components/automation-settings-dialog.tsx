@@ -77,6 +77,9 @@ export function AutomationSettingsDialog({
   const [isLoadingPrivateKey, setIsLoadingPrivateKey] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [requiresPassword, setRequiresPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -87,6 +90,9 @@ export function AutomationSettingsDialog({
       setBetaFeatures(initialBetaFeatures);
       setCommunityVisible(initialCommunityVisible);
       setPrivateKey(null);
+      setRequiresPassword(false);
+      setPasswordInput('');
+      setPasswordError(null);
     }
   }, [open, initialName, initialDefaultSlippage, initialRpcEndpoint, initialShowNodeLabels, initialBetaFeatures, initialCommunityVisible]);
 
@@ -127,17 +133,65 @@ export function AutomationSettingsDialog({
 
   const handleRevealPrivateKey = async () => {
     setIsLoadingPrivateKey(true);
+    setPasswordError(null);
     try {
+      // First check if password is required
       const response = await fetch(`/api/automations/${automationId}/private-key`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to get private key');
       }
       const data = await response.json();
+
+      if (data.requiresPassword) {
+        // Password is required - show input field
+        setRequiresPassword(true);
+        setIsLoadingPrivateKey(false);
+        return;
+      }
+
+      // No password required - got private key directly
       setPrivateKey(data.privateKey);
+      setShowPrivateKeyDialog(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to get private key');
       setShowPrivateKeyDialog(false);
+    } finally {
+      setIsLoadingPrivateKey(false);
+    }
+  };
+
+  const handleSubmitPassword = async () => {
+    if (!passwordInput.trim()) {
+      setPasswordError('Please enter your password');
+      return;
+    }
+
+    setIsLoadingPrivateKey(true);
+    setPasswordError(null);
+    try {
+      const response = await fetch(`/api/automations/${automationId}/private-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordInput }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        if (response.status === 401) {
+          setPasswordError('Invalid password. Please try again.');
+          return;
+        }
+        throw new Error(error.error || 'Failed to verify password');
+      }
+
+      const data = await response.json();
+      setPrivateKey(data.privateKey);
+      setShowPrivateKeyDialog(false);
+      setRequiresPassword(false);
+      setPasswordInput('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to get private key');
     } finally {
       setIsLoadingPrivateKey(false);
     }
@@ -367,25 +421,66 @@ export function AutomationSettingsDialog({
       </Dialog>
 
       {/* Private Key Confirmation Dialog */}
-      <AlertDialog open={showPrivateKeyDialog} onOpenChange={setShowPrivateKeyDialog}>
+      <AlertDialog open={showPrivateKeyDialog} onOpenChange={(open) => {
+        setShowPrivateKeyDialog(open);
+        if (!open) {
+          setRequiresPassword(false);
+          setPasswordInput('');
+          setPasswordError(null);
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {requiresPassword ? 'Enter Your Password' : 'Are you sure?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Revealing your private key is a security risk. Anyone with access to this key can
-              control your automation wallet. Make sure you're in a secure environment and never
-              share this key with anyone.
+              {requiresPassword ? (
+                'Your account has password protection enabled. Please enter your password to reveal the private key.'
+              ) : (
+                'Revealing your private key is a security risk. Anyone with access to this key can control your automation wallet. Make sure you\'re in a secure environment and never share this key with anyone.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {requiresPassword && (
+            <div className="py-2">
+              <Input
+                type="password"
+                placeholder="Enter your password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmitPassword();
+                  }
+                }}
+                disabled={isLoadingPrivateKey}
+              />
+              {passwordError && (
+                <p className="text-sm text-destructive mt-2">{passwordError}</p>
+              )}
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRevealPrivateKey}
-              disabled={isLoadingPrivateKey}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isLoadingPrivateKey ? 'Loading...' : 'Yes, Reveal Private Key'}
-            </AlertDialogAction>
+            {requiresPassword ? (
+              <Button
+                onClick={handleSubmitPassword}
+                disabled={isLoadingPrivateKey}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isLoadingPrivateKey ? 'Verifying...' : 'Verify & Reveal'}
+              </Button>
+            ) : (
+              <AlertDialogAction
+                onClick={handleRevealPrivateKey}
+                disabled={isLoadingPrivateKey}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isLoadingPrivateKey ? 'Loading...' : 'Yes, Reveal Private Key'}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

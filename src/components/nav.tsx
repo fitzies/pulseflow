@@ -170,6 +170,7 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
               imageUrl: user.imageUrl,
               username: user.username,
             }}
+            hasPassword={user.passwordEnabled}
           />
         </div>
       </div>
