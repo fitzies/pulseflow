@@ -169,7 +169,7 @@ function AutomationRow({
       toast.error("Failed to update favorite");
     } finally {
       setIsTogglingFavorite(false);
-    }
+    } ``
   };
 
   return (
@@ -191,7 +191,8 @@ function AutomationRow({
             <div className="flex flex-col">
               <span className="font-medium">{automation.name}</span>
               <span className="text-muted-foreground text-sm">
-                {automation.id}
+                <span className="md:hidden">{automation.id.slice(0, 8)}...</span>
+                <span className="hidden md:inline">{automation.id}</span>
               </span>
             </div>
           </Link>
@@ -199,7 +200,7 @@ function AutomationRow({
             {isFavorite && (
               <HoverCard>
                 <HoverCardTrigger>
-                  <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                  <Star className="hidden md:block h-4 w-4 fill-yellow-500 text-yellow-500" />
                 </HoverCardTrigger>
                 <HoverCardContent>
                   <p className="text-sm">Favorite</p>
@@ -208,7 +209,7 @@ function AutomationRow({
             )}
             <HoverCard>
               <HoverCardTrigger>
-                <div className="flex items-center gap-1 text-muted-foreground">
+                <div className="hidden md:flex items-center gap-1 text-muted-foreground">
                   <Heart className="h-4 w-4" />
                   <span className="text-sm">0</span>
                 </div>
@@ -219,7 +220,7 @@ function AutomationRow({
             </HoverCard>
             <HoverCard>
               <HoverCardTrigger>
-                <span className="text-sm text-muted-foreground">
+                <span className="hidden md:inline text-sm text-muted-foreground">
                   {successRate !== null ? `${successRate}%` : "--"}
                 </span>
               </HoverCardTrigger>
