@@ -420,8 +420,8 @@ export function AutomationExecutionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-full sm:w-full md:min-w-[70rem]">
-        <DialogHeader className="flex justify-between">
+      <DialogContent className={`max-w-full sm:w-full md:min-w-[70rem] ${view === "detail" ? "max-h-[90vh] flex flex-col overflow-hidden" : ""}`}>
+        <DialogHeader className={`flex justify-between ${view === "detail" ? "flex-shrink-0" : ""}`}>
           <div className="flex items-center gap-2">
             {view === "detail" && (
               <Button
@@ -499,7 +499,7 @@ export function AutomationExecutionsDialog({
             )}
           </>
         ) : (
-          <>
+          <div className="flex-1 min-h-0 flex flex-col">
             {detailsLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2Icon className="animate-spin text-muted-foreground" size={24} />
@@ -513,9 +513,9 @@ export function AutomationExecutionsDialog({
             )}
 
             {executionDetails && !detailsLoading && (
-              <div className="space-y-6">
+              <div className="space-y-6 flex flex-col min-h-0 flex-1">
                 {/* Metadata */}
-                <div className="space-y-2">
+                <div className="space-y-2 flex-shrink-0">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Started</span>
                     <span className="font-medium">{formatFullDate(executionDetails.startedAt)}</span>
@@ -538,7 +538,7 @@ export function AutomationExecutionsDialog({
                       executionDetails.status === "FAILED" ? "text-red-400" :
                         executionDetails.status === "CANCELLED" ? "text-yellow-600" :
                           "text-blue-600"
-                      }`}>
+                    }`}>
                       {executionDetails.status}
                     </span>
                   </div>
@@ -546,9 +546,9 @@ export function AutomationExecutionsDialog({
 
                 {/* Error Section */}
                 {executionDetails.status === "FAILED" && executionDetails.error && (
-                  <div className="rounded-md bg-destructive/10 p-4">
-                    <div className="text-sm font-semibold text-red-400 mb-1">Error</div>
-                    <div className="text-sm text-red-400 wrap-break-word break-all whitespace-pre-wrap">
+                  <div className="rounded-md bg-destructive/10 p-4 flex-shrink-0">
+                    <div className="text-sm font-bold text-red-600 mb-1">Error</div>
+                    <div className="text-sm font-medium text-red-600 wrap-break-word break-all whitespace-pre-wrap">
                       {executionDetails.error}
                     </div>
                   </div>
@@ -556,9 +556,9 @@ export function AutomationExecutionsDialog({
 
                 {/* Logs Section */}
                 {executionDetails.logs.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="text-sm font-semibold">Execution Logs</div>
-                    <div className={executionDetails.status === "SUCCESS" ? "max-h-[400px] overflow-y-auto space-y-3" : "space-y-3"}>
+                  <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+                    <div className="text-sm font-semibold flex-shrink-0">Execution Logs</div>
+                    <div className="overflow-y-auto space-y-3 pr-2 flex-1 min-h-0">
                       {executionDetails.logs.map((log, index) => (
                         <div key={log.id} className="rounded-md border p-4 space-y-2">
                           <div className="flex items-center justify-between">
@@ -575,8 +575,8 @@ export function AutomationExecutionsDialog({
                           {log.output && <JsonPreview label="Output" value={log.output} maxLines={8} />}
                           {log.error && (
                             <div className="rounded-md bg-destructive/10 p-2">
-                              <div className="text-xs font-semibold text-destructive mb-1">Error</div>
-                              <div className="text-xs text-destructive wrap-break-word break-all whitespace-pre-wrap">
+                              <div className="text-xs font-bold text-red-600 mb-1">Error</div>
+                              <div className="text-xs font-medium text-red-600 wrap-break-word break-all whitespace-pre-wrap">
                                 {log.error}
                               </div>
                             </div>
@@ -594,7 +594,7 @@ export function AutomationExecutionsDialog({
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>

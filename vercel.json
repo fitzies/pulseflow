@@ -2,6 +2,12 @@
   "buildCommand": "npx prisma generate && next build",
   "installCommand": "npm install",
   
+  "functions": {
+    "**/*": {
+      "maxDuration": 600
+    }
+  },
+  
   "crons": [
     {
       "path": "/api/cron/run-scheduled",

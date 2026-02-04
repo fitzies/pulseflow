@@ -945,12 +945,13 @@ async function extractSwapOutput(
   path: string[],
   provider: JsonRpcProvider,
   recipientAddress: string
-): Promise<{ amountOut: bigint; tokenOut: string; gasPrice: bigint; gasUsed: bigint } | null> {
+): Promise<{ amountOut: bigint; tokenOut: string; gasPrice: bigint; gasUsed: bigint; txHash: string } | null> {
   if (!path || path.length === 0) return null;
 
   const tokenOut = path[path.length - 1];
   const gasPrice = extractGasPrice(receipt);
   const gasUsed = receipt.gasUsed || BigInt(0);
+  const txHash = receipt.hash;
 
   try {
     // Use ERC20 Transfer event to detect output amount
@@ -973,7 +974,7 @@ async function extractSwapOutput(
 
           // Check if this transfer is TO the recipient (automation wallet or specified address)
           if (to.toLowerCase() === recipientAddress.toLowerCase()) {
-            return { amountOut: value, tokenOut, gasPrice, gasUsed };
+            return { amountOut: value, tokenOut, gasPrice, gasUsed, txHash };
           }
         }
       } catch {
@@ -991,17 +992,246 @@ async function extractSwapOutput(
     tokenOut,
     gasPrice,
     gasUsed,
+    txHash,
   };
 }
 
 /**
  * Create transaction output with gas price for Gas Guard
  */
-function createTxOutput(receipt: ContractTransactionReceipt): { gasPrice: bigint; gasUsed: bigint } {
+function createTxOutput(receipt: ContractTransactionReceipt): { gasPrice: bigint; gasUsed: bigint; txHash: string } {
   return {
     gasPrice: extractGasPrice(receipt),
     gasUsed: receipt.gasUsed || BigInt(0),
+    txHash: receipt.hash,
   };
+}
+
+/**
+ * Extract output from addLiquidity transaction by parsing LP token mint Transfer event
+ * Returns liquidity amount, amountA, amountB, and LP token address
+ */
+async function extractAddLiquidityOutput(
+  receipt: ContractTransactionReceipt,
+  tokenA: string,
+  tokenB: string,
+  provider: JsonRpcProvider,
+  recipientAddress: string
+): Promise<{ liquidity: bigint; amountA: bigint; amountB: bigint; lpToken: string; gasPrice: bigint; gasUsed: bigint; txHash: string }> {
+  const gasPrice = extractGasPrice(receipt);
+  const gasUsed = receipt.gasUsed || BigInt(0);
+  const txHash = receipt.hash;
+
+  // Default values
+  let liquidity = BigInt(0);
+  let amountA = BigInt(0);
+  let amountB = BigInt(0);
+  let lpToken = '';
+
+  try {
+    // Get pair address from factory
+    const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+    const factoryAddress = await routerContract.factory();
+    const factoryContract = new Contract(factoryAddress, [
+      "function getPair(address tokenA, address tokenB) external view returns (address pair)",
+    ], provider);
+
+    const pairAddress = await factoryContract.getPair(tokenA, tokenB);
+    if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
+      console.warn("Could not find LP pair for extractAddLiquidityOutput");
+      return { liquidity, amountA, amountB, lpToken, gasPrice, gasUsed, txHash };
+    }
+
+    lpToken = pairAddress;
+
+    // Look for Transfer events - LP mint is from 0x0 to recipient
+    const erc20Interface = new Contract(pairAddress, erc20ABI, provider).interface;
+    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+    for (const log of receipt.logs) {
+      // Check for LP token Transfer (mint) - from 0x0 to recipient
+      if (log.address.toLowerCase() === pairAddress.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const from = parsed.args[0] as string;
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            // LP mint: from 0x0 to recipient
+            if (from.toLowerCase() === ZERO_ADDRESS && to.toLowerCase() === recipientAddress.toLowerCase()) {
+              liquidity = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Check for tokenA Transfer to pair (deposit)
+      if (log.address.toLowerCase() === tokenA.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            if (to.toLowerCase() === pairAddress.toLowerCase()) {
+              amountA = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Check for tokenB Transfer to pair (deposit)
+      if (log.address.toLowerCase() === tokenB.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            if (to.toLowerCase() === pairAddress.toLowerCase()) {
+              amountB = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Could not parse addLiquidity output from receipt:", error);
+  }
+
+  return { liquidity, amountA, amountB, lpToken, gasPrice, gasUsed, txHash };
+}
+
+/**
+ * Extract output from addLiquidityPLS transaction
+ */
+async function extractAddLiquidityPLSOutput(
+  receipt: ContractTransactionReceipt,
+  token: string,
+  provider: JsonRpcProvider,
+  recipientAddress: string
+): Promise<{ liquidity: bigint; amountToken: bigint; amountPLS: bigint; lpToken: string; gasPrice: bigint; gasUsed: bigint; txHash: string }> {
+  const gasPrice = extractGasPrice(receipt);
+  const gasUsed = receipt.gasUsed || BigInt(0);
+  const txHash = receipt.hash;
+
+  // Default values
+  let liquidity = BigInt(0);
+  let amountToken = BigInt(0);
+  let amountPLS = BigInt(0);
+  let lpToken = '';
+
+  try {
+    // Get pair address from factory (token paired with WPLS)
+    const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+    const factoryAddress = await routerContract.factory();
+    const wplsAddress = await routerContract.WPLS();
+    
+    const factoryContract = new Contract(factoryAddress, [
+      "function getPair(address tokenA, address tokenB) external view returns (address pair)",
+    ], provider);
+
+    const pairAddress = await factoryContract.getPair(token, wplsAddress);
+    if (!pairAddress || pairAddress === "0x0000000000000000000000000000000000000000") {
+      console.warn("Could not find LP pair for extractAddLiquidityPLSOutput");
+      return { liquidity, amountToken, amountPLS, lpToken, gasPrice, gasUsed, txHash };
+    }
+
+    lpToken = pairAddress;
+
+    // Look for Transfer events
+    const erc20Interface = new Contract(pairAddress, erc20ABI, provider).interface;
+    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+    for (const log of receipt.logs) {
+      // Check for LP token Transfer (mint)
+      if (log.address.toLowerCase() === pairAddress.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const from = parsed.args[0] as string;
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            if (from.toLowerCase() === ZERO_ADDRESS && to.toLowerCase() === recipientAddress.toLowerCase()) {
+              liquidity = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Check for token Transfer to pair
+      if (log.address.toLowerCase() === token.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            if (to.toLowerCase() === pairAddress.toLowerCase()) {
+              amountToken = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      // Check for WPLS Transfer to pair (represents PLS deposit)
+      if (log.address.toLowerCase() === wplsAddress.toLowerCase()) {
+        try {
+          const parsed = erc20Interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+
+          if (parsed && parsed.name === 'Transfer') {
+            const to = parsed.args[1] as string;
+            const value = parsed.args[2] as bigint;
+
+            if (to.toLowerCase() === pairAddress.toLowerCase()) {
+              amountPLS = value;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Could not parse addLiquidityPLS output from receipt:", error);
+  }
+
+  return { liquidity, amountToken, amountPLS, lpToken, gasPrice, gasUsed, txHash };
 }
 
 /**
@@ -1134,16 +1364,15 @@ export async function executeNode(
           contractAddress
         );
 
-        // Extract output (liquidity, amounts) with gas price for Gas Guard
-        const baseOutputAddLP = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLP);
-        const outputAddLP = { ...baseOutputAddLP, ...createTxOutput(receiptAddLP) };
+        // Extract output (liquidity, amounts) from transaction logs
+        const outputAddLP = await extractAddLiquidityPLSOutput(receiptAddLP, nodeData.token || "", provider, to);
         const updatedContextAddLP = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLP);
 
         return { result: receiptAddLP, context: updatedContextAddLP };
       } else {
         const amountADesired = await resolveAmountField('amountADesired', nodeData, context, automationId, nodeType);
         // Calculate amountBDesired using quote if only amountA is provided
-        let amountBDesired = BigInt(nodeData.amountBDesired || 0);
+        let amountBDesired = await resolveAmountField('amountBDesired', nodeData, context, automationId, nodeType);
         if (amountBDesired === 0n && amountADesired > 0n && nodeData.tokenA && nodeData.tokenB) {
           try {
             const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
@@ -1184,9 +1413,8 @@ export async function executeNode(
           contractAddress
         );
 
-        // Extract output with gas price for Gas Guard
-        const baseOutputAddLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidity);
-        const outputAddLiquidity = { ...baseOutputAddLiquidity, ...createTxOutput(receiptAddLiquidity) };
+        // Extract output (liquidity, amounts) from transaction logs
+        const outputAddLiquidity = await extractAddLiquidityOutput(receiptAddLiquidity, nodeData.tokenA || "", nodeData.tokenB || "", provider, to);
         const updatedContextAddLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidity);
 
         return { result: receiptAddLiquidity, context: updatedContextAddLiquidity };
@@ -1212,9 +1440,8 @@ export async function executeNode(
         contractAddress
       );
 
-      // Extract output with gas price for Gas Guard
-      const baseOutputAddLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptAddLiquidityPLS);
-      const outputAddLiquidityPLS = { ...baseOutputAddLiquidityPLS, ...createTxOutput(receiptAddLiquidityPLS) };
+      // Extract output (liquidity, amounts) from transaction logs
+      const outputAddLiquidityPLS = await extractAddLiquidityPLSOutput(receiptAddLiquidityPLS, nodeData.token || "", provider, to);
       const updatedContextAddLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAddLiquidityPLS);
 
       return { result: receiptAddLiquidityPLS, context: updatedContextAddLiquidityPLS };
@@ -1394,7 +1621,7 @@ export async function executeNode(
 
       // Extract output with gas price for Gas Guard
       const baseOutputRemoveLiquidity = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidity);
-      const outputRemoveLiquidity = { ...baseOutputRemoveLiquidity, ...createTxOutput(receiptRemoveLiquidity) };
+      const outputRemoveLiquidity = { ...(baseOutputRemoveLiquidity ?? {}), ...createTxOutput(receiptRemoveLiquidity) };
       const updatedContextRemoveLiquidity = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidity);
 
       return { result: receiptRemoveLiquidity, context: updatedContextRemoveLiquidity };
@@ -1454,7 +1681,7 @@ export async function executeNode(
 
       // Extract output with gas price for Gas Guard
       const baseOutputRemoveLiquidityPLS = extractNodeOutput(nodeType, nodeData.nodeId || 'unknown', receiptRemoveLiquidityPLS);
-      const outputRemoveLiquidityPLS = { ...baseOutputRemoveLiquidityPLS, ...createTxOutput(receiptRemoveLiquidityPLS) };
+      const outputRemoveLiquidityPLS = { ...(baseOutputRemoveLiquidityPLS ?? {}), ...createTxOutput(receiptRemoveLiquidityPLS) };
       const updatedContextRemoveLiquidityPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputRemoveLiquidityPLS);
 
       return { result: receiptRemoveLiquidityPLS, context: updatedContextRemoveLiquidityPLS };

@@ -104,31 +104,9 @@ export async function POST(
       },
     });
 
-    // Helper to serialize results
-    const serializeResult = (result: any): any => {
-      if (!result) return null;
-      if (result.hash && result.blockNumber !== undefined) {
-        return {
-          hash: result.hash,
-          blockHash: result.blockHash,
-          blockNumber: result.blockNumber?.toString(),
-          transactionIndex: result.transactionIndex,
-          from: result.from,
-          to: result.to,
-          gasUsed: result.gasUsed?.toString(),
-          status: result.status,
-        };
-      }
-      return JSON.parse(
-        JSON.stringify(result, (_, v) =>
-          typeof v === 'bigint' ? v.toString() : v === undefined ? null : v
-        )
-      );
-    };
-
     try {
       // Execute the automation
-      const { results: nodeResults } = await executeAutomationChain(
+      await executeAutomationChain(
         automationId,
         nodes,
         edges,
@@ -136,20 +114,6 @@ export async function POST(
         undefined,
         execution.id
       );
-
-      // Log each node result
-      for (const nodeResult of nodeResults) {
-        const node = nodes.find((n) => n.id === nodeResult.nodeId);
-        await prisma.executionLog.create({
-          data: {
-            executionId: execution.id,
-            nodeId: nodeResult.nodeId,
-            nodeType: node?.type || 'unknown',
-            input: node?.data?.config ?? undefined,
-            output: serializeResult(nodeResult.result),
-          },
-        });
-      }
 
       // Update execution status to SUCCESS
       await prisma.execution.update({

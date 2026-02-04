@@ -7,6 +7,7 @@ import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
 import { getPlanLimit, canCreateAutomation, findProNodesInDefinition, canUseProNodes } from "@/lib/plan-limits";
 import { validateMinimumInterval, getNextRunDate } from "@/lib/cron-utils.server";
+import { serializeForJson } from "@/lib/serialization";
 import type { Node, Edge } from "@xyflow/react";
 import type { TriggerMode } from "@prisma/client";
 
@@ -244,60 +245,15 @@ export async function runAutomation(automationId: string) {
     });
 
     try {
-      // Helper to serialize transaction receipts (remove provider objects)
-      const serializeResult = (result: any): any => {
-        if (!result) return null;
-
-        // If it's a transaction receipt, extract only serializable fields
-        if (result.hash && result.blockNumber !== undefined) {
-          return {
-            hash: result.hash,
-            blockHash: result.blockHash,
-            blockNumber: result.blockNumber?.toString(),
-            transactionIndex: result.transactionIndex,
-            from: result.from,
-            to: result.to,
-            gasUsed: result.gasUsed?.toString(),
-            status: result.status,
-            logs: result.logs?.map((log: any) => ({
-              transactionHash: log.transactionHash,
-              blockHash: log.blockHash,
-              blockNumber: log.blockNumber?.toString(),
-              address: log.address,
-              data: log.data,
-              topics: log.topics,
-              index: log.index,
-              transactionIndex: log.transactionIndex,
-            })) || [],
-          };
-        }
-
-        // For other types, serialize normally
-        return JSON.parse(JSON.stringify(result, (_, v) =>
-          typeof v === "bigint" ? v.toString() : v === undefined ? null : v
-        ));
-      };
-
       // Execute the automation chain
       const { results } = await executeAutomationChain(
         automationId,
         nodes,
-        edges
+        edges,
+        undefined,
+        undefined,
+        execution.id
       );
-
-      // Log each node result
-      for (const nodeResult of results) {
-        const node = nodes.find((n) => n.id === nodeResult.nodeId);
-        await prisma.executionLog.create({
-          data: {
-            executionId: execution.id,
-            nodeId: nodeResult.nodeId,
-            nodeType: node?.type || "unknown",
-            input: node?.data?.config ?? undefined,
-            output: serializeResult(nodeResult.result),
-          },
-        });
-      }
 
       // Update execution status to SUCCESS
       await prisma.execution.update({
@@ -311,7 +267,7 @@ export async function runAutomation(automationId: string) {
       return {
         success: true,
         executionId: execution.id,
-        results: results.map(r => ({ ...r, result: serializeResult(r.result) })),
+        results: results.map((r) => ({ ...r, result: serializeForJson(r.result) })),
       };
     } catch (executionError) {
       // Log the error and update execution status to FAILED

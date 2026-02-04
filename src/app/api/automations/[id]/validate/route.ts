@@ -173,15 +173,16 @@ export async function POST(
         } else if (!validateAddress(token)) {
           validationResults.hardErrors.token = 'Invalid address format';
         } else {
-          const tokenCheck = await validateTokenOnly(token);
           if (tokenType === 'lp') {
-            // Expecting LP token - validate it's actually an LP
-            if (!tokenCheck.isLP && tokenCheck.isValid) {
-              validationResults.softWarnings.token = 'This appears to be a regular token, not an LP token';
-            } else if (!tokenCheck.isValid && !tokenCheck.isLP) {
-              validationResults.hardErrors.token = 'Invalid LP token contract';
+            // Expecting LP token - require it to be a valid LP pair contract
+            const lpCheck = await validateLPOnly(token);
+            if (lpCheck.isToken) {
+              validationResults.hardErrors.token = 'Token address not allowed. Please use an LP pair address.';
+            } else if (!lpCheck.isValid) {
+              validationResults.hardErrors.token = 'Invalid LP pair contract';
             }
           } else {
+            const tokenCheck = await validateTokenOnly(token);
             // Expecting regular token - block LP addresses
             if (tokenCheck.isLP) {
               validationResults.hardErrors.token = 'LP pair address not allowed. Please use a token address.';
@@ -197,11 +198,11 @@ export async function POST(
           validationResults.hardErrors.to = 'Invalid address format';
         }
         const amount = formData.amount;
-        if (amount && typeof amount === 'object' && amount.type === 'custom' && amount.value) {
-          const balance = await getTokenBalance(token);
+        if (amount && typeof amount === 'object' && amount.type === 'static' && amount.value) {
+          const balance = tokenType === 'lp' ? await getLPBalance(token) : await getTokenBalance(token);
           const amountBigInt = BigInt(Math.floor(parseFloat(amount.value) * 1e18));
           if (amountBigInt > balance) {
-            validationResults.softWarnings.amount = 'You might not have enough tokens';
+            validationResults.softWarnings.amount = tokenType === 'lp' ? 'You might not have enough LP tokens' : 'You might not have enough tokens';
           }
           if (amountBigInt === 0n) {
             validationResults.softWarnings.amount = 'Amount is 0, this node may not execute as expected';
@@ -218,7 +219,7 @@ export async function POST(
           validationResults.hardErrors.to = 'Invalid address format';
         }
         const plsAmount = formData.plsAmount;
-        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'custom' && plsAmount.value) {
+        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'static' && plsAmount.value) {
           const balance = await getPLSBalance();
           const amountBigInt = BigInt(Math.floor(parseFloat(plsAmount.value) * 1e18));
           if (amountBigInt > balance) {

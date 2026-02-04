@@ -3,6 +3,7 @@ import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
 import { parseBlockchainError } from './error-utils';
 import { prisma } from './prisma';
+import { serializeForJson } from './serialization';
 
 export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken' | 'cancelled';
 
@@ -15,6 +16,48 @@ export interface ProgressEvent {
 }
 
 export type ProgressCallback = (event: ProgressEvent) => void;
+
+async function safeCreateExecutionLog(args: {
+  executionId: string;
+  nodeId: string;
+  nodeType: string;
+  input?: unknown;
+}): Promise<string | null> {
+  try {
+    const created = await prisma.executionLog.create({
+      data: {
+        executionId: args.executionId,
+        nodeId: args.nodeId,
+        nodeType: args.nodeType,
+        input: args.input === undefined ? undefined : serializeForJson(args.input),
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (e) {
+    console.error('[executionLog] Failed to create log row:', e);
+    return null;
+  }
+}
+
+async function safeUpdateExecutionLog(args: {
+  logId: string | null;
+  output?: unknown;
+  error?: unknown;
+}): Promise<void> {
+  if (!args.logId) return;
+  try {
+    await prisma.executionLog.update({
+      where: { id: args.logId },
+      data: {
+        output: args.output === undefined ? undefined : serializeForJson(args.output),
+        error: args.error === undefined ? undefined : String(args.error),
+      },
+    });
+  } catch (e) {
+    console.error('[executionLog] Failed to update log row:', e);
+  }
+}
 
 /**
  * Check if an execution has been cancelled
@@ -122,6 +165,10 @@ export async function executeAutomationChain(
         ...(node.data?.config || {}),
         nodeId: node.id,
       };
+      const nodeNotes =
+        node.data && typeof node.data === 'object'
+          ? ((node.data as any)?.config?.notes as string | undefined)
+          : undefined;
       
       // Notify: node starting
       onProgress?.({
@@ -130,6 +177,16 @@ export async function executeAutomationChain(
         nodeType: node.type,
         data: restartCount > 1 ? { iteration: restartCount } : undefined,
       });
+
+      // Persist a per-node log row early so failures are debuggable
+      const logId = executionId
+        ? await safeCreateExecutionLog({
+            executionId,
+            nodeId: node.id,
+            nodeType: node.type,
+            input: { ...(node.data?.config || {}), nodeId: node.id, iteration: restartCount },
+          })
+        : null;
       
       try {
         // Execute node with current context
@@ -166,6 +223,11 @@ export async function executeAutomationChain(
               nodeType: node.type,
               data: { ...result, iteration: restartCount, restarting: true },
             });
+
+            await safeUpdateExecutionLog({
+              logId,
+              output: { result, iteration: restartCount, restarting: true },
+            });
             
             // Break out of inner while loop to restart from start
             break;
@@ -184,6 +246,11 @@ export async function executeAutomationChain(
               nodeId: node.id,
               nodeType: node.type,
               data: { ...result, iteration: restartCount, restarting: false },
+            });
+
+            await safeUpdateExecutionLog({
+              logId,
+              output: { result, iteration: restartCount, restarting: false },
             });
             
             // Continue execution past the loop node
@@ -208,6 +275,11 @@ export async function executeAutomationChain(
           nodeId: node.id,
           nodeType: node.type,
           data: { ...result, iteration: restartCount },
+        });
+
+        await safeUpdateExecutionLog({
+          logId,
+          output: { result, iteration: restartCount },
         });
         
         // Determine next nodes to execute
@@ -247,18 +319,34 @@ export async function executeAutomationChain(
         
         // Log technical details for debugging
         console.error(`[${node.type}] Technical error:`, parsed.technicalDetails);
+
+        await safeUpdateExecutionLog({
+          logId,
+          error: parsed.technicalDetails,
+          output: {
+            userMessage: parsed.userMessage,
+            errorType: parsed.errorType,
+            isRetryable: parsed.isRetryable,
+            code: parsed.code,
+            shortMessage: parsed.shortMessage,
+            revertReason: parsed.revertReason,
+            txHash: parsed.txHash,
+          },
+        });
         
         // Notify: node error with user-friendly message
         onProgress?.({
           type: 'node_error',
           nodeId: node.id,
           nodeType: node.type,
-          error: parsed.userMessage,
+          error: parsed.txHash ? `${parsed.userMessage} (tx: ${parsed.txHash})` : parsed.userMessage,
         });
         
         // If a node fails, stop execution with user-friendly message
+        const txPart = parsed.txHash ? ` [tx: ${parsed.txHash}]` : '';
+        const notesPart = nodeNotes ? ` "${nodeNotes}"` : '';
         throw new Error(
-          `${node.type} failed: ${parsed.userMessage}${parsed.isRetryable ? ' (retryable)' : ''}`
+          `${node.type}${notesPart} (${node.id}) failed: ${parsed.userMessage}${txPart}${parsed.isRetryable ? ' (retryable)' : ''}`
         );
       }
     }

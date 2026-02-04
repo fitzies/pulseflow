@@ -5,6 +5,10 @@ export interface ParsedError {
   technicalDetails: string;
   errorType: ErrorType;
   isRetryable: boolean;
+  code?: string;
+  shortMessage?: string;
+  revertReason?: string;
+  txHash?: string;
 }
 
 const ERROR_PATTERNS: Array<{
@@ -91,15 +95,43 @@ const ERROR_PATTERNS: Array<{
   ];
 
 export function parseBlockchainError(error: unknown): ParsedError {
-  const errorString = error instanceof Error ? error.message : String(error);
+  const errObj = (error && typeof error === 'object') ? (error as Record<string, any>) : null;
+  const message = error instanceof Error ? error.message : String(error);
+  const shortMessage = typeof errObj?.shortMessage === 'string' ? errObj.shortMessage : undefined;
+  const code = typeof errObj?.code === 'string' ? errObj.code : undefined;
+
+  // Ethers v6 CallExceptionError may include reason/receipt/transaction
+  const revertReason =
+    typeof errObj?.reason === 'string'
+      ? errObj.reason
+      : typeof errObj?.revert?.name === 'string'
+        ? errObj.revert.name
+        : undefined;
+
+  const txHash =
+    (typeof errObj?.transactionHash === 'string' && errObj.transactionHash) ||
+    (typeof errObj?.hash === 'string' && errObj.hash) ||
+    (typeof errObj?.transaction?.hash === 'string' && errObj.transaction.hash) ||
+    (typeof errObj?.receipt?.hash === 'string' && errObj.receipt.hash) ||
+    undefined;
+
+  const errorString = [message, shortMessage, revertReason, code].filter(Boolean).join(' | ');
 
   for (const { pattern, userMessage, errorType, isRetryable } of ERROR_PATTERNS) {
     if (pattern.test(errorString)) {
+      const enriched =
+        revertReason && pattern.source.includes('CALL_EXCEPTION')
+          ? `Transaction reverted: ${revertReason}`
+          : userMessage;
       return {
-        userMessage,
+        userMessage: enriched,
         technicalDetails: errorString,
         errorType,
         isRetryable,
+        code,
+        shortMessage,
+        revertReason,
+        txHash,
       };
     }
   }
@@ -110,5 +142,9 @@ export function parseBlockchainError(error: unknown): ParsedError {
     technicalDetails: errorString,
     errorType: 'unknown',
     isRetryable: false,
+    code,
+    shortMessage,
+    revertReason,
+    txHash,
   };
 }

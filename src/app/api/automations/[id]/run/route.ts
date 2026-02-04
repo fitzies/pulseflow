@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { executeAutomationChain, type ProgressEvent } from '@/lib/automation-runner';
 import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
 import { sendExecutionNotification } from '@/lib/push-notification';
+import { serializeForJson } from '@/lib/serialization';
 import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
@@ -111,32 +112,11 @@ export async function POST(
       };
 
       // Helper to serialize transaction receipts
-      const serializeResult = (result: any): any => {
-        if (!result) return null;
-
-        if (result.hash && result.blockNumber !== undefined) {
-          return {
-            hash: result.hash,
-            blockHash: result.blockHash,
-            blockNumber: result.blockNumber?.toString(),
-            transactionIndex: result.transactionIndex,
-            from: result.from,
-            to: result.to,
-            gasUsed: result.gasUsed?.toString(),
-            status: result.status,
-          };
-        }
-
-        return JSON.parse(
-          JSON.stringify(result, (_, v) =>
-            typeof v === 'bigint' ? v.toString() : v === undefined ? null : v
-          )
-        );
-      };
+      const serializeResult = (result: any): any => serializeForJson(result);
 
       try {
         // Execute with progress callback
-        const { results } = await executeAutomationChain(
+        await executeAutomationChain(
           automationId,
           nodes,
           edges,
@@ -152,20 +132,6 @@ export async function POST(
           },
           execution.id
         );
-
-        // Log each node result
-        for (const nodeResult of results) {
-          const node = nodes.find((n) => n.id === nodeResult.nodeId);
-          await prisma.executionLog.create({
-            data: {
-              executionId: execution.id,
-              nodeId: nodeResult.nodeId,
-              nodeType: node?.type || 'unknown',
-              input: node?.data?.config ?? undefined,
-              output: serializeResult(nodeResult.result),
-            },
-          });
-        }
 
         // Update execution status to SUCCESS
         await prisma.execution.update({

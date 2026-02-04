@@ -331,7 +331,7 @@ export function useNodeValidation(
     switch (nodeType) {
       case 'transfer': {
         const amount = formData.amount;
-        if (amount && typeof amount === 'object' && amount.type === 'custom' && amount.value) {
+        if (amount && typeof amount === 'object' && amount.type === 'static' && amount.value) {
           const numValue = parseFloat(amount.value);
           if (numValue === 0) {
             softWarnings.amount = 'Amount is 0, this node may not execute as expected';
@@ -342,7 +342,7 @@ export function useNodeValidation(
 
       case 'transferPLS': {
         const plsAmount = formData.plsAmount;
-        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'custom' && plsAmount.value) {
+        if (plsAmount && typeof plsAmount === 'object' && plsAmount.type === 'static' && plsAmount.value) {
           const numValue = parseFloat(plsAmount.value);
           if (numValue === 0) {
             softWarnings.plsAmount = 'Amount is 0, this node may not execute as expected';
