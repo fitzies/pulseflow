@@ -3,7 +3,7 @@ import { executeNode } from './blockchain-functions';
 import { createExecutionContext, type ExecutionContext } from './execution-context';
 import { parseBlockchainError } from './error-utils';
 import { prisma } from './prisma';
-import { serializeForJson } from './serialization';
+import { serializeForPrisma } from './serialization';
 
 export type ProgressEventType = 'node_start' | 'node_complete' | 'node_error' | 'branch_taken' | 'cancelled';
 
@@ -29,7 +29,7 @@ async function safeCreateExecutionLog(args: {
         executionId: args.executionId,
         nodeId: args.nodeId,
         nodeType: args.nodeType,
-        input: args.input === undefined ? undefined : serializeForJson(args.input),
+        input: args.input === undefined ? undefined : serializeForPrisma(args.input),
       },
       select: { id: true },
     });
@@ -50,7 +50,7 @@ async function safeUpdateExecutionLog(args: {
     await prisma.executionLog.update({
       where: { id: args.logId },
       data: {
-        output: args.output === undefined ? undefined : serializeForJson(args.output),
+        output: args.output === undefined ? undefined : serializeForPrisma(args.output),
         error: args.error === undefined ? undefined : String(args.error),
       },
     });

@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 export type JsonLike =
   | null
   | boolean
@@ -5,6 +7,9 @@ export type JsonLike =
   | string
   | JsonLike[]
   | { [key: string]: JsonLike };
+
+// Prisma-compatible JSON type (excludes top-level null)
+export type PrismaJsonValue = Prisma.InputJsonValue;
 
 function isReceiptLike(value: unknown): value is {
   hash: string;
@@ -37,6 +42,19 @@ function stringifyBigint(value: unknown): unknown {
 export function serializeForJson(value: unknown): JsonLike {
   if (value === undefined) return null;
   if (value === null) return null;
+
+  return serializeToJson(value);
+}
+
+/**
+ * Prisma-compatible version - returns empty object instead of null for Prisma Json fields
+ */
+export function serializeForPrisma(value: unknown): PrismaJsonValue {
+  if (value === undefined || value === null) return {};
+  return serializeToJson(value) as PrismaJsonValue;
+}
+
+function serializeToJson(value: unknown): JsonLike {
 
   // Summarize transaction receipts (prevents circular/provider objects, keeps hash)
   if (isReceiptLike(value)) {
