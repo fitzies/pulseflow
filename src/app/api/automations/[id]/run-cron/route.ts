@@ -7,7 +7,7 @@ import type { Node, Edge } from '@xyflow/react';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // Each automation gets its own 5-minute budget
+export const maxDuration = 600; // Each automation gets its own 5-minute budget
 
 export async function POST(
   request: Request,
