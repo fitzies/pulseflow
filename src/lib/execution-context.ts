@@ -199,8 +199,30 @@ export async function resolveAmountWithNodeData(
 
     // Use quote to calculate the paired amount
     // quote(inputAmount, inputReserve, outputReserve) = outputAmount
-    // We know the baseToken amount (baseAmount), we want the pairedToken amount
-    const pairedAmount = await routerContract.quote(baseAmount, reserveBase, reservePaired);
+    // 
+    // Detect "backwards" configuration common in addLiquidityPLS:
+    // When pairedToken is PLS/WPLS and baseAmountField references a PLS amount field,
+    // the user actually wants to calculate token amount FROM PLS amount.
+    // In this case baseToken points to the token but baseAmount is in PLS units.
+    const isPLSPair = pairedToken.toLowerCase() === WPLS.toLowerCase();
+    const baseAmountFieldLower = amountConfig.baseAmountField?.toLowerCase() || '';
+    const isBackwardsConfig = isPLSPair && (
+      baseAmountFieldLower.includes('pls') || 
+      baseAmountFieldLower === 'plsamount'
+    );
+    
+    // For backwards config: user knows PLS amount, wants token amount
+    // Formula: tokenAmount = plsAmount * reserveToken / reservePLS
+    // Since baseToken = token and pairedToken = PLS:
+    //   reserveBase = reserveToken, reservePaired = reservePLS
+    //   So we need: quote(baseAmount, reservePaired, reserveBase)
+    //
+    // For normal config: user knows baseToken amount, wants pairedToken amount
+    // Formula: pairedAmount = baseAmount * reservePaired / reserveBase
+    //   So we need: quote(baseAmount, reserveBase, reservePaired)
+    const pairedAmount = isBackwardsConfig
+      ? await routerContract.quote(baseAmount, reservePaired, reserveBase)
+      : await routerContract.quote(baseAmount, reserveBase, reservePaired);
 
     return pairedAmount;
   } catch (error) {
