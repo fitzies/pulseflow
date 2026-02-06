@@ -77,6 +77,9 @@ export function AmountSelector({
     // swapPLS always outputs PLS
     if (previousNodeType === 'swapPLS') return true;
     
+    // swapToPLS always outputs PLS
+    if (previousNodeType === 'swapToPLS') return true;
+    
     // removeLiquidityPLS outputs amountPLS
     if (previousNodeType === 'removeLiquidityPLS') return true;
     
