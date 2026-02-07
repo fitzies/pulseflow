@@ -55,8 +55,13 @@ export function getAutomationContractAddress(): string {
 /**
  * Gets PulseChain RPC provider
  */
+let _cachedProvider: JsonRpcProvider | null = null;
+
 export function getProvider(): JsonRpcProvider {
-  return new JsonRpcProvider(PULSECHAIN_RPC);
+  if (!_cachedProvider) {
+    _cachedProvider = new JsonRpcProvider(PULSECHAIN_RPC);
+  }
+  return _cachedProvider;
 }
 
 /**

@@ -83,6 +83,9 @@ export function AmountSelector({
     // removeLiquidityPLS outputs amountPLS
     if (previousNodeType === 'removeLiquidityPLS') return true;
     
+    // checkBalance always checks PLS balance (checkTokenBalance is separate)
+    if (previousNodeType === 'checkBalance') return true;
+    
     // Calculator and variable nodes output generic values - allow for any amount
     if (previousNodeType === 'calculator' || previousNodeType === 'variable') return true;
     
