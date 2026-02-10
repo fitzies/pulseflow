@@ -16,6 +16,7 @@ import {
   BuildingOfficeIcon,
   VariableIcon,
   CalculatorIcon,
+  ScaleIcon,
 } from '@heroicons/react/24/solid';
 import { MessageCircle } from 'lucide-react';
 import {
@@ -53,7 +54,8 @@ export type NodeType =
   | 'condition'
   | 'telegram'
   | 'variable'
-  | 'calculator';
+  | 'calculator'
+  | 'dexQuote';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -246,6 +248,14 @@ const nodeTypes: NodeTypeOption[] = [
     iconBg: getNodeBackgroundColor('calculator'),
     iconColor: getNodeTextColor('calculator'),
   },
+  {
+    type: 'dexQuote',
+    label: 'DEX Quote',
+    description: 'Get price quotes from DEX',
+    icon: ScaleIcon,
+    iconBg: getNodeBackgroundColor('dexQuote'),
+    iconColor: getNodeTextColor('dexQuote'),
+  },
 ];
 
 interface SelectNodeDialogProps {
@@ -271,7 +281,7 @@ const nodeGroups = {
     ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
   ),
   external: nodeTypes.filter((n) => ['telegram'].includes(n.type)),
-  utilities: nodeTypes.filter((n) => ['variable', 'calculator'].includes(n.type)),
+  utilities: nodeTypes.filter((n) => ['variable', 'calculator', 'dexQuote'].includes(n.type)),
 };
 
 const planHierarchy: Record<string, number> = {

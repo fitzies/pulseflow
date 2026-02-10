@@ -101,6 +101,9 @@ export function useNodeValidation(
       case 'wait':
         relevantFields.push('delay');
         break;
+      case 'dexQuote':
+        relevantFields.push('path');
+        break;
     }
 
     // Check if any relevant field changed
@@ -116,10 +119,13 @@ export function useNodeValidation(
     switch (nodeType) {
       case 'swap':
       case 'swapFromPLS':
-      case 'swapToPLS': {
+      case 'swapToPLS':
+      case 'dexQuote': {
         const path = formData.path || [];
         if (path.length === 0) {
           hardErrors.path = 'Token path cannot be empty';
+        } else if (path.length < 2) {
+          hardErrors.path = 'Token path must have at least 2 addresses';
         }
         path.forEach((addr: string, index: number) => {
           if (addr && !validateAddressFormat(addr, `path[${index}]`)) {
@@ -399,6 +405,7 @@ export function useNodeValidation(
       case 'swap':
       case 'swapFromPLS':
       case 'swapToPLS':
+      case 'dexQuote':
         serverValidationFields.push('path');
         break;
       case 'transfer':

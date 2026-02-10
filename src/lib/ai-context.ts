@@ -46,6 +46,7 @@ const NODE_TYPE_DESCRIPTIONS: Record<string, string> = {
   gasGuard: "Stop execution if current network gas price exceeds threshold. Config: maxGasPrice (Beats/wei). PRO feature",
   condition: "Branch flow based on conditions. Config: conditionType (plsBalance/tokenBalance/lpAmount/previousOutput), operator (>/</>=/<=/==), value. Has true/false output branches. PRO feature",
   telegram: "Send Telegram notification. Config: message (template with variables like {{automation.name}}, {{previousNode.output}})",
+  dexQuote: "Get a price quote from PulseX DEX. Config: quoteMode (amountsIn/amountsOut), amount, path (array of token addresses). Output: quoteAmount (bigint)",
 };
 
 export function buildSystemPrompt(context: AutomationContext): string {

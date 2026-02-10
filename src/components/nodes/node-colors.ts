@@ -60,7 +60,8 @@ export type NodeType =
   | 'condition'
   | 'telegram'
   | 'variable'
-  | 'calculator';
+  | 'calculator'
+  | 'dexQuote';
 
 interface NodeColorClasses {
   background: string;
@@ -93,6 +94,7 @@ const nodeColors: Record<NodeType, NodeColorClasses> = {
   telegram: { background: 'bg-sky-500/20', text: 'text-sky-400' },
   variable: { background: 'bg-emerald-500/20', text: 'text-emerald-500' },
   calculator: { background: 'bg-cyan-500/20', text: 'text-cyan-500' },
+  dexQuote: { background: 'bg-teal-500/20', text: 'text-teal-500' },
 };
 
 /**

@@ -2180,6 +2180,43 @@ export async function executeNode(
 
       return { result: calculatorOutput, context: updatedContextCalculator };
 
+    case "dexQuote": {
+      const quoteMode = nodeData.quoteMode || 'amountsOut';
+      const quoteAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
+      const quotePath = nodeData.path || [];
+
+      if (quotePath.length < 2) {
+        throw new Error("Token path must have at least 2 addresses for DEX quote");
+      }
+      if (quoteAmount <= 0n) {
+        throw new Error("Amount must be greater than 0 for DEX quote");
+      }
+
+      const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+
+      let resultAmount: bigint;
+      if (quoteMode === 'amountsIn') {
+        const amounts = await routerContract.getAmountsIn(quoteAmount, quotePath);
+        resultAmount = amounts[0];
+      } else {
+        const amounts = await routerContract.getAmountsOut(quoteAmount, quotePath);
+        resultAmount = amounts[amounts.length - 1];
+      }
+
+      const dexQuoteOutput = {
+        quoteAmount: resultAmount,
+      };
+
+      const updatedContextDexQuote = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        dexQuoteOutput
+      );
+
+      return { result: dexQuoteOutput, context: updatedContextDexQuote };
+    }
+
     default:
       throw new Error(`Unknown node type: ${nodeType}`);
   }

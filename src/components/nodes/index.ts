@@ -22,3 +22,4 @@ export { ConditionNode } from './condition-node';
 export { TelegramNode } from './telegram-node';
 export { VariableNode } from './variable-node';
 export { CalculatorNode } from './calculator-node';
+export { DexQuoteNode } from './dex-quote-node';

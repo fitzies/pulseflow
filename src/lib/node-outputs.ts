@@ -117,6 +117,9 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
   },
   telegram: null, // no numeric output
   condition: null, // handled separately (branching)
+  dexQuote: {
+    quoteAmount: 'bigint',
+  },
 };
 
 /**

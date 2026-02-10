@@ -40,6 +40,7 @@ import {
   TelegramNode,
   VariableNode,
   CalculatorNode,
+  DexQuoteNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -103,6 +104,7 @@ const nodeTypes: NodeTypes = {
   telegram: withStatusIndicator(TelegramNode),
   variable: withStatusIndicator(VariableNode),
   calculator: withStatusIndicator(CalculatorNode),
+  dexQuote: withStatusIndicator(DexQuoteNode),
 };
 
 const edgeTypes: EdgeTypes = {

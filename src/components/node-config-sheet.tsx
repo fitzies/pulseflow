@@ -1147,6 +1147,9 @@ export function NodeConfigSheet({
       case 'calculator':
         outputFields.push({ value: 'result', label: 'Calculator Result' });
         break;
+      case 'dexQuote':
+        outputFields.push({ value: 'quoteAmount', label: 'Quote Amount' });
+        break;
     }
 
     return outputFields;
@@ -1800,6 +1803,74 @@ export function NodeConfigSheet({
     </div>
   );
 
+  const renderDexQuoteConfig = () => {
+    const quoteMode = formData.quoteMode || 'amountsOut';
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Quote Mode</label>
+          <Select
+            value={quoteMode}
+            onValueChange={(value) => updateField('quoteMode', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="amountsIn">Amounts In (how much input needed)</SelectItem>
+              <SelectItem value="amountsOut">Amounts Out (how much output received)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {quoteMode === 'amountsIn'
+              ? 'Calculate how much input token is needed to receive the specified output amount'
+              : 'Calculate how much output token you receive for the specified input amount'}
+          </p>
+        </div>
+        <AmountSelector
+          value={formData.amount}
+          onChange={(value) => updateField('amount', value)}
+          previousNodeType={previousNodeType}
+          previousNodeConfig={previousNodeConfig}
+          label="Amount"
+          fieldName="amount"
+          nodeType="dexQuote"
+          formData={formData}
+          nodes={nodes}
+        />
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Token Path</label>
+          {validation.hardErrors.path && (
+            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+          )}
+          <div className="space-y-2">
+            {(formData.path || []).map((item: string, index: number) => (
+              <PathTokenInput
+                key={index}
+                address={item}
+                idx={index}
+                onUpdate={(value) => updateArrayField('path', index, value)}
+                onRemove={() => removeArrayItem('path', index)}
+                hardError={validation.hardErrors[`path[${index}]`]}
+              />
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => addArrayItem('path')}
+            className="w-full"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Token
+          </Button>
+        </div>
+        {renderNotesField()}
+      </div>
+    );
+  };
+
   const renderConfig = () => {
     switch (nodeType) {
       case 'start':
@@ -1846,6 +1917,8 @@ export function NodeConfigSheet({
         return renderVariableConfig();
       case 'calculator':
         return renderCalculatorConfig();
+      case 'dexQuote':
+        return renderDexQuoteConfig();
       case 'checkBalance':
       default:
         return (

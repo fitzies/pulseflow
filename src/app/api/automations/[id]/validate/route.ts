@@ -456,6 +456,27 @@ export async function POST(
         }
         break;
       }
+
+      case 'dexQuote': {
+        const quotePath = formData.path || [];
+        if (quotePath.length < 2) {
+          validationResults.hardErrors.path = 'Token path must have at least 2 addresses';
+        }
+        for (let i = 0; i < quotePath.length; i++) {
+          const addr = quotePath[i];
+          if (addr && !validateAddress(addr)) {
+            validationResults.hardErrors[`path[${i}]`] = 'Invalid address format';
+          } else if (addr) {
+            const tokenCheck = await validateTokenOnly(addr);
+            if (tokenCheck.isLP) {
+              validationResults.hardErrors[`path[${i}]`] = 'LP pair address not allowed in token path';
+            } else if (!tokenCheck.isValid) {
+              validationResults.hardErrors[`path[${i}]`] = 'Invalid token contract';
+            }
+          }
+        }
+        break;
+      }
     }
 
     return NextResponse.json(validationResults);
