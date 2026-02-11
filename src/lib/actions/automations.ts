@@ -2,7 +2,7 @@
 
 import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
 import { getPlanLimit, canCreateAutomation, findProNodesInDefinition, canUseProNodes } from "@/lib/plan-limits";
@@ -23,17 +23,8 @@ export async function createAutomation(name: string, communityVisible: boolean =
       };
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return {
-        success: false,
-        error: "User not found. Please contact support.",
-      };
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Check if user has a plan
     if (dbUser.plan === null) {
@@ -109,17 +100,8 @@ export async function updateAutomationDefinition(
       };
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return {
-        success: false,
-        error: "User not found. Please contact support.",
-      };
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({
@@ -178,17 +160,8 @@ export async function runAutomation(automationId: string) {
       };
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return {
-        success: false,
-        error: "User not found. Please contact support.",
-      };
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({
@@ -315,17 +288,8 @@ export async function updateAutomationSchedule(
       };
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return {
-        success: false,
-        error: "User not found. Please contact support.",
-      };
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Check if user has PRO or ULTRA plan for scheduling
     if (triggerMode === "SCHEDULE" && dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
@@ -410,17 +374,8 @@ export async function updateAutomationPriceTrigger(
       };
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return {
-        success: false,
-        error: "User not found. Please contact support.",
-      };
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Check if user has PRO or ULTRA plan for price triggers
     if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
@@ -527,13 +482,7 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return { success: false, error: "User not found. Please contact support." };
-    }
+    const dbUser = await getOrCreateDbUser(user.id);
 
     if (dbUser.plan === null) {
       return { success: false, error: "You need to upgrade to a plan to create automations." };
@@ -661,13 +610,7 @@ export async function createAutomationFromShare(shareString: string, name: strin
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return { success: false, error: "User not found. Please contact support." };
-    }
+    const dbUser = await getOrCreateDbUser(user.id);
 
     if (dbUser.plan === null) {
       return { success: false, error: "You need to upgrade to a plan to create automations." };
@@ -751,13 +694,7 @@ export async function renameAutomation(automationId: string, newName: string) {
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return { success: false, error: "User not found. Please contact support." };
-    }
+    const dbUser = await getOrCreateDbUser(user.id);
 
     const automation = await prisma.automation.findUnique({
       where: { id: automationId },

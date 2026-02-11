@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
 import { Bot } from 'grammy';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 
 const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN!);
 
@@ -13,12 +13,9 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-      select: { telegramChatId: true },
-    });
+    const dbUser = await getOrCreateDbUser(user.id);
 
-    if (!dbUser?.telegramChatId) {
+    if (!dbUser.telegramChatId) {
       return NextResponse.json(
         { error: 'Telegram not connected. Please connect your Telegram first.' },
         { status: 400 }

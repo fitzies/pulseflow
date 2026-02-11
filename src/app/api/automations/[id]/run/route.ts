@@ -1,5 +1,5 @@
 import { currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { executeAutomationChain, type ProgressEvent } from '@/lib/automation-runner';
 import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
 import { sendExecutionNotification } from '@/lib/push-notification';
@@ -25,18 +25,8 @@ export async function POST(
     });
   }
 
-  // Get user from database
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-    select: { id: true, plan: true },
-  });
-
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  // Get or create user in database
+  const dbUser = await getOrCreateDbUser(user.id);
 
   // Fetch automation and verify ownership
   const automation = await prisma.automation.findUnique({

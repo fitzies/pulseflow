@@ -1,17 +1,11 @@
 import { currentUser, clerkClient } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { decryptPrivateKey } from '@/lib/wallet-generation';
 
 // Helper to verify automation ownership
 async function verifyAutomationOwnership(automationId: string, clerkUserId: string) {
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: clerkUserId },
-  });
-
-  if (!dbUser) {
-    return { error: 'User not found. Please contact support.', status: 404 };
-  }
+  const dbUser = await getOrCreateDbUser(clerkUserId);
 
   const automation = await prisma.automation.findUnique({
     where: { id: automationId },

@@ -1,6 +1,6 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 
 export async function POST(
   request: Request,
@@ -19,17 +19,8 @@ export async function POST(
       );
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return NextResponse.json(
-        { error: 'User not found.' },
-        { status: 404 }
-      );
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({

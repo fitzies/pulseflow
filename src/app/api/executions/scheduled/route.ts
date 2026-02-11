@@ -1,5 +1,5 @@
 import { currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,16 +14,7 @@ export async function GET() {
     });
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const dbUser = await getOrCreateDbUser(user.id);
 
   // Fetch scheduled executions (wasScheduled: true)
   const executions = await prisma.execution.findMany({

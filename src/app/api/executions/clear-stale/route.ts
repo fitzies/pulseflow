@@ -1,5 +1,5 @@
 import { currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,16 +14,7 @@ export async function POST() {
     });
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const dbUser = await getOrCreateDbUser(user.id);
 
   const now = new Date();
   const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);

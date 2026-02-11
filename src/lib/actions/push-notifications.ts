@@ -1,7 +1,7 @@
 "use server";
 
 import webpush from "web-push";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { currentUser } from "@clerk/nextjs/server";
 
 webpush.setVapidDetails(
@@ -17,8 +17,7 @@ export async function subscribeUser(subscription: {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-  if (!dbUser) throw new Error("User not found");
+  const dbUser = await getOrCreateDbUser(user.id);
 
   await prisma.pushSubscription.upsert({
     where: { endpoint: subscription.endpoint },
@@ -38,8 +37,7 @@ export async function unsubscribeUser(endpoint: string) {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-  if (!dbUser) throw new Error("User not found");
+  const dbUser = await getOrCreateDbUser(user.id);
 
   await prisma.pushSubscription.deleteMany({
     where: {
@@ -55,8 +53,7 @@ export async function getSubscriptionStatus() {
   const user = await currentUser();
   if (!user) return { subscribed: false };
 
-  const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-  if (!dbUser) return { subscribed: false };
+  const dbUser = await getOrCreateDbUser(user.id);
 
   const count = await prisma.pushSubscription.count({
     where: { userId: dbUser.id },

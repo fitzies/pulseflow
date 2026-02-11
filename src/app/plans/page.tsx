@@ -1,6 +1,6 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -109,18 +109,8 @@ export default async function Page({
     );
   }
 
-  // Get user from database
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-background p-6">
-        <p>User not found. Please contact support.</p>
-      </main>
-    );
-  }
+  // Get or create user in database
+  const dbUser = await getOrCreateDbUser(user.id);
 
   const currentPlan: Plan = dbUser.plan;
 

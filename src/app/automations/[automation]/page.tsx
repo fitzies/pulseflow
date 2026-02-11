@@ -1,5 +1,5 @@
 import { currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { AutomationFlow } from '@/components/automation-flow';
 import type { Node, Edge } from '@xyflow/react';
 
@@ -19,18 +19,8 @@ export default async function Page({ params }: PageProps) {
     );
   }
 
-  // Get user from database
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <p>User not found. Please contact support.</p>
-      </div>
-    );
-  }
+  // Get or create user in database
+  const dbUser = await getOrCreateDbUser(user.id);
 
   // Fetch automation from database
   const automation = await prisma.automation.findUnique({

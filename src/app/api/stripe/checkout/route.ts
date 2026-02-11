@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { getPriceIdFromPlan } from "@/lib/stripe-config";
 import { Plan } from "@prisma/client";
 
@@ -19,14 +19,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    // Get or create user in database
+    const user = await getOrCreateDbUser(userId);
 
     const priceId = getPriceIdFromPlan(plan);
 

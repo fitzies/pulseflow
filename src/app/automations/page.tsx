@@ -1,5 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,18 +22,8 @@ export default async function Page() {
     );
   }
 
-  // Get user from database
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <p>User not found. Please contact support.</p>
-      </div>
-    );
-  }
+  // Get or create user in database
+  const dbUser = await getOrCreateDbUser(user.id);
 
   // Check plan status
   const hasPlan = dbUser.plan !== null;

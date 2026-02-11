@@ -1,6 +1,6 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
 export async function DELETE(
@@ -20,17 +20,8 @@ export async function DELETE(
       );
     }
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return NextResponse.json(
-        { error: 'User not found. Please contact support.' },
-        { status: 404 }
-      );
-    }
+    // Get or create user in database
+    const dbUser = await getOrCreateDbUser(user.id);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({

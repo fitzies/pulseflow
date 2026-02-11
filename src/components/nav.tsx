@@ -1,5 +1,5 @@
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 
 import Link from "next/link";
 import Logo from "@/components/logo";
@@ -35,14 +35,8 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
     return null;
   }
 
-  // Get user from database
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return null;
-  }
+  // Get or create user in database
+  const dbUser = await getOrCreateDbUser(user.id);
 
   // Get user's automations
   const automations = await prisma.automation.findMany({

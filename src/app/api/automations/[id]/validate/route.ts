@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { JsonRpcProvider, Contract, isAddress } from 'ethers';
 import { erc20ABI, pairABI, playgroundTokenABI } from '@/lib/abis';
 import { CONFIG } from '@/lib/config';
@@ -17,13 +17,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-    });
-
-    if (!dbUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    const dbUser = await getOrCreateDbUser(user.id);
 
     const automation = await prisma.automation.findUnique({
       where: { id: automationId },

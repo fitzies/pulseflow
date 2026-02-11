@@ -1,6 +1,6 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { generateText, gateway } from "ai";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { buildSystemPrompt } from "@/lib/ai-context";
 import type { Node, Edge } from "@xyflow/react";
 
@@ -84,16 +84,7 @@ export async function POST(
     });
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: user.id },
-  });
-
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: "User not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const dbUser = await getOrCreateDbUser(user.id);
 
   if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
     return new Response(
@@ -242,13 +233,7 @@ export async function GET(
     });
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: "User not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const dbUser = await getOrCreateDbUser(user.id);
 
   const automation = await prisma.automation.findUnique({ where: { id: automationId } });
   if (!automation || automation.userId !== dbUser.id) {
@@ -291,13 +276,7 @@ export async function DELETE(
     });
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-  if (!dbUser) {
-    return new Response(JSON.stringify({ error: "User not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const dbUser = await getOrCreateDbUser(user.id);
 
   const automation = await prisma.automation.findUnique({ where: { id: automationId } });
   if (!automation || automation.userId !== dbUser.id) {

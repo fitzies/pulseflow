@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { prisma } from "@/lib/prisma";
+import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
@@ -11,11 +11,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
+    const user = await getOrCreateDbUser(userId);
 
-    if (!user?.stripeCustomerId) {
+    if (!user.stripeCustomerId) {
       return NextResponse.json(
         { error: "No active subscription" },
         { status: 400 }
