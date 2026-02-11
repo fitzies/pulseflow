@@ -10,7 +10,7 @@ import {
 } from "ethers";
 import { prisma } from "./prisma";
 import { getWalletFromEncryptedKey } from "./wallet-generation";
-import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from "./abis";
+import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, nineMMRouter, PulseXRouter, NineMMRouterAddress, WPLS } from "./abis";
 import { CONFIG } from "./config";
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
@@ -42,6 +42,17 @@ const PULSECHAIN_RPC = CONFIG.pulsechainRpc;
 
 // Contract address from config
 const AUTOMATION_CONTRACT_ADDRESS = CONFIG.automationContract;
+const NINE_MM_CONTRACT_ADDRESS = CONFIG.nineMMContract;
+
+/**
+ * Resolves the correct router address and automation contract address based on the selected DEX.
+ */
+function resolveDexAddresses(dex?: string): { routerAddress: string; contractAddress: string; routerABI: readonly any[] } {
+  if (dex === '9mm') {
+    return { routerAddress: NineMMRouterAddress, contractAddress: NINE_MM_CONTRACT_ADDRESS, routerABI: nineMMRouter };
+  }
+  return { routerAddress: PulseXRouter, contractAddress: AUTOMATION_CONTRACT_ADDRESS, routerABI: pulsexRouterABI };
+}
 
 export function setAutomationContractAddress(address: string) {
   // Note: This function is kept for backward compatibility but now uses config
@@ -1263,7 +1274,8 @@ export async function executeNode(
   const slippage = nodeData.slippage ?? 0.01;
 
   switch (nodeType) {
-    case "swap":
+    case "swap": {
+      const { routerAddress: swapRouter, contractAddress: swapContract, routerABI: swapRouterABI } = resolveDexAddresses(nodeData.dex);
       // Check if swapping PLS (native) or tokens
       if (nodeData.usePLS && nodeData.usePLS === true) {
         const plsAmount = await resolveAmountField('plsAmount', nodeData, context, automationId);
@@ -1272,7 +1284,7 @@ export async function executeNode(
         // Calculate amountOutMin from slippage
         let amountOutMin = BigInt(0);
         if (path.length > 0 && plsAmount > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const routerContract = new Contract(swapRouter, swapRouterABI, provider);
           const amountsOut = await routerContract.getAmountsOut(plsAmount, path);
           const expectedOut = amountsOut[amountsOut.length - 1];
           // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
@@ -1286,7 +1298,7 @@ export async function executeNode(
           to,
           deadline,
           plsAmount,
-          contractAddress
+          contractAddress || swapContract
         );
 
         // Extract output
@@ -1306,7 +1318,7 @@ export async function executeNode(
           const amountOut = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
 
           if (path.length > 0 && amountOut > 0n) {
-            const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+            const routerContract = new Contract(swapRouter, swapRouterABI, provider);
             const amountsIn = await routerContract.getAmountsIn(amountOut, path);
             const calculatedAmountIn = amountsIn[0];
             // Apply slippage: amountIn = calculatedAmountIn * (1 + slippage) - user willing to spend up to this
@@ -1322,7 +1334,7 @@ export async function executeNode(
 
           // Calculate amountOutMin from slippage
           if (path.length > 0 && amountIn > 0n) {
-            const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+            const routerContract = new Contract(swapRouter, swapRouterABI, provider);
             const amountsOut = await routerContract.getAmountsOut(amountIn, path);
             const expectedOut = amountsOut[amountsOut.length - 1];
             // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
@@ -1337,7 +1349,7 @@ export async function executeNode(
           path,
           to,
           deadline,
-          contractAddress
+          contractAddress || swapContract
         );
 
         // Extract output
@@ -1346,6 +1358,7 @@ export async function executeNode(
 
         return { result: receipt, context: updatedContext };
       }
+    }
 
     case "addLiquidity":
       // Check if adding liquidity with PLS (native) or tokens
@@ -1452,7 +1465,8 @@ export async function executeNode(
       return { result: receiptAddLiquidityPLS, context: updatedContextAddLiquidityPLS };
 
     case "swapFromPLS":
-    case "swapPLS": // Keep for backward compatibility
+    case "swapPLS": { // Keep for backward compatibility
+      const { routerAddress: fromPLSRouter, contractAddress: fromPLSContract, routerABI: fromPLSRouterABI } = resolveDexAddresses(nodeData.dex);
       let pathSwap = nodeData.path || [];
       const swapModeFromPLS = nodeData.swapMode || 'exactIn';
 
@@ -1469,7 +1483,7 @@ export async function executeNode(
         const amountOutSwap = await resolveAmountField('amountOut', nodeData, context, automationId, nodeType);
 
         if (pathSwap.length > 0 && amountOutSwap > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const routerContract = new Contract(fromPLSRouter, fromPLSRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(amountOutSwap, pathSwap);
           const calculatedPlsAmount = amountsIn[0];
           // Apply slippage: plsAmount = calculatedPlsAmount * (1 + slippage) - user willing to spend up to this
@@ -1485,7 +1499,7 @@ export async function executeNode(
 
         // Calculate amountOutMin from slippage
         if (pathSwap.length > 0 && plsAmountSwap > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const routerContract = new Contract(fromPLSRouter, fromPLSRouterABI, provider);
           const amountsOut = await routerContract.getAmountsOut(plsAmountSwap, pathSwap);
           const expectedOut = amountsOut[amountsOut.length - 1];
           // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
@@ -1500,7 +1514,7 @@ export async function executeNode(
         to,
         deadline,
         plsAmountSwap,
-        contractAddress
+        contractAddress || fromPLSContract
       );
 
       // Extract output
@@ -1508,8 +1522,10 @@ export async function executeNode(
       const updatedContextSwap = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputSwap);
 
       return { result: receiptSwap, context: updatedContextSwap };
+    }
 
-    case "swapToPLS":
+    case "swapToPLS": {
+      const { routerAddress: toPLSRouter, contractAddress: toPLSContract, routerABI: toPLSRouterABI } = resolveDexAddresses(nodeData.dex);
       let pathSwapToPLS = nodeData.path || [];
       const swapModeToPLS = nodeData.swapMode || 'exactIn';
 
@@ -1526,7 +1542,7 @@ export async function executeNode(
         const plsAmountOut = await resolveAmountField('plsAmountOut', nodeData, context, automationId, nodeType);
 
         if (pathSwapToPLS.length > 0 && plsAmountOut > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const routerContract = new Contract(toPLSRouter, toPLSRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(plsAmountOut, pathSwapToPLS);
           const calculatedAmountIn = amountsIn[0];
           // Apply slippage: amountIn = calculatedAmountIn * (1 + slippage) - user willing to spend up to this
@@ -1542,7 +1558,7 @@ export async function executeNode(
 
         // Calculate amountOutMin from slippage
         if (pathSwapToPLS.length > 0 && amountInSwapToPLS > 0n) {
-          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const routerContract = new Contract(toPLSRouter, toPLSRouterABI, provider);
           const amountsOut = await routerContract.getAmountsOut(amountInSwapToPLS, pathSwapToPLS);
           const expectedOut = amountsOut[amountsOut.length - 1];
           // Apply slippage: amountOutMin = expectedOut * (1 - slippage)
@@ -1557,7 +1573,7 @@ export async function executeNode(
         pathSwapToPLS,
         to,
         deadline,
-        contractAddress
+        contractAddress || toPLSContract
       );
 
       // Extract output
@@ -1565,6 +1581,7 @@ export async function executeNode(
       const updatedContextSwapToPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputSwapToPLS);
 
       return { result: receiptSwapToPLS, context: updatedContextSwapToPLS };
+    }
 
     case "removeLiquidity":
       const liquidity = await resolveAmountField('liquidity', nodeData, context, automationId, nodeType);
@@ -2181,6 +2198,7 @@ export async function executeNode(
       return { result: calculatorOutput, context: updatedContextCalculator };
 
     case "dexQuote": {
+      const { routerAddress: quoteRouter, routerABI: quoteRouterABI } = resolveDexAddresses(nodeData.dex);
       const quoteMode = nodeData.quoteMode || 'amountsOut';
       const quoteAmount = await resolveAmountField('amount', nodeData, context, automationId, nodeType);
       const quotePath = nodeData.path || [];
@@ -2192,7 +2210,7 @@ export async function executeNode(
         throw new Error("Amount must be greater than 0 for DEX quote");
       }
 
-      const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+      const routerContract = new Contract(quoteRouter, quoteRouterABI, provider);
 
       let resultAmount: bigint;
       if (quoteMode === 'amountsIn') {

@@ -383,10 +383,32 @@ export function NodeConfigSheet({
     });
   };
 
+  const renderDexSelector = () => (
+    <div className="grid gap-3">
+      <label className="text-sm font-medium">DEX</label>
+      <Select
+        value={formData.dex || 'pulsex'}
+        onValueChange={(value) => updateField('dex', value)}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="pulsex">PulseX</SelectItem>
+          <SelectItem value="9mm">9mm</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {formData.dex === '9mm' ? 'Swap via the 9mm DEX router' : 'Swap via the PulseX DEX router'}
+      </p>
+    </div>
+  );
+
   const renderSwapConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        {renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select
@@ -467,6 +489,7 @@ export function NodeConfigSheet({
     const swapMode = formData.swapMode || 'exactIn';
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        {renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select
@@ -551,6 +574,7 @@ export function NodeConfigSheet({
     const swapMode = formData.swapMode || 'exactIn';
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        {renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select

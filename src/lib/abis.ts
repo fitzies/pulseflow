@@ -554,7 +554,7 @@ export const pairABI = [
   },
 ] as const;
 
-export const nimemmRouter = [
+export const nineMMRouter = [
   {
     inputs: [
       { internalType: "address", name: "_factory", type: "address" },
@@ -915,3 +915,4 @@ export const nimemmRouter = [
 export const WPLS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
 export const PulseXFactory = "0x29eA7545DEf87022BAdc76323F373EA1e707C523";
 export const PulseXRouter = "0x165C3410fC91EF562C50559f7d2289fEbed552d9";
+export const NineMMRouterAddress = "0xeB45a3c4aedd0F47F345fB4c8A1802BB5740d725";
