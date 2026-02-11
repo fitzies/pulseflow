@@ -122,9 +122,10 @@ export function useNodeValidation(
       case 'swapToPLS':
       case 'dexQuote': {
         const path = formData.path || [];
+        const minPathLength = (nodeType === 'swapFromPLS' || nodeType === 'swapToPLS') ? 1 : 2;
         if (path.length === 0) {
           hardErrors.path = 'Token path cannot be empty';
-        } else if (path.length < 2) {
+        } else if (path.length < minPathLength) {
           hardErrors.path = 'Token path must have at least 2 addresses';
         }
         path.forEach((addr: string, index: number) => {
