@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/themes";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -29,6 +30,7 @@ export default function RootLayout({
   return (
     <ClerkProvider
       appearance={{
+        baseTheme: shadcn,
         cssLayerName: "clerk",
       }}
     >

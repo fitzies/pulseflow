@@ -25,7 +25,6 @@ import {
 } from "./ui/dropdown-menu";
 import { Separator } from "./ui/separator";
 import { AutomationExecutionsDialog } from "./navbar-components/automation-executions-dialog";
-import { AutomationSettingsDialog } from "./automation-settings-dialog";
 import { duplicateAutomation } from "@/lib/actions/automations";
 import { createShareCode } from "@/lib/actions/automations";
 import { toast } from "sonner";
@@ -68,7 +67,6 @@ function AutomationRow({
   const router = useRouter();
   const { iconStyle } = useIconPreference();
   const [executionsDialogOpen, setExecutionsDialogOpen] = useState(false);
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isFavorite, setIsFavorite] = useState(automation.isFavorite);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
@@ -127,10 +125,6 @@ function AutomationRow({
     }
   };
 
-  const handleSettingsUpdate = () => {
-    router.refresh();
-  };
-
   const handleDelete = async () => {
     try {
       const response = await fetch(`/api/automations/${automation.id}`, {
@@ -169,7 +163,7 @@ function AutomationRow({
       toast.error("Failed to update favorite");
     } finally {
       setIsTogglingFavorite(false);
-    } ``
+    }
   };
 
   return (
@@ -185,8 +179,8 @@ function AutomationRow({
             href={`/automations/${automation.id}`}
             className="flex items-center gap-3"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-md border">
-              <img src={`https://api.dicebear.com/9.x/${iconStyle}/svg?seed=${automation.id}`} className="rounded-md" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border">
+              <img src={`https://api.dicebear.com/9.x/${iconStyle}/svg?seed=${automation.id}`} className="rounded-lg" />
             </div>
             <div className="flex flex-col">
               <span className="font-medium">{automation.name}</span>
@@ -296,7 +290,7 @@ function AutomationRow({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSettingsDialogOpen(true);
+                      router.push(`/automations/${automation.id}/settings`);
                     }}
                   >
                     <Settings className="h-4 w-4 mr-2" />
@@ -325,21 +319,6 @@ function AutomationRow({
         automationId={automation.id}
         open={executionsDialogOpen}
         onOpenChange={setExecutionsDialogOpen}
-      />
-
-      <AutomationSettingsDialog
-        open={settingsDialogOpen}
-        onOpenChange={setSettingsDialogOpen}
-        automationId={automation.id}
-        initialName={automation.name}
-        initialDefaultSlippage={automation.defaultSlippage ?? 0.01}
-        initialRpcEndpoint={automation.rpcEndpoint}
-        initialShowNodeLabels={automation.showNodeLabels}
-        initialBetaFeatures={automation.betaFeatures}
-        initialCommunityVisible={automation.communityVisible}
-        userPlan={userPlan}
-        onSettingsUpdate={handleSettingsUpdate}
-        onDelete={handleDelete}
       />
     </>
   );

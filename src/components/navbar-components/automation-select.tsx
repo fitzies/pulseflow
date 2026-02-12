@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronsUpDown } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import {
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import {
@@ -36,9 +38,10 @@ export default function AutomationSelect({ automations }: AutomationSelectProps)
   }
   
   const selectedAutomationId = currentAutomationId || automations[0]?.id;
+  const isSettingsPage = pathname.includes("/settings");
   
   const handleValueChange = (value: string) => {
-    router.push(`/automations/${value}`);
+    router.push(isSettingsPage ? `/automations/${value}/settings` : `/automations/${value}`);
   };
   
   return (
@@ -72,6 +75,16 @@ export default function AutomationSelect({ automations }: AutomationSelectProps)
           )}
         </Select>
       </BreadcrumbItem>
+      {isSettingsPage && (
+        <>
+          <BreadcrumbSeparator> / </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href={`/automations/${selectedAutomationId}/settings`}>Settings</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+        </>
+      )}
     </>
   );
 }

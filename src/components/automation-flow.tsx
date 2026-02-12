@@ -60,11 +60,11 @@ import { ArrowPathIcon, PlayIcon, StopIcon, Cog6ToothIcon } from '@heroicons/rea
 import { toast } from 'sonner';
 import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
 import { parseBlockchainError } from '@/lib/error-utils';
-import { AutomationSettingsDialog } from '@/components/automation-settings-dialog';
 import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
 import { AIChatButton } from '@/components/ai-chat-button';
 import { AIChatPanel } from '@/components/ai-chat-panel';
 import { AutomationExecutionsDialog } from '@/components/navbar-components/automation-executions-dialog';
+import { useRouter } from 'next/navigation';
 
 // Higher-order component to wrap nodes with status indicator
 function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
@@ -186,6 +186,7 @@ export function AutomationFlow({
   const [sourceNodeId, setSourceNodeId] = useState<string | null>(null);
   const [sourceHandleId, setSourceHandleId] = useState<string | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
+  const router = useRouter();
   const [configSheetOpen, setConfigSheetOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(!!activeExecution);
@@ -193,7 +194,6 @@ export function AutomationFlow({
   const [nodeStatuses, setNodeStatuses] = useState<Record<string, NodeStatus>>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [showNodeLabels, setShowNodeLabels] = useState(initialShowNodeLabels);
   const [betaFeatures, setBetaFeatures] = useState(initialBetaFeatures);
@@ -799,11 +799,6 @@ export function AutomationFlow({
     });
   }, [nodes, edges, handleOpenDialog, lastNodeIds, handleNodeClick, nodeStatuses, showNodeLabels, triggerMode, cronExpression, nextRunAt]);
 
-  const handleSettingsUpdate = useCallback(() => {
-    // Refresh the page to get updated settings
-    window.location.reload();
-  }, []);
-
   const handleReset = useCallback(() => {
     // Keep only the start node(s)
     const startNodes = nodes.filter((node) => node.type === 'start');
@@ -927,7 +922,7 @@ export function AutomationFlow({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSettingsDialogOpen(true)}
+              onClick={() => router.push(`/automations/${automationId}/settings`)}
               className="h-6 w-6"
             >
               <Cog6ToothIcon className="h-4 w-4" />
@@ -964,22 +959,6 @@ export function AutomationFlow({
           Executions
         </Button>
       </div>
-
-      <AutomationSettingsDialog
-        open={settingsDialogOpen}
-        onOpenChange={setSettingsDialogOpen}
-        automationId={automationId}
-        initialName={currentName}
-        initialDefaultSlippage={currentDefaultSlippage}
-        initialRpcEndpoint={rpcEndpoint}
-        initialShowNodeLabels={showNodeLabels}
-        initialBetaFeatures={betaFeatures}
-        initialCommunityVisible={communityVisible}
-        userPlan={userPlan}
-        onSettingsUpdate={handleSettingsUpdate}
-        onReset={handleReset}
-        onDelete={handleDelete}
-      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

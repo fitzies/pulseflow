@@ -2,6 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import path from 'path';
 import Link from 'next/link';
 import Image from 'next/image';
+import { ChevronRight } from 'lucide-react';
 
 async function getGuides() {
   const guidesDir = path.join(process.cwd(), 'public', 'guides');
@@ -16,10 +17,14 @@ async function getGuides() {
         const titleMatch = content.match(/^#\s+(.+)$/m);
         const title = titleMatch ? titleMatch[1] : slug;
 
-        return { slug, title };
+        const withoutTitle = content.replace(/^#\s+.+$/m, '').trim();
+        const firstParagraph = withoutTitle.split(/\n\n+/)[0] ?? '';
+        const descMatch = firstParagraph.match(/^[^.!?]*[.!?]/);
+        const description = descMatch ? descMatch[0].trim() : firstParagraph.slice(0, 120);
+
+        return { slug, title, description };
       })
   );
-
   return guides;
 }
 
@@ -29,15 +34,22 @@ export default async function GuidesPage() {
   return (
     <div className="max-w-3xl mx-auto py-12 px-4">
       <h1 className="text-3xl font-bold mb-8">Guides</h1>
-      <div className="space-y-4">
+      <div className="divide-y divide-border rounded-lg border border-border">
         {guides.map((guide) => (
           <Link
             key={guide.slug}
-            href={`/guides/${guide.slug}`}
-            className="p-4 rounded-lg border border-border hover:bg-muted transition-colors flex flex-col gap-4"
+            href={`guides/${guide.slug}`}
+            className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted group"
           >
-            <div className='bg-secondary w-full h-60 rounded-lg' />
-            <h2 className="text-lg font-medium">{guide.title}</h2>
+            <div className="min-w-0">
+              <p className="text-lg font-medium text-foreground truncate">
+                {guide.title}
+              </p>
+              <p className="text-sm text-muted-foreground truncate">
+                {guide.description}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
         ))}
       </div>
