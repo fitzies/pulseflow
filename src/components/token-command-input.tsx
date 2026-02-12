@@ -20,20 +20,10 @@ const FOREACH_ITEM_SENTINEL = '__FOREACH_ITEM__';
 // ── Default token list ──────────────────────────────────────────────
 const DEFAULT_TOKENS: TokenEntry[] = [
   { name: 'Mandala', symbol: 'MDALA', address: '0x3a6c545c9E07e6d3041DC802033400F7fBf96c9a' },
-  { name: 'Maestro', symbol: 'MSTRO', address: '0x242D5959672F9f73aa431B485F39aa946A82DD4D' },
-  { name: 'Geisha', symbol: 'GEISH', address: '0xb5C985A42C61FdF46573479832EFD020E79ABD8F' },
-  { name: 'Satori', symbol: 'STORI', address: '0x67d2c95c23877aD349671943293E0eF3Af7fc6Ec' },
-  { name: 'FengShui', symbol: 'FSHUI', address: '0xa16e2f4A56214061a4a1E4d7865A138D505d28b1' },
-  { name: 'Yinyang', symbol: 'YYANG', address: '0x95400e06C94bE8178f92e4daA3eDa6909db5ABf4' },
-  { name: 'Tantra', symbol: 'TANTR', address: '0x1Bd1a74c107F0B4DEd166F167e162E0e5b710836' },
-  { name: 'Dharma', symbol: 'DHARM', address: '0x0704b52496056CBE168e511f1CB0d9DE049FABD8' },
-  { name: 'Samsara', symbol: 'SSARA', address: '0xE320AF6d4ABEDfcb1f96f156A0eB2a9B4D36E47D' },
-  { name: 'Transcend', symbol: 'TCEND', address: '0x0f72fF84E8b57b74d4C5e915d3d3109f28045ED8' },
-  { name: 'Renaissance', symbol: 'RENAI', address: '0x29Fa9D03730E5c7224a3996AF870D9C07F2dD209' },
-  { name: 'Epiphany', symbol: 'EPIPH', address: '0x3EF4878344C88df86d695a6e58156F9d94A278D2' },
-  { name: 'Si Dang Red', symbol: 'DANG', address: '0xaf1EfD88115a90676f8EEef01C88b0C49F3e8e8b' },
-  { name: 'Si Kao White', symbol: 'KAO', address: '0xe6e5B8AB71e5A747A609796666D0E3A0a5eC8BFf' },
-  { name: 'Si Faa Blue', symbol: 'SIFA', address: '0x74a1942613008Aa6Fec06C27F796edE6460259c1' },
+  { name: 'Matrix Oracle', symbol: 'MXORA', address: '0xf75C854109Dadb1dcaa09d3fE1f9cA6D35942940' },
+  { name: 'ZeroTrust', symbol: 'ZERØ', address: '0xf6703DBff070F231eEd966D33B1B6D7eF5207d26' },
+  { name: 'Domeshot', symbol: 'DOME', address: '0x23c9945687c49eB8E65A2Fd690E1D92fD0c3efE7' },
+  { name: 'Ensu', symbol: 'ENSU', address: '0xb27DB93725523219a8B49168550eAb660B4c3Aa9' },
 ];
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -273,9 +263,8 @@ export function TokenCommandInput({
       <button
         type="button"
         onClick={handleOpen}
-        className={`flex w-full items-center rounded-md border bg-transparent px-3 py-2 text-sm text-left cursor-pointer hover:bg-accent transition-colors ${
-          displayName ? 'text-foreground' : 'text-muted-foreground'
-        } ${className}`}
+        className={`flex w-full items-center rounded-md border bg-transparent px-3 py-2 text-sm text-left cursor-pointer hover:bg-accent transition-colors ${displayName ? 'text-foreground' : 'text-muted-foreground'
+          } ${className}`}
       >
         {displayName || (value ? truncateAddress(value) : placeholder || defaultPlaceholder)}
       </button>
@@ -317,8 +306,8 @@ export function TokenCommandInput({
                 value={`${lookupResult.name} ${lookupResult.symbol} ${lookupResult.address}`}
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{lookupResult.name} <span className="text-muted-foreground">({lookupResult.symbol})</span></span>
-                  <span className="text-xs text-muted-foreground font-mono">{truncateAddress(lookupResult.address)}</span>
+                  <span className="font-medium">{lookupResult.symbol}</span>
+                  <span className="text-xs text-muted-foreground">{lookupResult.name}</span>
                 </div>
               </CommandItem>
             </CommandGroup>
@@ -342,8 +331,8 @@ export function TokenCommandInput({
                   value={`${item.name} ${item.symbol} ${item.address}`}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{item.name} <span className="text-muted-foreground">({item.symbol})</span></span>
-                    <span className="text-xs text-muted-foreground font-mono">{truncateAddress(item.address)}</span>
+                    <span className="font-medium">{item.symbol}</span>
+                    <span className="text-xs text-muted-foreground">{item.name}</span>
                   </div>
                 </CommandItem>
               ))}
@@ -360,8 +349,8 @@ export function TokenCommandInput({
                   value={`${item.name} ${item.symbol} ${item.address}`}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{item.name} <span className="text-muted-foreground">({item.symbol})</span></span>
-                    <span className="text-xs text-muted-foreground font-mono">{truncateAddress(item.address)}</span>
+                    <span className="font-medium">{item.symbol}</span>
+                    <span className="text-xs text-muted-foreground">{item.name}</span>
                   </div>
                 </CommandItem>
               ))}
