@@ -787,17 +787,20 @@ export async function burnTokens(
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
 
-  // Verify it's a playground token
-  const isPlayground = await checkIsPlaygroundToken(token);
-  if (!isPlayground) {
-    throw new Error("Token is not a playground token");
-  }
-
-  // Get parent token and approve it (contract transfers parent tokens, not playground tokens)
+  // Get parent token address — implicitly validates it's a playground token (parent() throws if not)
   const provider = getProvider();
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const playgroundToken = new Contract(token, playgroundTokenABI, provider);
-  const parentTokenAddress = await playgroundToken.parent();
+
+  let parentTokenAddress: string;
+  try {
+    parentTokenAddress = await playgroundToken.parent();
+    if (parentTokenAddress === "0x0000000000000000000000000000000000000000") {
+      throw new Error("Token is not a playground token");
+    }
+  } catch {
+    throw new Error("Token is not a playground token");
+  }
 
   const parentTokenContract = new Contract(parentTokenAddress, erc20ABI, connectedWallet);
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
@@ -832,13 +835,7 @@ export async function claimTokens(
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
 
-  // Verify it's a playground token
-  const isPlayground = await checkIsPlaygroundToken(token);
-  if (!isPlayground) {
-    throw new Error("Token is not a playground token");
-  }
-
-  // Approve playground token first
+  // Approve playground token (contract validates it's a playground token and reverts if not)
   const provider = getProvider();
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const tokenContract = new Contract(token, erc20ABI, connectedWallet);
