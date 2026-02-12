@@ -28,10 +28,10 @@ export function NodeStatusIndicator({
 }: NodeStatusIndicatorProps) {
   try {
     const child = Children.only(children);
-    if (!isValidElement(child) || typeof child.props.children === 'undefined') {
-      throw new Error('Unexpected structure');
-    }
-    const wrapperChildren = Children.toArray(child.props.children);
+    if (!isValidElement(child)) throw new Error('Unexpected structure');
+    const childProps = child.props as { children?: ReactNode };
+    if (typeof childProps.children === 'undefined') throw new Error('Unexpected structure');
+    const wrapperChildren = Children.toArray(childProps.children);
     const [baseNode, ...rest] = wrapperChildren;
 
     if (baseNode === undefined) {
