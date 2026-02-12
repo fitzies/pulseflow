@@ -23,6 +23,7 @@ export interface ExecutionContext {
   previousNodeId: string | null;
   previousNodeType: string | null;
   variables: Map<string, bigint>; // variableName -> value
+  forEachItem: { address: string; index: number; total: number } | null;
 }
 
 /**
@@ -34,7 +35,47 @@ export function createExecutionContext(): ExecutionContext {
     previousNodeId: null,
     previousNodeType: null,
     variables: new Map(),
+    forEachItem: null,
   };
+}
+
+const FOREACH_ITEM_SENTINEL = '__FOREACH_ITEM__';
+
+/**
+ * Resolve forEach item sentinels in node data.
+ * Scans all string fields and array-of-string fields, replacing
+ * any occurrence of __FOREACH_ITEM__ with the current forEach item address.
+ */
+export function resolveForEachAddresses(
+  nodeData: Record<string, any>,
+  context: ExecutionContext
+): Record<string, any> {
+  if (!context.forEachItem) {
+    // Check if any field uses the sentinel
+    const hasSentinel = Object.values(nodeData).some((v) => {
+      if (v === FOREACH_ITEM_SENTINEL) return true;
+      if (Array.isArray(v)) return v.some((item) => item === FOREACH_ITEM_SENTINEL);
+      return false;
+    });
+    if (hasSentinel) {
+      throw new Error('Node uses "For-Each Item" but is not inside a For-Each block');
+    }
+    return nodeData;
+  }
+
+  const resolved: Record<string, any> = {};
+  for (const [key, value] of Object.entries(nodeData)) {
+    if (value === FOREACH_ITEM_SENTINEL) {
+      resolved[key] = context.forEachItem.address;
+    } else if (Array.isArray(value)) {
+      resolved[key] = value.map((item) =>
+        item === FOREACH_ITEM_SENTINEL ? context.forEachItem!.address : item
+      );
+    } else {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
 }
 
 /**

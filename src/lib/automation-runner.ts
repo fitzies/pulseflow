@@ -1,6 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
 import { executeNode } from './blockchain-functions';
-import { createExecutionContext, type ExecutionContext } from './execution-context';
+import { createExecutionContext, resolveForEachAddresses, type ExecutionContext } from './execution-context';
 import { parseBlockchainError } from './error-utils';
 import { prisma } from './prisma';
 import { serializeForPrisma } from './serialization';
@@ -160,11 +160,228 @@ export async function executeAutomationChain(
       }
       
       executedNodes.add(nodeId);
+
+      // Handle forEach node — execute body nodes for each item, then skip to after endForEach
+      if (node.type === 'forEach') {
+        const forEachConfig = (node.data as any)?.config || {};
+        const items: string[] = forEachConfig.items || [];
+        const pairedEndNodeId: string | undefined = forEachConfig.pairedEndNodeId;
+
+        // Find endForEach node and collect body node IDs between forEach and endForEach
+        const bodyNodeIds: string[] = [];
+        const endForEachNodeId = (() => {
+          const visited = new Set<string>();
+          const queue = [node.id];
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (visited.has(currentId)) continue;
+            visited.add(currentId);
+            const currentOutgoing = outgoingEdges.get(currentId) || [];
+            for (const edge of currentOutgoing) {
+              const targetNode = nodeMap.get(edge.target);
+              if (targetNode?.type === 'endForEach') return targetNode.id;
+              if (!visited.has(edge.target)) {
+                bodyNodeIds.push(edge.target);
+                queue.push(edge.target);
+              }
+            }
+          }
+          return pairedEndNodeId || null;
+        })();
+
+        if (!endForEachNodeId) {
+          throw new Error('forEach node has no paired endForEach node');
+        }
+
+        // Validate: no nested forEach or repeat nodes in body
+        for (const bodyId of bodyNodeIds) {
+          const bodyNode = nodeMap.get(bodyId);
+          if (bodyNode?.type === 'forEach') throw new Error('Nested For-Each blocks are not supported');
+          if (bodyNode?.type === 'loop') throw new Error('Repeat node cannot be inside a For-Each body');
+        }
+
+        onProgress?.({
+          type: 'node_start',
+          nodeId: node.id,
+          nodeType: 'forEach',
+          data: { totalItems: items.length },
+        });
+
+        if (items.length === 0) {
+          // Empty list: skip body, continue past endForEach
+          onProgress?.({
+            type: 'node_complete',
+            nodeId: node.id,
+            nodeType: 'forEach',
+            data: { totalItems: 0, skipped: true },
+          });
+          executedNodes.add(endForEachNodeId);
+          const endForEachOutgoing = outgoingEdges.get(endForEachNodeId) || [];
+          for (const edge of endForEachOutgoing) {
+            if (!executedNodes.has(edge.target)) {
+              currentNodeIds.push(edge.target);
+            }
+          }
+          continue;
+        }
+
+        // Iterate over each item
+        for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
+          context.forEachItem = { address: items[itemIndex], index: itemIndex, total: items.length };
+
+          // Clear body nodes from executedNodes and their outputs so they can re-execute
+          for (const bodyId of bodyNodeIds) {
+            executedNodes.delete(bodyId);
+            context.nodeOutputs.delete(bodyId);
+          }
+          // Also clear endForEach
+          executedNodes.delete(endForEachNodeId);
+          context.nodeOutputs.delete(endForEachNodeId);
+
+          // Set previous node to forEach so body nodes can reference its output
+          context.previousNodeId = node.id;
+          context.previousNodeType = 'forEach';
+          context.nodeOutputs.set(node.id, {
+            currentAddress: items[itemIndex],
+            currentIndex: itemIndex,
+            totalItems: items.length,
+          });
+
+          // BFS through body nodes for this iteration
+          const forEachStartEdges = outgoingEdges.get(node.id) || [];
+          const bodyQueue: string[] = forEachStartEdges.map((e) => e.target);
+
+          while (bodyQueue.length > 0) {
+            const bodyNodeId = bodyQueue.shift()!;
+            if (executedNodes.has(bodyNodeId)) continue;
+
+            const bodyNode = nodeMap.get(bodyNodeId);
+            if (!bodyNode || !bodyNode.type) continue;
+
+            // endForEach: mark as executed, don't go further
+            if (bodyNode.type === 'endForEach') {
+              executedNodes.add(bodyNodeId);
+              continue;
+            }
+
+            // Check for cancellation
+            if (executionId && await isExecutionCancelled(executionId)) {
+              onProgress?.({ type: 'cancelled', nodeId: bodyNode.id, nodeType: bodyNode.type, error: 'Execution cancelled by user' });
+              throw new Error('Execution cancelled by user');
+            }
+
+            executedNodes.add(bodyNodeId);
+
+            // Resolve forEach sentinels in node data
+            const rawNodeData = { ...(bodyNode.data?.config || {}), nodeId: bodyNode.id };
+            const resolvedNodeData = resolveForEachAddresses(rawNodeData, context);
+
+            const bodyNodeNotes = bodyNode.data && typeof bodyNode.data === 'object'
+              ? ((bodyNode.data as any)?.config?.notes as string | undefined)
+              : undefined;
+
+            onProgress?.({
+              type: 'node_start',
+              nodeId: bodyNode.id,
+              nodeType: bodyNode.type,
+              data: { forEachItem: itemIndex + 1, forEachTotal: items.length },
+            });
+
+            const bodyLogId = executionId
+              ? await safeCreateExecutionLog({
+                  executionId,
+                  nodeId: bodyNode.id,
+                  nodeType: bodyNode.type,
+                  input: { ...resolvedNodeData, forEachItem: itemIndex + 1, forEachTotal: items.length },
+                })
+              : null;
+
+            try {
+              const { result: bodyResult, context: updatedCtx } = await executeNode(
+                automationId,
+                bodyNode.type,
+                resolvedNodeData,
+                context,
+                contractAddress
+              );
+              context = updatedCtx;
+
+              allResults.push({ nodeId: bodyNode.id, result: { ...bodyResult, forEachItem: itemIndex + 1 } });
+
+              onProgress?.({
+                type: 'node_complete',
+                nodeId: bodyNode.id,
+                nodeType: bodyNode.type,
+                data: { ...bodyResult, forEachItem: itemIndex + 1, forEachTotal: items.length },
+              });
+
+              await safeUpdateExecutionLog({ logId: bodyLogId, output: { result: bodyResult, forEachItem: itemIndex + 1 } });
+
+              // Determine next body nodes
+              const bodyOutgoing = outgoingEdges.get(bodyNode.id) || [];
+              if (bodyNode.type === 'condition' && bodyResult?.branchToFollow) {
+                const expectedHandle = bodyResult.branchToFollow === 'true' ? 'output-true' : 'output-false';
+                const branchEdge = bodyOutgoing.find((e) => e.sourceHandle === expectedHandle);
+                if (branchEdge) {
+                  bodyQueue.push(branchEdge.target);
+                  onProgress?.({ type: 'branch_taken', nodeId: bodyNode.id, nodeType: bodyNode.type, data: { branch: bodyResult.branchToFollow, nextNodeId: branchEdge.target } });
+                }
+              } else {
+                for (const edge of bodyOutgoing) {
+                  if (!executedNodes.has(edge.target)) {
+                    bodyQueue.push(edge.target);
+                  }
+                }
+              }
+            } catch (error) {
+              const parsed = parseBlockchainError(error);
+              console.error(`[${bodyNode.type}] Technical error:`, parsed.technicalDetails);
+              await safeUpdateExecutionLog({ logId: bodyLogId, error: parsed.technicalDetails, output: { userMessage: parsed.userMessage, errorType: parsed.errorType, isRetryable: parsed.isRetryable, code: parsed.code, shortMessage: parsed.shortMessage, revertReason: parsed.revertReason, txHash: parsed.txHash } });
+              onProgress?.({ type: 'node_error', nodeId: bodyNode.id, nodeType: bodyNode.type, error: parsed.txHash ? `${parsed.userMessage} (tx: ${parsed.txHash})` : parsed.userMessage });
+              const txPart = parsed.txHash ? ` [tx: ${parsed.txHash}]` : '';
+              const notesPart = bodyNodeNotes ? ` "${bodyNodeNotes}"` : '';
+              throw new Error(`${bodyNode.type}${notesPart} (${bodyNode.id}) failed: ${parsed.userMessage}${txPart}${parsed.isRetryable ? ' (retryable)' : ''}`);
+            }
+          }
+        }
+
+        // All iterations complete — clear forEach context and continue past endForEach
+        context.forEachItem = null;
+        executedNodes.add(endForEachNodeId);
+
+        onProgress?.({
+          type: 'node_complete',
+          nodeId: node.id,
+          nodeType: 'forEach',
+          data: { totalItems: items.length, completed: true },
+        });
+
+        const endForEachOutgoing = outgoingEdges.get(endForEachNodeId) || [];
+        for (const edge of endForEachOutgoing) {
+          if (!executedNodes.has(edge.target)) {
+            currentNodeIds.push(edge.target);
+          }
+        }
+        continue;
+      }
+
+      // Skip endForEach if encountered outside of forEach (shouldn't happen with paired spawn)
+      if (node.type === 'endForEach') {
+        const nodeOutgoingEdges = outgoingEdges.get(node.id) || [];
+        for (const edge of nodeOutgoingEdges) {
+          if (!executedNodes.has(edge.target)) {
+            currentNodeIds.push(edge.target);
+          }
+        }
+        continue;
+      }
       
-      const nodeData = {
+      const rawNodeData = {
         ...(node.data?.config || {}),
         nodeId: node.id,
       };
+      // Resolve any forEach sentinels in the node data
+      const nodeData = resolveForEachAddresses(rawNodeData, context);
       const nodeNotes =
         node.data && typeof node.data === 'object'
           ? ((node.data as any)?.config?.notes as string | undefined)

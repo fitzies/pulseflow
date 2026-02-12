@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { isAddress } from 'ethers';
 import type { NodeType } from '@/components/select-node-dialog';
 
+const FOREACH_ITEM_SENTINEL = '__FOREACH_ITEM__';
+
 interface ValidationState {
   hardErrors: Record<string, string>;
   softWarnings: Record<string, string>;
@@ -27,6 +29,7 @@ export function useNodeValidation(
   // Helper functions
   const validateAddressFormat = (address: string | null | undefined, fieldName: string): boolean => {
     if (!address) return true;
+    if (address === FOREACH_ITEM_SENTINEL) return true; // forEach sentinel is valid
     if (!isAddress(address)) {
       return false;
     }
@@ -103,6 +106,9 @@ export function useNodeValidation(
         break;
       case 'dexQuote':
         relevantFields.push('path');
+        break;
+      case 'forEach':
+        relevantFields.push('items');
         break;
     }
 
@@ -259,6 +265,24 @@ export function useNodeValidation(
         break;
       }
 
+      case 'forEach': {
+        const items = formData.items || [];
+        if (items.length === 0) {
+          hardErrors.items = 'At least one address is required';
+        } else if (items.length > 10) {
+          hardErrors.items = 'Maximum 10 items allowed';
+        }
+        items.forEach((addr: string, index: number) => {
+          if (addr && !validateAddressFormat(addr, `items[${index}]`)) {
+            hardErrors[`items[${index}]`] = 'Invalid address format';
+          }
+        });
+        if (items.length > 5 && !hardErrors.items) {
+          softWarnings.items = 'More than 5 items may cause the automation to timeout';
+        }
+        break;
+      }
+
       case 'wait': {
         if (!validateNumberRange(formData.delay, 'delay', 1, 10)) {
           hardErrors.delay = 'Delay must be between 1 and 10 seconds';
@@ -272,6 +296,7 @@ export function useNodeValidation(
     setValidation((prev) => ({
       ...prev,
       hardErrors,
+      softWarnings: { ...prev.softWarnings, ...softWarnings },
       isValid,
     }));
 
@@ -293,6 +318,7 @@ export function useNodeValidation(
     formData.maxGasPrice,
     formData.loopCount,
     formData.delay,
+    formData.items,
   ]);
 
   // Effect 2: Slippage validation (immediate) - only when slippage changes

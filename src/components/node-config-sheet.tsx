@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusIcon, XMarkIcon, TrashIcon, LockClosedIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, XMarkIcon, TrashIcon, LockClosedIcon, ArrowPathRoundedSquareIcon } from '@heroicons/react/24/solid';
 import { ExternalLink } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeType } from '@/components/select-node-dialog';
@@ -33,6 +33,8 @@ import { toast } from 'sonner';
 import { useTokenInfo } from '@/components/hooks/useTokenInfo';
 import { useNodeValidation } from '@/components/hooks/useNodeValidation';
 
+const FOREACH_ITEM_SENTINEL = '__FOREACH_ITEM__';
+
 // Helper component for address inputs with validation and token name
 function AddressInput({
   id,
@@ -45,6 +47,8 @@ function AddressInput({
   softWarning,
   showTokenName = true,
   expectedType,
+  allowForEachItem,
+  onForEachToggle,
 }: {
   id: string;
   value: string;
@@ -56,8 +60,11 @@ function AddressInput({
   softWarning?: string;
   showTokenName?: boolean;
   expectedType?: 'token' | 'lp';
+  allowForEachItem?: boolean;
+  onForEachToggle?: (enabled: boolean) => void;
 }) {
-  const tokenInfo = useTokenInfo(value, expectedType);
+  const isForEachItem = value === FOREACH_ITEM_SENTINEL;
+  const tokenInfo = useTokenInfo(isForEachItem ? '' : value, expectedType);
 
   const borderClass = hardError
     ? 'border-destructive'
@@ -76,21 +83,42 @@ function AddressInput({
   return (
     <div className="grid gap-3">
       {label && <label htmlFor={id} className="text-sm font-medium">{label}</label>}
+      {allowForEachItem && onForEachToggle && (
+        <button
+          type="button"
+          onClick={() => onForEachToggle(!isForEachItem)}
+          className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+            isForEachItem
+              ? 'border-orange-500/50 bg-orange-500/10 text-orange-500'
+              : 'border-border bg-transparent text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          <ArrowPathRoundedSquareIcon className="h-3.5 w-3.5" />
+          Use For-Each Item
+        </button>
+      )}
       <div className="space-y-1">
-        <Input
-          id={id}
-          type="text"
-          placeholder={placeholder}
-          value={value}
-          onChange={onChange}
-          className={borderClass}
-        />
-        {showTokenName && (
+        {isForEachItem ? (
+          <div className="flex items-center gap-2 rounded-md border border-orange-500/50 bg-orange-500/10 px-3 py-2 text-sm text-orange-500">
+            <ArrowPathRoundedSquareIcon className="h-4 w-4" />
+            For-Each Item
+          </div>
+        ) : (
+          <Input
+            id={id}
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={onChange}
+            className={borderClass}
+          />
+        )}
+        {!isForEachItem && showTokenName && (
           <p className="text-xs text-muted-foreground">
             {tokenInfo.isLoading ? 'Loading...' : tokenInfo.name || (expectedType === 'lp' ? 'No LP' : 'No token')}
           </p>
         )}
-        {typeMismatchWarning && !hardError && (
+        {!isForEachItem && typeMismatchWarning && !hardError && (
           <p className="text-xs text-yellow-600">{typeMismatchWarning}</p>
         )}
         {hardError && (
@@ -104,22 +132,24 @@ function AddressInput({
   );
 }
 
-// PathTokenInput component for swap path arrays - defined outside to prevent focus loss on re-render
-function PathTokenInput({
+// ForEachItemInput component for forEach address list
+function ForEachItemInput({
   address,
   idx,
+  expectedType,
   onUpdate,
   onRemove,
   hardError,
 }: {
   address: string;
   idx: number;
+  expectedType: 'token' | 'lp';
   onUpdate: (value: string) => void;
   onRemove: () => void;
   hardError?: string;
 }) {
-  const info = useTokenInfo(address, 'token');
-  const typeMismatch = info.isLP === true;
+  const info = useTokenInfo(address, expectedType);
+  const typeMismatch = expectedType === 'token' ? info.isLP === true : info.isToken === true;
   const borderClass = hardError
     ? 'border-destructive'
     : typeMismatch
@@ -146,10 +176,94 @@ function PathTokenInput({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        {info.isLoading ? 'Loading...' : info.name || 'No token'}
+        {info.isLoading ? 'Loading...' : info.name || (expectedType === 'lp' ? 'No LP pair' : 'No token')}
       </p>
       {typeMismatch && !hardError && (
-        <p className="text-xs text-yellow-600">LP pair address not allowed in token path</p>
+        <p className="text-xs text-yellow-600">
+          {expectedType === 'token' ? 'This appears to be an LP pair, not a token' : 'This appears to be a token, not an LP pair'}
+        </p>
+      )}
+      {hardError && (
+        <p className="text-xs text-destructive">{hardError}</p>
+      )}
+    </div>
+  );
+}
+
+// PathTokenInput component for swap path arrays - defined outside to prevent focus loss on re-render
+function PathTokenInput({
+  address,
+  idx,
+  onUpdate,
+  onRemove,
+  hardError,
+  allowForEachItem,
+  onForEachToggle,
+}: {
+  address: string;
+  idx: number;
+  onUpdate: (value: string) => void;
+  onRemove: () => void;
+  hardError?: string;
+  allowForEachItem?: boolean;
+  onForEachToggle?: (enabled: boolean) => void;
+}) {
+  const isForEachItem = address === FOREACH_ITEM_SENTINEL;
+  const info = useTokenInfo(isForEachItem ? '' : address, 'token');
+  const typeMismatch = !isForEachItem && info.isLP === true;
+  const borderClass = hardError
+    ? 'border-destructive'
+    : typeMismatch
+      ? 'border-yellow-500'
+      : '';
+
+  return (
+    <div className="space-y-1">
+      {allowForEachItem && onForEachToggle && (
+        <button
+          type="button"
+          onClick={() => onForEachToggle(!isForEachItem)}
+          className={`flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+            isForEachItem
+              ? 'border-orange-500/50 bg-orange-500/10 text-orange-500'
+              : 'border-border bg-transparent text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          <ArrowPathRoundedSquareIcon className="h-3 w-3" />
+          For-Each Item
+        </button>
+      )}
+      {isForEachItem ? (
+        <div className="flex gap-2">
+          <div className="flex-1 flex items-center gap-2 rounded-md border border-orange-500/50 bg-orange-500/10 px-3 py-2 text-sm text-orange-500">
+            <ArrowPathRoundedSquareIcon className="h-4 w-4" />
+            For-Each Item
+          </div>
+          <Button type="button" variant="outline" size="icon" onClick={onRemove}>
+            <XMarkIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="0x..."
+              value={address}
+              onChange={(e) => onUpdate(e.target.value)}
+              className={borderClass}
+            />
+            <Button type="button" variant="outline" size="icon" onClick={onRemove}>
+              <XMarkIcon className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {info.isLoading ? 'Loading...' : info.name || 'No token'}
+          </p>
+          {typeMismatch && !hardError && (
+            <p className="text-xs text-yellow-600">LP pair address not allowed in token path</p>
+          )}
+        </>
       )}
       {hardError && (
         <p className="text-xs text-destructive">{hardError}</p>
@@ -224,6 +338,31 @@ export function NodeConfigSheet({
 
   // Validation hook
   const validation = useNodeValidation(formData, nodeType, automationId);
+
+  // Check if this node is inside a forEach body (between a forEach and its paired endForEach)
+  const isInsideForEach = (() => {
+    if (!nodeId) return false;
+    // Walk backwards from this node — if we reach a forEach before reaching start (without crossing an endForEach), we're inside a forEach body
+    const visited = new Set<string>();
+    const queue = [nodeId];
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      const currentNode = nodes.find((n) => n.id === currentId);
+      if (!currentNode) continue;
+      if (currentNode.type === 'forEach') return true;
+      if (currentNode.type === 'endForEach') continue; // Don't traverse past an endForEach backwards
+      // Walk backwards via incoming edges
+      const incoming = edges.filter((e) => e.target === currentId);
+      for (const edge of incoming) {
+        if (!visited.has(edge.source)) {
+          queue.push(edge.source);
+        }
+      }
+    }
+    return false;
+  })();
 
   // Schedule state for start node
   const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER'>(triggerMode);
@@ -359,6 +498,11 @@ export function NodeConfigSheet({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Helper to create a forEach toggle handler for address fields
+  const makeForEachToggle = (fieldName: string) => (enabled: boolean) => {
+    updateField(fieldName, enabled ? FOREACH_ITEM_SENTINEL : '');
+  };
+
   const updateArrayField = (field: string, index: number, value: string) => {
     setFormData((prev) => {
       const arr = prev[field] || [];
@@ -454,6 +598,8 @@ export function NodeConfigSheet({
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
                 hardError={validation.hardErrors[`path[${index}]`]}
+                allowForEachItem={isInsideForEach}
+                onForEachToggle={(enabled) => updateArrayField('path', index, enabled ? FOREACH_ITEM_SENTINEL : '')}
               />
             ))}
           </div>
@@ -539,6 +685,8 @@ export function NodeConfigSheet({
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
                 hardError={validation.hardErrors[`path[${index}]`]}
+                allowForEachItem={isInsideForEach}
+                onForEachToggle={(enabled) => updateArrayField('path', index, enabled ? FOREACH_ITEM_SENTINEL : '')}
               />
             ))}
           </div>
@@ -624,6 +772,8 @@ export function NodeConfigSheet({
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
                 hardError={validation.hardErrors[`path[${index}]`]}
+                allowForEachItem={isInsideForEach}
+                onForEachToggle={(enabled) => updateArrayField('path', index, enabled ? FOREACH_ITEM_SENTINEL : '')}
               />
             ))}
           </div>
@@ -688,6 +838,8 @@ export function NodeConfigSheet({
           hardError={validation.hardErrors.token}
           softWarning={validation.softWarnings.token}
           expectedType={tokenType as 'token' | 'lp'}
+          allowForEachItem={isInsideForEach}
+          onForEachToggle={makeForEachToggle('token')}
         />
         <AddressInput
           id="to"
@@ -697,6 +849,8 @@ export function NodeConfigSheet({
           fieldName="to"
           hardError={validation.hardErrors.to}
           showTokenName={false}
+          allowForEachItem={isInsideForEach}
+          onForEachToggle={makeForEachToggle('to')}
         />
         <AmountSelector
           value={formData.amount}
@@ -724,6 +878,8 @@ export function NodeConfigSheet({
         fieldName="to"
         hardError={validation.hardErrors.to}
         showTokenName={false}
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('to')}
       />
       <AmountSelector
         value={formData.plsAmount}
@@ -751,6 +907,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.tokenA}
         softWarning={validation.softWarnings.tokenA}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('tokenA')}
       />
       <AddressInput
         id="tokenB"
@@ -761,6 +919,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.tokenB}
         softWarning={validation.softWarnings.tokenB}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('tokenB')}
       />
       <AmountSelector
         value={formData.amountADesired}
@@ -808,6 +968,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <AmountSelector
         value={formData.amountTokenDesired}
@@ -863,6 +1025,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.tokenA}
         softWarning={validation.softWarnings.tokenA}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('tokenA')}
       />
       <AddressInput
         id="tokenB"
@@ -873,6 +1037,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.tokenB}
         softWarning={validation.softWarnings.tokenB}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('tokenB')}
       />
       <AmountSelector
         value={formData.liquidity}
@@ -904,6 +1070,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <AmountSelector
         value={formData.liquidity}
@@ -935,6 +1103,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <p className="text-xs text-muted-foreground px-4">
         Only playground tokens are allowed. Playground tokens have a parent() function.
@@ -965,6 +1135,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <p className="text-xs text-muted-foreground px-4">
         Only playground tokens are allowed. Playground tokens have a parent() function.
@@ -995,6 +1167,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
         expectedType="token"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <p className="text-xs text-muted-foreground px-4">
         Only playground tokens are allowed. Playground tokens have a parent() function.
@@ -1014,6 +1188,8 @@ export function NodeConfigSheet({
         hardError={validation.hardErrors.pairAddress}
         softWarning={validation.softWarnings.pairAddress}
         expectedType="lp"
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('pairAddress')}
       />
       <div className="grid gap-2 p-4 bg-muted rounded-lg">
         <h4 className="text-sm font-medium">How the Ratio is Calculated</h4>
@@ -1068,6 +1244,8 @@ export function NodeConfigSheet({
         fieldName="token"
         hardError={validation.hardErrors.token}
         softWarning={validation.softWarnings.token}
+        allowForEachItem={isInsideForEach}
+        onForEachToggle={makeForEachToggle('token')}
       />
       <p className="text-xs text-muted-foreground px-4">The ERC20 token contract address to check balance for</p>
       {renderNotesField()}
@@ -1088,13 +1266,89 @@ export function NodeConfigSheet({
           onChange={(e) => updateField('loopCount', Math.min(3, Math.max(1, parseInt(e.target.value) || 1)))}
           className={validation.hardErrors.loopCount ? 'border-destructive' : validation.softWarnings.loopCount ? 'border-yellow-500' : ''}
         />
-        <p className="text-xs text-muted-foreground">Number of times to restart from the start node (1-3). Execution stops at this node and restarts from the beginning. After the specified number of restarts, execution continues past this node.</p>
+        <p className="text-xs text-muted-foreground">Number of times to repeat the automation from the start (1-3). Execution stops at this node and repeats from the beginning. After the specified number of repeats, execution continues past this node.</p>
         {validation.hardErrors.loopCount && (
           <p className="text-xs text-destructive">{validation.hardErrors.loopCount}</p>
         )}
         {validation.softWarnings.loopCount && (
           <p className="text-xs text-yellow-600">{validation.softWarnings.loopCount}</p>
         )}
+      </div>
+      {renderNotesField()}
+    </div>
+  );
+
+  const renderForEachConfig = () => {
+    const items: string[] = formData.items || [];
+    const itemType: string = formData.itemType || 'token';
+
+    return (
+      <div className="grid flex-1 auto-rows-min gap-6 px-4">
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Item Type</label>
+          <Select value={itemType} onValueChange={(v) => updateField('itemType', v)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="token">Tokens</SelectItem>
+              <SelectItem value="lp">LP Pairs</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Select whether the list contains token addresses or LP pair addresses</p>
+        </div>
+        <div className="grid gap-3">
+          <label className="text-sm font-medium">Addresses ({items.length}/10)</label>
+          {validation.hardErrors.items && (
+            <p className="text-xs text-destructive">{validation.hardErrors.items}</p>
+          )}
+          <div className="space-y-2">
+            {items.map((item: string, index: number) => (
+              <ForEachItemInput
+                key={index}
+                address={item}
+                idx={index}
+                expectedType={itemType as 'token' | 'lp'}
+                onUpdate={(value) => {
+                  const newItems = [...items];
+                  newItems[index] = value;
+                  updateField('items', newItems);
+                }}
+                onRemove={() => {
+                  const newItems = items.filter((_: string, i: number) => i !== index);
+                  updateField('items', newItems);
+                }}
+                hardError={validation.hardErrors[`items[${index}]`]}
+              />
+            ))}
+          </div>
+          {items.length >= 5 && (
+            <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3">
+              <p className="text-xs text-yellow-600">⚠️ Adding more than 5 items may cause the automation to timeout (max runtime: 10 minutes for the entire automation).</p>
+            </div>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => updateField('items', [...items, ''])}
+            className="w-full"
+            disabled={items.length >= 10}
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add {itemType === 'lp' ? 'LP Pair' : 'Token'}
+          </Button>
+          <p className="text-xs text-muted-foreground">Add token or LP pair addresses to iterate over. Body nodes with &quot;Use For-Each Item&quot; enabled will use each address in turn.</p>
+        </div>
+        {renderNotesField()}
+      </div>
+    );
+  };
+
+  const renderEndForEachConfig = () => (
+    <div className="grid flex-1 auto-rows-min gap-6 px-4">
+      <div className="py-6 text-sm text-muted-foreground">
+        This node marks the end of the For Each loop body. Nodes between For Each and End For Each will execute for each item in the list.
       </div>
       {renderNotesField()}
     </div>
@@ -1225,6 +1479,8 @@ export function NodeConfigSheet({
             hardError={validation.hardErrors.tokenAddress}
             softWarning={validation.softWarnings.tokenAddress}
             expectedType="token"
+            allowForEachItem={isInsideForEach}
+            onForEachToggle={makeForEachToggle('tokenAddress')}
           />
         )}
 
@@ -1238,6 +1494,8 @@ export function NodeConfigSheet({
             hardError={validation.hardErrors.lpPairAddress}
             softWarning={validation.softWarnings.lpPairAddress}
             expectedType="lp"
+            allowForEachItem={isInsideForEach}
+            onForEachToggle={makeForEachToggle('lpPairAddress')}
           />
         )}
 
@@ -1876,6 +2134,8 @@ export function NodeConfigSheet({
                 onUpdate={(value) => updateArrayField('path', index, value)}
                 onRemove={() => removeArrayItem('path', index)}
                 hardError={validation.hardErrors[`path[${index}]`]}
+                allowForEachItem={isInsideForEach}
+                onForEachToggle={(enabled) => updateArrayField('path', index, enabled ? FOREACH_ITEM_SENTINEL : '')}
               />
             ))}
           </div>
@@ -1943,6 +2203,10 @@ export function NodeConfigSheet({
         return renderCalculatorConfig();
       case 'dexQuote':
         return renderDexQuoteConfig();
+      case 'forEach':
+        return renderForEachConfig();
+      case 'endForEach':
+        return renderEndForEachConfig();
       case 'checkBalance':
       default:
         return (

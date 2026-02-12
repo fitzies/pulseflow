@@ -1,14 +1,14 @@
 'use client';
 
 import { memo } from 'react';
-import { ArrowPathIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { StopCircleIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
 import { BaseNode } from '@/components/base-node';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
 import { getNodeBackgroundColor, getNodeTextColor, NODE_WRAPPER_CLASS, NODE_WIDTH_CLASS, NODE_HEIGHT_CLASS, NODE_LABEL_CONTAINER_CLASS, NODE_TITLE_CLASS, NODE_NOTES_CLASS } from './node-colors';
 
-interface LoopNodeData {
+interface EndForEachNodeData {
   onAddNode?: () => void;
   onNodeClick?: () => void;
   isLastNode?: boolean;
@@ -18,8 +18,8 @@ interface LoopNodeData {
   };
 }
 
-export const LoopNode = memo(({ data }: NodeProps) => {
-  const nodeData = data as LoopNodeData;
+export const EndForEachNode = memo(({ data }: NodeProps) => {
+  const nodeData = data as EndForEachNodeData;
   const handleAddClick = () => {
     nodeData?.onAddNode?.();
   };
@@ -32,8 +32,8 @@ export const LoopNode = memo(({ data }: NodeProps) => {
       <BaseNode className={`${NODE_WIDTH_CLASS} ${NODE_HEIGHT_CLASS} cursor-pointer`} onClick={handleNodeClick}>
         <Handle type="target" position={Position.Top} className="opacity-0" />
         <div className="flex items-center justify-center p-3">
-          <div className={`rounded-xl ${getNodeBackgroundColor('loop')} p-3 flex items-center justify-center`}>
-            <ArrowPathIcon className={`h-8 w-8 ${getNodeTextColor('loop')}`} />
+          <div className={`rounded-xl ${getNodeBackgroundColor('endForEach')} p-3 flex items-center justify-center`}>
+            <StopCircleIcon className={`h-8 w-8 ${getNodeTextColor('endForEach')}`} />
           </div>
         </div>
         <Handle type="source" position={Position.Bottom} id="output" className="opacity-0" />
@@ -55,7 +55,7 @@ export const LoopNode = memo(({ data }: NodeProps) => {
       </BaseNode>
       {nodeData?.showNodeLabels !== false && (
         <div className={NODE_LABEL_CONTAINER_CLASS}>
-          <span className={NODE_TITLE_CLASS}>Repeat</span>
+          <span className={NODE_TITLE_CLASS}>End For Each</span>
           {nodeData?.config?.notes && (
             <p className={NODE_NOTES_CLASS}>
               {nodeData.config.notes}
@@ -67,4 +67,4 @@ export const LoopNode = memo(({ data }: NodeProps) => {
   );
 });
 
-LoopNode.displayName = 'LoopNode';
+EndForEachNode.displayName = 'EndForEachNode';

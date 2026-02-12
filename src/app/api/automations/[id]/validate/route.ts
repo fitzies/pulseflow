@@ -41,13 +41,17 @@ export async function POST(
       softWarnings: {},
     };
 
+    const FOREACH_ITEM_SENTINEL = '__FOREACH_ITEM__';
+
     // Helper function to validate address format
     const validateAddress = (address: string): boolean => {
+      if (address === FOREACH_ITEM_SENTINEL) return true;
       return isAddress(address);
     };
 
     // Helper function to check if contract exists and implements name()
     const validateTokenContract = async (address: string): Promise<boolean> => {
+      if (address === FOREACH_ITEM_SENTINEL) return true;
       if (!validateAddress(address)) return false;
       try {
         const contract = new Contract(address, erc20ABI, provider);
@@ -60,6 +64,7 @@ export async function POST(
 
     // Helper function to check if contract is an LP pair
     const validateLPPair = async (address: string): Promise<boolean> => {
+      if (address === FOREACH_ITEM_SENTINEL) return true;
       if (!validateAddress(address)) return false;
       try {
         const contract = new Contract(address, pairABI, provider);
@@ -73,6 +78,7 @@ export async function POST(
 
     // Helper function to check if address is a token (not LP)
     const validateTokenOnly = async (address: string): Promise<{ isValid: boolean; isLP: boolean }> => {
+      if (address === FOREACH_ITEM_SENTINEL) return { isValid: true, isLP: false };
       if (!validateAddress(address)) return { isValid: false, isLP: false };
       const isLP = await validateLPPair(address);
       if (isLP) return { isValid: false, isLP: true };
@@ -82,6 +88,7 @@ export async function POST(
 
     // Helper function to check if address is an LP pair (not token)
     const validateLPOnly = async (address: string): Promise<{ isValid: boolean; isToken: boolean }> => {
+      if (address === FOREACH_ITEM_SENTINEL) return { isValid: true, isToken: false };
       if (!validateAddress(address)) return { isValid: false, isToken: false };
       const isValidToken = await validateTokenContract(address);
       if (isValidToken && !(await validateLPPair(address))) {
@@ -93,6 +100,7 @@ export async function POST(
 
     // Helper function to check if token is a playground token (has parent() function)
     const validatePlaygroundToken = async (address: string): Promise<boolean> => {
+      if (address === FOREACH_ITEM_SENTINEL) return true;
       if (!validateAddress(address)) return false;
       try {
         const contract = new Contract(address, playgroundTokenABI, provider);

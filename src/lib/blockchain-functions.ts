@@ -2232,6 +2232,40 @@ export async function executeNode(
       return { result: dexQuoteOutput, context: updatedContextDexQuote };
     }
 
+    case "forEach": {
+      // forEach node — the actual iteration is handled by the runner.
+      // This case is called once to set up context.
+      const items: string[] = nodeData.items || [];
+      const forEachOutput = {
+        currentAddress: context.forEachItem?.address || items[0] || '',
+        currentIndex: context.forEachItem?.index ?? 0,
+        totalItems: items.length,
+      };
+
+      const updatedContextForEach = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        forEachOutput
+      );
+
+      return { result: forEachOutput, context: updatedContextForEach };
+    }
+
+    case "endForEach": {
+      // endForEach node — no-op marker for end of forEach body
+      const endForEachOutput = { completed: true };
+
+      const updatedContextEndForEach = updateContextWithOutput(
+        context,
+        nodeData.nodeId || 'unknown',
+        nodeType,
+        endForEachOutput
+      );
+
+      return { result: endForEachOutput, context: updatedContextEndForEach };
+    }
+
     default:
       throw new Error(`Unknown node type: ${nodeType}`);
   }
@@ -2252,6 +2286,7 @@ export async function executeNodeLegacy(
     previousNodeId: null,
     previousNodeType: null,
     variables: new Map(),
+    forEachItem: null,
   };
   const { result } = await executeNode(automationId, nodeType, nodeData, context, contractAddress);
   return result;

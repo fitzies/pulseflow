@@ -120,6 +120,12 @@ export const NODE_OUTPUTS: Record<string, NodeOutputSchema> = {
   dexQuote: {
     quoteAmount: 'bigint',
   },
+  forEach: {
+    currentAddress: 'address',
+    currentIndex: 'number',
+    totalItems: 'number',
+  },
+  endForEach: null,
 };
 
 /**

@@ -41,6 +41,8 @@ import {
   VariableNode,
   CalculatorNode,
   DexQuoteNode,
+  ForEachNode,
+  EndForEachNode,
 } from '@/components/nodes';
 import { SelectNodeDialog, type NodeType } from '@/components/select-node-dialog';
 import { NodeConfigSheet } from '@/components/node-config-sheet';
@@ -105,6 +107,8 @@ const nodeTypes: NodeTypes = {
   variable: withStatusIndicator(VariableNode),
   calculator: withStatusIndicator(CalculatorNode),
   dexQuote: withStatusIndicator(DexQuoteNode),
+  forEach: withStatusIndicator(ForEachNode),
+  endForEach: withStatusIndicator(EndForEachNode),
 };
 
 const edgeTypes: EdgeTypes = {
@@ -397,6 +401,47 @@ export function AutomationFlow({
 
       if (!sourceNode || !targetNode) return;
 
+      const sourceHandleId = sourceNode.type === 'start' ? 'start-output'
+        : sourceNode.type === 'forEach' ? 'forEach-body' : 'output';
+
+      // forEach: insert both forEach + endForEach as a pair
+      if (nodeType === 'forEach') {
+        const ts = Date.now();
+        const forEachId = `forEach-${ts}`;
+        const endForEachId = `endForEach-${ts}`;
+
+        const thirdX = sourceNode.position.x + (targetNode.position.x - sourceNode.position.x) / 3;
+        const twoThirdX = sourceNode.position.x + ((targetNode.position.x - sourceNode.position.x) * 2) / 3;
+        const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+        const forEachNode: Node = {
+          id: forEachId,
+          position: { x: thirdX, y: midY },
+          data: { config: { pairedEndNodeId: endForEachId } },
+          type: 'forEach',
+        };
+        const endForEachNode: Node = {
+          id: endForEachId,
+          position: { x: twoThirdX, y: midY },
+          data: { config: { pairedForEachNodeId: forEachId } },
+          type: 'endForEach',
+        };
+
+        setNodes((prev) => [...prev, forEachNode, endForEachNode]);
+        setEdges((prev) => {
+          const filtered = prev.filter(
+            (edge) => !(edge.source === sourceId && edge.target === targetId)
+          );
+          return [
+            ...filtered,
+            { id: `edge-${sourceId}-${forEachId}`, source: sourceId, target: forEachId, sourceHandle: sourceHandleId, type: 'buttonedge' as const },
+            { id: `edge-${forEachId}-${endForEachId}`, source: forEachId, target: endForEachId, sourceHandle: 'forEach-body', type: 'buttonedge' as const },
+            { id: `edge-${endForEachId}-${targetId}`, source: endForEachId, target: targetId, sourceHandle: 'output', type: 'buttonedge' as const },
+          ];
+        });
+        return;
+      }
+
       // Calculate position midway between source and target
       const midX = (sourceNode.position.x + targetNode.position.x) / 2;
       const midY = (sourceNode.position.y + targetNode.position.y) / 2;
@@ -411,8 +456,6 @@ export function AutomationFlow({
         data: {},
         type: nodeType,
       };
-
-      const sourceHandleId = sourceNode.type === 'start' ? 'start-output' : 'output';
 
       // Remove the old edge between source and target
       setEdges((prevEdges) => {
@@ -461,7 +504,12 @@ export function AutomationFlow({
       const sourceNode = nodes.find((n) => n.id === sourceNodeId);
       if (!sourceNode) return;
 
-      const newNodeId = `${nodeType}-${Date.now()}`;
+      // Determine source handle
+      let edgeSourceHandle = sourceHandleId;
+      if (!edgeSourceHandle) {
+        edgeSourceHandle = sourceNode.type === 'start' ? 'start-output'
+          : sourceNode.type === 'forEach' ? 'forEach-body' : 'output';
+      }
 
       // Calculate position based on whether this is a condition branch
       let newX = sourceNode.position.x + 250;
@@ -470,15 +518,45 @@ export function AutomationFlow({
       // If coming from a condition node, position based on branch
       if (sourceNode.type === 'condition' && sourceHandleId) {
         if (sourceHandleId === 'output-true') {
-          // True branch goes to the right
           newX = sourceNode.position.x + 150;
           newY = sourceNode.position.y + 150;
         } else if (sourceHandleId === 'output-false') {
-          // False branch goes to the left
           newX = sourceNode.position.x - 150;
           newY = sourceNode.position.y + 150;
         }
       }
+
+      // forEach: spawn both forEach and endForEach as a pair
+      if (nodeType === 'forEach') {
+        const ts = Date.now();
+        const forEachId = `forEach-${ts}`;
+        const endForEachId = `endForEach-${ts}`;
+
+        const forEachNode: Node = {
+          id: forEachId,
+          position: { x: newX, y: newY },
+          data: { config: { pairedEndNodeId: endForEachId } },
+          type: 'forEach',
+        };
+        const endForEachNode: Node = {
+          id: endForEachId,
+          position: { x: newX + 250, y: newY },
+          data: { config: { pairedForEachNodeId: forEachId } },
+          type: 'endForEach',
+        };
+
+        setNodes((prev) => [...prev, forEachNode, endForEachNode]);
+        setEdges((prev) => [
+          ...prev,
+          { id: `edge-${sourceNodeId}-${forEachId}`, source: sourceNodeId, target: forEachId, sourceHandle: edgeSourceHandle, type: 'buttonedge' as const },
+          { id: `edge-${forEachId}-${endForEachId}`, source: forEachId, target: endForEachId, sourceHandle: 'forEach-body', type: 'buttonedge' as const },
+        ]);
+        setSourceNodeId(null);
+        setSourceHandleId(null);
+        return;
+      }
+
+      const newNodeId = `${nodeType}-${Date.now()}`;
 
       const newNode: Node = {
         id: newNodeId,
@@ -489,12 +567,6 @@ export function AutomationFlow({
         data: {},
         type: nodeType,
       };
-
-      // Determine source handle
-      let edgeSourceHandle = sourceHandleId;
-      if (!edgeSourceHandle) {
-        edgeSourceHandle = sourceNode.type === 'start' ? 'start-output' : 'output';
-      }
 
       const newEdge: Edge = {
         id: `edge-${sourceNodeId}-${newNodeId}`,
@@ -551,21 +623,61 @@ export function AutomationFlow({
     return result;
   }, [edges]);
 
+  // Get all body node IDs between a forEach node and its paired endForEach
+  const getForEachBodyNodes = useCallback((forEachNodeId: string, endForEachNodeId: string): string[] => {
+    const bodyNodes: string[] = [];
+    const visited = new Set<string>();
+    const queue = [forEachNodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+
+      const outgoing = edges.filter((e) => e.source === currentId);
+      for (const edge of outgoing) {
+        if (edge.target === endForEachNodeId || visited.has(edge.target)) continue;
+        bodyNodes.push(edge.target);
+        queue.push(edge.target);
+      }
+    }
+    return bodyNodes;
+  }, [edges]);
+
+  // Find the paired forEach or endForEach node id for a given node
+  const findForEachPair = useCallback((node: Node): { forEachId: string; endForEachId: string } | null => {
+    const config = (node.data as any)?.config;
+    if (node.type === 'forEach' && config?.pairedEndNodeId) {
+      return { forEachId: node.id, endForEachId: config.pairedEndNodeId };
+    }
+    if (node.type === 'endForEach' && config?.pairedForEachNodeId) {
+      return { forEachId: config.pairedForEachNodeId, endForEachId: node.id };
+    }
+    return null;
+  }, []);
+
   const handleDeleteNode = useCallback((nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId);
 
     if (node?.type === 'condition') {
-      // Condition nodes: count all downstream nodes
       const nodesAfter = getNodesAfter(nodeId);
       setNodesToDeleteCount(nodesAfter.length + 1);
+    } else if (node?.type === 'forEach' || node?.type === 'endForEach') {
+      const pair = findForEachPair(node);
+      if (pair) {
+        const bodyNodes = getForEachBodyNodes(pair.forEachId, pair.endForEachId);
+        // forEach + endForEach + body nodes
+        setNodesToDeleteCount(2 + bodyNodes.length);
+      } else {
+        setNodesToDeleteCount(1);
+      }
     } else {
-      // Regular nodes: only delete this one
       setNodesToDeleteCount(1);
     }
 
     setNodeToDelete(nodeId);
     setDeleteDialogOpen(true);
-  }, [nodes, getNodesAfter]);
+  }, [nodes, getNodesAfter, findForEachPair, getForEachBodyNodes]);
 
   const confirmDeleteNode = useCallback(() => {
     if (!nodeToDelete) return;
@@ -580,6 +692,56 @@ export function AutomationFlow({
       setEdges((prevEdges) =>
         prevEdges.filter((edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target))
       );
+    } else if (nodeToDeleteData && (nodeToDeleteData.type === 'forEach' || nodeToDeleteData.type === 'endForEach')) {
+      // forEach / endForEach: cascading delete of both + body nodes, reconnect chain
+      const pair = findForEachPair(nodeToDeleteData);
+      if (pair) {
+        const bodyNodes = getForEachBodyNodes(pair.forEachId, pair.endForEachId);
+        const nodeIdsToDelete = new Set([pair.forEachId, pair.endForEachId, ...bodyNodes]);
+
+        // Find edges to bridge: incoming to forEach, outgoing from endForEach
+        const incomingEdge = edges.find((e) => e.target === pair.forEachId);
+        const outgoingEdge = edges.find((e) => e.source === pair.endForEachId);
+
+        setNodes((prevNodes) => prevNodes.filter((node) => !nodeIdsToDelete.has(node.id)));
+        setEdges((prevEdges) => {
+          const filtered = prevEdges.filter(
+            (edge) => !nodeIdsToDelete.has(edge.source) && !nodeIdsToDelete.has(edge.target)
+          );
+          // Bridge the gap if both edges exist
+          if (incomingEdge && outgoingEdge) {
+            const bridgeEdge: Edge = {
+              id: `edge-${incomingEdge.source}-${outgoingEdge.target}`,
+              source: incomingEdge.source,
+              target: outgoingEdge.target,
+              sourceHandle: incomingEdge.sourceHandle,
+              type: 'buttonedge',
+            };
+            return [...filtered, bridgeEdge];
+          }
+          return filtered;
+        });
+      } else {
+        // Orphaned forEach/endForEach — just delete it as a regular node
+        const incomingEdge = edges.find((e) => e.target === nodeToDelete);
+        const outgoingEdge = edges.find((e) => e.source === nodeToDelete);
+        setNodes((prevNodes) => prevNodes.filter((node) => node.id !== nodeToDelete));
+        setEdges((prevEdges) => {
+          const filtered = prevEdges.filter(
+            (edge) => edge.source !== nodeToDelete && edge.target !== nodeToDelete
+          );
+          if (incomingEdge && outgoingEdge) {
+            return [...filtered, {
+              id: `edge-${incomingEdge.source}-${outgoingEdge.target}`,
+              source: incomingEdge.source,
+              target: outgoingEdge.target,
+              sourceHandle: incomingEdge.sourceHandle,
+              type: 'buttonedge' as const,
+            }];
+          }
+          return filtered;
+        });
+      }
     } else {
       // Regular nodes: delete only this node, reconnect previous to next
       const incomingEdge = edges.find((e) => e.target === nodeToDelete);
@@ -619,7 +781,7 @@ export function AutomationFlow({
     setDeleteDialogOpen(false);
     setNodeToDelete(null);
     setNodesToDeleteCount(0);
-  }, [nodeToDelete, nodes, edges, getNodesAfter, selectedNodeId]);
+  }, [nodeToDelete, nodes, edges, getNodesAfter, findForEachPair, getForEachBodyNodes, selectedNodeId]);
 
   const handleStart = useCallback(async () => {
     setIsRunning(true);

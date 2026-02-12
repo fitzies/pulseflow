@@ -11,6 +11,7 @@ import {
   ArrowDownTrayIcon,
   ChartBarIcon,
   ArrowPathIcon,
+  ArrowPathRoundedSquareIcon,
   ShieldCheckIcon,
   QuestionMarkCircleIcon,
   BuildingOfficeIcon,
@@ -55,7 +56,9 @@ export type NodeType =
   | 'telegram'
   | 'variable'
   | 'calculator'
-  | 'dexQuote';
+  | 'dexQuote'
+  | 'forEach'
+  | 'endForEach';
 
 interface NodeTypeOption {
   type: NodeType;
@@ -199,8 +202,8 @@ const nodeTypes: NodeTypeOption[] = [
   },
   {
     type: 'loop',
-    label: 'Loop',
-    description: 'Restart automation (1-3 times)',
+    label: 'Repeat',
+    description: 'Restart automation from start (1-3 times)',
     icon: ArrowPathIcon,
     iconBg: getNodeBackgroundColor('loop'),
     iconColor: getNodeTextColor('loop'),
@@ -256,6 +259,15 @@ const nodeTypes: NodeTypeOption[] = [
     iconBg: getNodeBackgroundColor('dexQuote'),
     iconColor: getNodeTextColor('dexQuote'),
   },
+  {
+    type: 'forEach',
+    label: 'For Each',
+    description: 'Iterate over a list of tokens/LPs',
+    icon: ArrowPathRoundedSquareIcon,
+    iconBg: getNodeBackgroundColor('forEach'),
+    iconColor: getNodeTextColor('forEach'),
+    requiresPlan: 'PRO',
+  },
 ];
 
 interface SelectNodeDialogProps {
@@ -278,7 +290,7 @@ const nodeGroups = {
   ),
   playgrounds: nodeTypes.filter((n) => ['burnToken', 'claimToken', 'getParent'].includes(n.type)),
   controlFlow: nodeTypes.filter((n) =>
-    ['wait', 'loop', 'gasGuard', 'condition'].includes(n.type)
+    ['wait', 'loop', 'gasGuard', 'condition', 'forEach'].includes(n.type)
   ),
   external: nodeTypes.filter((n) => ['telegram'].includes(n.type)),
   utilities: nodeTypes.filter((n) => ['variable', 'calculator', 'dexQuote'].includes(n.type)),

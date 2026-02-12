@@ -23,3 +23,5 @@ export { TelegramNode } from './telegram-node';
 export { VariableNode } from './variable-node';
 export { CalculatorNode } from './calculator-node';
 export { DexQuoteNode } from './dex-quote-node';
+export { ForEachNode } from './for-each-node';
+export { EndForEachNode } from './end-for-each-node';
