@@ -306,8 +306,8 @@ export function TokenCommandInput({
                 value={`${lookupResult.name} ${lookupResult.symbol} ${lookupResult.address}`}
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{lookupResult.symbol}</span>
-                  <span className="text-xs text-muted-foreground">{lookupResult.name}</span>
+                  <span className="font-medium">{lookupResult.symbol === 'LP' ? lookupResult.name : lookupResult.symbol}</span>
+                  <span className="text-xs text-muted-foreground">{lookupResult.symbol === 'LP' ? 'LP' : lookupResult.name}</span>
                 </div>
               </CommandItem>
             </CommandGroup>
@@ -331,8 +331,8 @@ export function TokenCommandInput({
                   value={`${item.name} ${item.symbol} ${item.address}`}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{item.symbol}</span>
-                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    <span className="font-medium">{item.symbol === 'LP' ? item.name : item.symbol}</span>
+                    <span className="text-xs text-muted-foreground">{item.symbol === 'LP' ? 'LP' : item.name}</span>
                   </div>
                 </CommandItem>
               ))}
@@ -349,8 +349,8 @@ export function TokenCommandInput({
                   value={`${item.name} ${item.symbol} ${item.address}`}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{item.symbol}</span>
-                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    <span className="font-medium">{item.symbol === 'LP' ? item.name : item.symbol}</span>
+                    <span className="text-xs text-muted-foreground">{item.symbol === 'LP' ? 'LP' : item.name}</span>
                   </div>
                 </CommandItem>
               ))}

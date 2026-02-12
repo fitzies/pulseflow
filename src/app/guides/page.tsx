@@ -34,7 +34,7 @@ export default async function GuidesPage() {
   return (
     <div className="max-w-3xl mx-auto py-12 px-4">
       <h1 className="text-3xl font-bold mb-8">Guides</h1>
-      <div className="divide-y divide-border rounded-lg border border-border">
+      <div className="divide-y divide-border rounded-2xl border border-border">
         {guides.map((guide) => (
           <Link
             key={guide.slug}

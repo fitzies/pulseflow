@@ -118,7 +118,7 @@ export default async function Page({
   return (
     <main className="min-h-[90vh] flex items-center justify-center bg-background p-6">
       <div className="flex flex-col md:flex-row gap-6 max-w-5xl w-full">
-        {/* <PlanCard plan="BASIC" features={plans.BASIC} currentPlan={currentPlan} /> */}
+        <PlanCard plan="BASIC" features={plans.BASIC} currentPlan={currentPlan} />
         <PlanCard plan="PRO" features={plans.PRO} currentPlan={currentPlan} />
         <PlanCard plan="ULTRA" features={plans.ULTRA} currentPlan={currentPlan} />
       </div>
