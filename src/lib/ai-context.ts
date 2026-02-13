@@ -42,7 +42,7 @@ const NODE_TYPE_DESCRIPTIONS: Record<string, string> = {
   burnToken: "Burn (destroy) tokens. Config: token (address), amount",
   claimToken: "Claim tokens from a contract. Config: token (address), amount",
   wait: "Delay execution for seconds (max 10). Config: delay (number). PRO feature",
-  loop: "Restart automation from start (1-3 times). Config: loopCount. PRO feature",
+  loop: "Restart automation from start (1-10 times). Config: loopCount. PRO feature",
   gasGuard: "Stop execution if current network gas price exceeds threshold. Config: maxGasPrice (Beats/wei). PRO feature",
   condition: "Branch flow based on conditions. Config: conditionType (plsBalance/tokenBalance/lpAmount/previousOutput), operator (>/</>=/<=/==), value. Has true/false output branches. PRO feature",
   telegram: "Send Telegram notification. Config: message (template with variables like {{automation.name}}, {{previousNode.output}})",

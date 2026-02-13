@@ -83,11 +83,10 @@ function AddressInput({
         <button
           type="button"
           onClick={() => onForEachToggle(!isForEachItem)}
-          className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-            isForEachItem
+          className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${isForEachItem
               ? 'border-orange-500/50 bg-orange-500/10 text-orange-500'
               : 'border-border bg-transparent text-muted-foreground hover:bg-accent'
-          }`}
+            }`}
         >
           <ArrowPathRoundedSquareIcon className="h-3.5 w-3.5" />
           Use For-Each Item
@@ -1187,12 +1186,17 @@ export function NodeConfigSheet({
           type="number"
           placeholder="1"
           min={1}
-          max={3}
+          max={10}
           value={formData.loopCount || ''}
-          onChange={(e) => updateField('loopCount', Math.min(3, Math.max(1, parseInt(e.target.value) || 1)))}
+          onChange={(e) => updateField('loopCount', Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
           className={validation.hardErrors.loopCount ? 'border-destructive' : validation.softWarnings.loopCount ? 'border-yellow-500' : ''}
         />
-        <p className="text-xs text-muted-foreground">Number of times to repeat the automation from the start (1-3). Execution stops at this node and repeats from the beginning. After the specified number of repeats, execution continues past this node.</p>
+        <p className="text-xs text-muted-foreground">Number of times to repeat the automation from the start (1-10). Execution stops at this node and repeats from the beginning. After the specified number of repeats, execution continues past this node.</p>
+        {(formData.loopCount || 0) > 5 && (
+          <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3">
+            <p className="text-xs text-yellow-600">⚠️ More than 5 repeats may cause the automation to timeout (max runtime: 10 minutes for the entire automation).</p>
+          </div>
+        )}
         {validation.hardErrors.loopCount && (
           <p className="text-xs text-destructive">{validation.hardErrors.loopCount}</p>
         )}

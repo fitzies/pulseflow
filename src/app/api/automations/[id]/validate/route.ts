@@ -441,10 +441,10 @@ export async function POST(
 
       case 'loop': {
         const loopCount = formData.loopCount;
-        if (loopCount !== undefined && (loopCount < 1 || loopCount > 3)) {
-          validationResults.hardErrors.loopCount = 'Loop count must be between 1 and 3';
-        } else if (loopCount === 3) {
-          validationResults.softWarnings.loopCount = 'Maximum loop count reached';
+        if (loopCount !== undefined && (loopCount < 1 || loopCount > 10)) {
+          validationResults.hardErrors.loopCount = 'Loop count must be between 1 and 10';
+        } else if (loopCount > 5) {
+          validationResults.softWarnings.loopCount = 'More than 5 repeats may cause the automation to timeout (max runtime: 10 minutes)';
         }
         break;
       }

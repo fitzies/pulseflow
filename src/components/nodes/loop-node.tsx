@@ -15,6 +15,7 @@ interface LoopNodeData {
   showNodeLabels?: boolean;
   config?: {
     notes?: string;
+    loopCount?: number;
   };
 }
 
@@ -56,6 +57,11 @@ export const LoopNode = memo(({ data }: NodeProps) => {
       {nodeData?.showNodeLabels !== false && (
         <div className={NODE_LABEL_CONTAINER_CLASS}>
           <span className={NODE_TITLE_CLASS}>Repeat</span>
+          {nodeData?.config?.loopCount != null && nodeData.config.loopCount > 0 && (
+            <p className={NODE_NOTES_CLASS}>
+              {nodeData.config.loopCount} repeat{nodeData.config.loopCount !== 1 ? 's' : ''}
+            </p>
+          )}
           {nodeData?.config?.notes && (
             <p className={NODE_NOTES_CLASS}>
               {nodeData.config.notes}

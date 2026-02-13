@@ -1881,7 +1881,7 @@ export async function executeNode(
       // Loop node - acts as a restart checkpoint
       // When encountered, execution stops here and restarts from the start node
       // After the specified number of restarts, execution continues past this node
-      const loopCount = Math.min(3, Math.max(1, parseInt(nodeData.loopCount) || 1));
+      const loopCount = Math.min(10, Math.max(1, parseInt(nodeData.loopCount) || 1));
       const loopOutput = {
         loopCount,
         shouldLoop: true,

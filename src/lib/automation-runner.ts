@@ -420,7 +420,7 @@ export async function executeAutomationChain(
         
         // Handle loop node - check if we should restart or continue
         if (node.type === 'loop' && result?.loopCount) {
-          const loopCount = Math.min(3, Math.max(1, result.loopCount));
+          const loopCount = Math.min(10, Math.max(1, result.loopCount));
           const currentRestartCount = loopNodeRestartCounts.get(node.id) || 0;
           
           // If we haven't reached the loop count, restart from beginning

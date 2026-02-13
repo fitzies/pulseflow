@@ -259,8 +259,8 @@ export function useNodeValidation(
       }
 
       case 'loop': {
-        if (!validateNumberRange(formData.loopCount, 'loopCount', 1, 3)) {
-          hardErrors.loopCount = 'Loop count must be between 1 and 3';
+        if (!validateNumberRange(formData.loopCount, 'loopCount', 1, 10)) {
+          hardErrors.loopCount = 'Loop count must be between 1 and 10';
         }
         break;
       }
@@ -393,8 +393,8 @@ export function useNodeValidation(
       }
 
       case 'loop': {
-        if (formData.loopCount === 3) {
-          softWarnings.loopCount = 'Maximum loop count reached';
+        if (formData.loopCount > 5) {
+          softWarnings.loopCount = 'More than 5 repeats may cause the automation to timeout (max runtime: 10 minutes)';
         }
         break;
       }

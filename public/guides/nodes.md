@@ -249,7 +249,7 @@ Restart your automation from the beginning when this node is encountered.
 
 **Configuration:**
 
-- **Loop Count:** Number of times to restart from the start node (1-3)
+- **Loop Count:** Number of times to restart from the start node (1-10)
 - **Notes:** Custom description
 
 **Behavior:** When execution reaches this node, it stops and restarts from the start node. After the specified number of restarts, execution continues past this node. For example, with Loop Count = 1: execution runs until the loop node, restarts once from the start, then when it reaches the loop node again, it continues past it.
