@@ -79,7 +79,7 @@ export async function DELETE(
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({

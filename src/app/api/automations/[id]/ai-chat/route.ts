@@ -84,7 +84,7 @@ export async function POST(
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
     return new Response(
@@ -233,7 +233,7 @@ export async function GET(
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   const automation = await prisma.automation.findUnique({ where: { id: automationId } });
   if (!automation || automation.userId !== dbUser.id) {
@@ -276,7 +276,7 @@ export async function DELETE(
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   const automation = await prisma.automation.findUnique({ where: { id: automationId } });
   if (!automation || automation.userId !== dbUser.id) {

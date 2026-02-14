@@ -44,12 +44,13 @@ export async function withRetry<T>(
  * Get or create a database user for the given Clerk user ID
  * This was moved out of middleware since Prisma can't run on Edge runtime
  */
-export async function getOrCreateDbUser(clerkId: string) {
+export async function getOrCreateDbUser(clerkId: string, email?: string) {
   return prisma.user.upsert({
     where: { clerkId },
-    update: {},
+    update: email ? { email } : {},
     create: {
       clerkId,
+      email: email ?? null,
       plan: null,
     },
   });

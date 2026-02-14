@@ -24,7 +24,7 @@ export async function createAutomation(name: string, communityVisible: boolean =
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Check if user has a plan
     if (dbUser.plan === null) {
@@ -101,7 +101,7 @@ export async function updateAutomationDefinition(
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({
@@ -161,7 +161,7 @@ export async function runAutomation(automationId: string) {
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Fetch automation and verify ownership
     const automation = await prisma.automation.findUnique({
@@ -289,7 +289,7 @@ export async function updateAutomationSchedule(
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Check if user has PRO or ULTRA plan for scheduling
     if (triggerMode === "SCHEDULE" && dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
@@ -375,7 +375,7 @@ export async function updateAutomationPriceTrigger(
     }
 
     // Get or create user in database
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Check if user has PRO or ULTRA plan for price triggers
     if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
@@ -482,7 +482,7 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     if (dbUser.plan === null) {
       return { success: false, error: "You need to upgrade to a plan to create automations." };
@@ -610,7 +610,7 @@ export async function createAutomationFromShare(shareString: string, name: strin
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     if (dbUser.plan === null) {
       return { success: false, error: "You need to upgrade to a plan to create automations." };
@@ -694,7 +694,7 @@ export async function renameAutomation(automationId: string, newName: string) {
       return { success: false, error: "Unauthorized. Please sign in." };
     }
 
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     const automation = await prisma.automation.findUnique({
       where: { id: automationId },

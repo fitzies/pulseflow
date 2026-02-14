@@ -20,7 +20,7 @@ export default async function Page({ params }: PageProps) {
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   // Fetch automation from database
   const automation = await prisma.automation.findUnique({

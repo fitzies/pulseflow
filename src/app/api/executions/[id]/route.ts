@@ -21,7 +21,7 @@ export async function GET(
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   // Fetch execution with logs and verify ownership
   const execution = await prisma.execution.findUnique({

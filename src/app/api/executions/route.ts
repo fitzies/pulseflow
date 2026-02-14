@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   // Get query params
   const { searchParams } = new URL(request.url);

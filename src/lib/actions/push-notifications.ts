@@ -17,7 +17,7 @@ export async function subscribeUser(subscription: {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   await prisma.pushSubscription.upsert({
     where: { endpoint: subscription.endpoint },
@@ -37,7 +37,7 @@ export async function unsubscribeUser(endpoint: string) {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   await prisma.pushSubscription.deleteMany({
     where: {
@@ -53,7 +53,7 @@ export async function getSubscriptionStatus() {
   const user = await currentUser();
   if (!user) return { subscribed: false };
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   const count = await prisma.pushSubscription.count({
     where: { userId: dbUser.id },

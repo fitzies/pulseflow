@@ -14,7 +14,7 @@ export async function GET() {
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   // Fetch scheduled executions (wasScheduled: true)
   const executions = await prisma.execution.findMany({

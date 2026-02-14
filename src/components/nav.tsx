@@ -36,7 +36,7 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   // Get user's automations
   const automations = await prisma.automation.findMany({

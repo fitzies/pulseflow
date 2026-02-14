@@ -4,8 +4,8 @@ import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { decryptPrivateKey } from '@/lib/wallet-generation';
 
 // Helper to verify automation ownership
-async function verifyAutomationOwnership(automationId: string, clerkUserId: string) {
-  const dbUser = await getOrCreateDbUser(clerkUserId);
+async function verifyAutomationOwnership(automationId: string, clerkUserId: string, email?: string) {
+  const dbUser = await getOrCreateDbUser(clerkUserId, email);
 
   const automation = await prisma.automation.findUnique({
     where: { id: automationId },
@@ -40,7 +40,7 @@ export async function GET(
     }
 
     // Verify ownership
-    const result = await verifyAutomationOwnership(automationId, user.id);
+    const result = await verifyAutomationOwnership(automationId, user.id, user.emailAddresses[0]?.emailAddress);
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -88,7 +88,7 @@ export async function POST(
     }
 
     // Verify ownership
-    const result = await verifyAutomationOwnership(automationId, user.id);
+    const result = await verifyAutomationOwnership(automationId, user.id, user.emailAddresses[0]?.emailAddress);
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

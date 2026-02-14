@@ -20,7 +20,7 @@ export async function PATCH(
       );
     }
 
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     const automation = await prisma.automation.findUnique({
       where: { id: automationId },

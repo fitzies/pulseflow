@@ -110,7 +110,7 @@ export default async function Page({
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   const currentPlan: Plan = dbUser.plan;
 

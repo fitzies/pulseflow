@@ -13,7 +13,7 @@ export default async function Page() {
 
   if (user) {
     // Get or create user in database and redirect to automations
-    await getOrCreateDbUser(user.id);
+    await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
     redirect("/automations");
   }
 

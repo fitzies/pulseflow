@@ -14,7 +14,7 @@ export async function POST() {
     });
   }
 
-  const dbUser = await getOrCreateDbUser(user.id);
+  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
   const now = new Date();
   const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);

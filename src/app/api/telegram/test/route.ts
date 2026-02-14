@@ -13,7 +13,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const dbUser = await getOrCreateDbUser(user.id);
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     if (!dbUser.telegramChatId) {
       return NextResponse.json(

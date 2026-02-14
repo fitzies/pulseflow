@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const serialized = users.map((u) => ({
     id: u.id,
     clerkId: u.clerkId,
+    email: u.email,
     plan: u.plan,
     trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
     stripeCustomerId: u.stripeCustomerId,
