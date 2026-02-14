@@ -10,8 +10,12 @@ type Params = Promise<{ guide: string }>;
 
 export async function generateStaticParams() {
   const guidesDir = path.join(process.cwd(), 'public', 'guides');
-  const files = await readdir(guidesDir);
-
+  let files: string[];
+  try {
+    files = await readdir(guidesDir);
+  } catch {
+    return [];
+  }
   return files
     .filter((file) => file.endsWith('.md'))
     .map((file) => ({ guide: file.replace('.md', '') }));

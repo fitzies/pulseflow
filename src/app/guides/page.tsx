@@ -6,7 +6,12 @@ import { ChevronRight } from 'lucide-react';
 
 async function getGuides() {
   const guidesDir = path.join(process.cwd(), 'public', 'guides');
-  const files = await readdir(guidesDir);
+  let files: string[];
+  try {
+    files = await readdir(guidesDir);
+  } catch {
+    return [];
+  }
 
   const guides = await Promise.all(
     files
