@@ -17,7 +17,11 @@ export default clerkMiddleware(async (auth, request) => {
   const response = NextResponse.next();
   response.headers.set("x-pathname", pathname);
 
-  if (!isPublicRoute(request)) {
+  // GET /api/automations/[id] is public (password-protected in route)
+  const isGetAutomationDefinition =
+    request.method === "GET" && /^\/api\/automations\/[^/]+$/.test(pathname);
+
+  if (!isPublicRoute(request) && !isGetAutomationDefinition) {
     await auth.protect();
   }
 
