@@ -63,7 +63,11 @@ export function useNodeValidation(
       case 'swap':
       case 'swapFromPLS':
       case 'swapToPLS':
-        relevantFields.push('path');
+        if (formData.autoRoute) {
+          relevantFields.push('tokenIn', 'tokenOut', 'autoRoute');
+        } else {
+          relevantFields.push('path');
+        }
         break;
       case 'transfer':
         relevantFields.push('token', 'to');
@@ -127,18 +131,36 @@ export function useNodeValidation(
       case 'swapFromPLS':
       case 'swapToPLS':
       case 'dexQuote': {
-        const path = formData.path || [];
-        const minPathLength = (nodeType === 'swapFromPLS' || nodeType === 'swapToPLS') ? 1 : 2;
-        if (path.length === 0) {
-          hardErrors.path = 'Token path cannot be empty';
-        } else if (path.length < minPathLength) {
-          hardErrors.path = 'Token path must have at least 2 addresses';
-        }
-        path.forEach((addr: string, index: number) => {
-          if (addr && !validateAddressFormat(addr, `path[${index}]`)) {
-            hardErrors[`path[${index}]`] = 'Invalid address format';
+        if (formData.autoRoute && nodeType !== 'dexQuote') {
+          // Auto-route: validate tokenIn/tokenOut instead of path
+          if (nodeType === 'swap' || nodeType === 'swapToPLS') {
+            if (!formData.tokenIn) {
+              hardErrors.tokenIn = 'Token In address is required';
+            } else if (!validateAddressFormat(formData.tokenIn, 'tokenIn')) {
+              hardErrors.tokenIn = 'Invalid address format';
+            }
           }
-        });
+          if (nodeType === 'swap' || nodeType === 'swapFromPLS') {
+            if (!formData.tokenOut) {
+              hardErrors.tokenOut = 'Token Out address is required';
+            } else if (!validateAddressFormat(formData.tokenOut, 'tokenOut')) {
+              hardErrors.tokenOut = 'Invalid address format';
+            }
+          }
+        } else {
+          const path = formData.path || [];
+          const minPathLength = (nodeType === 'swapFromPLS' || nodeType === 'swapToPLS') ? 1 : 2;
+          if (path.length === 0) {
+            hardErrors.path = 'Token path cannot be empty';
+          } else if (path.length < minPathLength) {
+            hardErrors.path = 'Token path must have at least 2 addresses';
+          }
+          path.forEach((addr: string, index: number) => {
+            if (addr && !validateAddressFormat(addr, `path[${index}]`)) {
+              hardErrors[`path[${index}]`] = 'Invalid address format';
+            }
+          });
+        }
         break;
       }
 
@@ -319,6 +341,9 @@ export function useNodeValidation(
     formData.loopCount,
     formData.delay,
     formData.items,
+    formData.autoRoute,
+    formData.tokenIn,
+    formData.tokenOut,
   ]);
 
   // Effect 2: Slippage validation (immediate) - only when slippage changes
@@ -433,7 +458,11 @@ export function useNodeValidation(
       case 'swapFromPLS':
       case 'swapToPLS':
       case 'dexQuote':
-        serverValidationFields.push('path');
+        if (formData.autoRoute && nodeType !== 'dexQuote') {
+          serverValidationFields.push('tokenIn', 'tokenOut', 'autoRoute');
+        } else {
+          serverValidationFields.push('path');
+        }
         break;
       case 'transfer':
         serverValidationFields.push('token', 'amount', 'tokenType');
@@ -540,6 +569,9 @@ export function useNodeValidation(
     formData.lpPairAddress,
     formData.conditionType,
     formData.tokenType,
+    formData.autoRoute,
+    formData.tokenIn,
+    formData.tokenOut,
   ]);
 
   return validation;

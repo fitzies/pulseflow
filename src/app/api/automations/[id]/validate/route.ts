@@ -141,20 +141,50 @@ export async function POST(
       case 'swap':
       case 'swapFromPLS':
       case 'swapToPLS': {
-        const path = formData.path || [];
-        if (path.length === 0) {
-          validationResults.hardErrors.path = 'Token path cannot be empty';
-        }
-        for (let i = 0; i < path.length; i++) {
-          const addr = path[i];
-          if (addr && !validateAddress(addr)) {
-            validationResults.hardErrors[`path[${i}]`] = 'Invalid address format';
-          } else if (addr) {
-            const tokenCheck = await validateTokenOnly(addr);
-            if (tokenCheck.isLP) {
-              validationResults.hardErrors[`path[${i}]`] = 'LP pair address not allowed in token path';
-            } else if (!tokenCheck.isValid) {
-              validationResults.hardErrors[`path[${i}]`] = 'Invalid token contract';
+        if (formData.autoRoute) {
+          // Auto-route via Piteas: validate tokenIn/tokenOut instead of path
+          if (nodeType === 'swap' || nodeType === 'swapToPLS') {
+            const tokenIn = formData.tokenIn;
+            if (!tokenIn) {
+              validationResults.hardErrors.tokenIn = 'Token In address is required';
+            } else if (!validateAddress(tokenIn)) {
+              validationResults.hardErrors.tokenIn = 'Invalid Token In address format';
+            } else {
+              const tokenCheck = await validateTokenOnly(tokenIn);
+              if (!tokenCheck.isValid) {
+                validationResults.hardErrors.tokenIn = 'Invalid token contract';
+              }
+            }
+          }
+          if (nodeType === 'swap' || nodeType === 'swapFromPLS') {
+            const tokenOut = formData.tokenOut;
+            if (!tokenOut) {
+              validationResults.hardErrors.tokenOut = 'Token Out address is required';
+            } else if (!validateAddress(tokenOut)) {
+              validationResults.hardErrors.tokenOut = 'Invalid Token Out address format';
+            } else {
+              const tokenCheck = await validateTokenOnly(tokenOut);
+              if (!tokenCheck.isValid) {
+                validationResults.hardErrors.tokenOut = 'Invalid token contract';
+              }
+            }
+          }
+        } else {
+          const path = formData.path || [];
+          if (path.length === 0) {
+            validationResults.hardErrors.path = 'Token path cannot be empty';
+          }
+          for (let i = 0; i < path.length; i++) {
+            const addr = path[i];
+            if (addr && !validateAddress(addr)) {
+              validationResults.hardErrors[`path[${i}]`] = 'Invalid address format';
+            } else if (addr) {
+              const tokenCheck = await validateTokenOnly(addr);
+              if (tokenCheck.isLP) {
+                validationResults.hardErrors[`path[${i}]`] = 'LP pair address not allowed in token path';
+              } else if (!tokenCheck.isValid) {
+                validationResults.hardErrors[`path[${i}]`] = 'Invalid token contract';
+              }
             }
           }
         }

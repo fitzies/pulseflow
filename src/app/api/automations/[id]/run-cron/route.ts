@@ -92,6 +92,18 @@ export async function POST(
           { status: 403, headers: { 'Content-Type': 'application/json' } }
         );
       }
+
+      const hasAutoRoute = nodes.some((n: any) => n.data?.config?.autoRoute === true);
+      if (hasAutoRoute) {
+        console.log(`[Cron] Skipping automation ${automationId}: contains Auto Route but user has ${automation.user.plan} plan`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Auto Route is a Pro feature. Upgrade to Pro to run automations with auto routing.',
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Create execution record

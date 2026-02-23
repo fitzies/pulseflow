@@ -6,4 +6,6 @@ export const CONFIG = {
   wpls: "0xA1077a294dDE1B09bB078844df40758a5D0f9a27",
   pulseXFactory: "0x29eA7545DEf87022BAdc76323F373EA1e707C523",
   pulsechainRpc: "https://rpc.pulsechain.com",
+  piteasRouter: "0x6BF228eb7F8ad948d37deD07E595EfddfaAF88A6",
+  piteasSdkUrl: "https://sdk.piteas.io/quote",
 } as const;

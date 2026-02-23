@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PlusIcon, XMarkIcon, TrashIcon, LockClosedIcon, ArrowPathRoundedSquareIcon } from '@heroicons/react/24/solid';
+import { Switch } from '@/components/ui/switch';
 import { ExternalLink } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import type { NodeType } from '@/components/select-node-dialog';
@@ -466,32 +467,28 @@ export function NodeConfigSheet({
     });
   };
 
-  const renderDexSelector = () => (
-    <div className="grid gap-3">
-      <label className="text-sm font-medium">DEX</label>
-      <Select
-        value={formData.dex || 'pulsex'}
-        onValueChange={(value) => updateField('dex', value)}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="pulsex">PulseX</SelectItem>
-          <SelectItem value="9mm">9mm</SelectItem>
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground">
-        {formData.dex === '9mm' ? 'Swap via the 9mm DEX router' : 'Swap via the PulseX DEX router'}
-      </p>
-    </div>
-  );
+  // DEX selector commented out — always use PulseX for now
+  const renderDexSelector = () => null;
 
   const renderSwapConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
+    const autoRoute = formData.autoRoute ?? false;
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
-        {renderDexSelector()}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium">Auto Route</label>
+            <p className="text-xs text-muted-foreground">
+              {isPro ? 'Finds the best swap route automatically' : 'Upgrade to Pro to use auto routing'}
+            </p>
+          </div>
+          <Switch
+            checked={autoRoute}
+            onCheckedChange={(checked) => updateField('autoRoute', checked)}
+            disabled={!isPro}
+          />
+        </div>
+        {!autoRoute && renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select
@@ -523,35 +520,56 @@ export function NodeConfigSheet({
           formData={formData}
           nodes={nodes}
         />
-        <div className="grid gap-3">
-          <label className="text-sm font-medium">Token Path</label>
-          {validation.hardErrors.path && (
-            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
-          )}
-          <div className="space-y-2">
-            {(formData.path || []).map((item: string, index: number) => (
-              <PathTokenInput
-                key={index}
-                address={item}
-                idx={index}
-                onUpdate={(value) => updateArrayField('path', index, value)}
-                onRemove={() => removeArrayItem('path', index)}
-                hardError={validation.hardErrors[`path[${index}]`]}
-                allowForEachItem={isInsideForEach}
-              />
-            ))}
+        {autoRoute ? (
+          <>
+            <AddressInput
+              id="tokenIn"
+              fieldName="tokenIn"
+              label="Token In"
+              value={formData.tokenIn || ''}
+              onValueChange={(value) => updateField('tokenIn', value)}
+              placeholder="0x... token address"
+            />
+            <AddressInput
+              id="tokenOut"
+              fieldName="tokenOut"
+              label="Token Out"
+              value={formData.tokenOut || ''}
+              onValueChange={(value) => updateField('tokenOut', value)}
+              placeholder="0x... token address"
+            />
+          </>
+        ) : (
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Token Path</label>
+            {validation.hardErrors.path && (
+              <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+            )}
+            <div className="space-y-2">
+              {(formData.path || []).map((item: string, index: number) => (
+                <PathTokenInput
+                  key={index}
+                  address={item}
+                  idx={index}
+                  onUpdate={(value) => updateArrayField('path', index, value)}
+                  onRemove={() => removeArrayItem('path', index)}
+                  hardError={validation.hardErrors[`path[${index}]`]}
+                  allowForEachItem={isInsideForEach}
+                />
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addArrayItem('path')}
+              className="w-full"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Add Token
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addArrayItem('path')}
-            className="w-full"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add Token
-          </Button>
-        </div>
+        )}
         <div className="grid gap-3">
           <SlippageSelector
             value={formData.slippage ?? 0.01}
@@ -571,9 +589,23 @@ export function NodeConfigSheet({
 
   const renderSwapFromPLSConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
+    const autoRoute = formData.autoRoute ?? false;
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
-        {renderDexSelector()}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium">Auto Route</label>
+            <p className="text-xs text-muted-foreground">
+              {isPro ? 'Finds the best swap route automatically' : 'Upgrade to Pro to use auto routing'}
+            </p>
+          </div>
+          <Switch
+            checked={autoRoute}
+            onCheckedChange={(checked) => updateField('autoRoute', checked)}
+            disabled={!isPro}
+          />
+        </div>
+        {!autoRoute && renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select
@@ -606,38 +638,49 @@ export function NodeConfigSheet({
           isPLSAmount={swapMode !== 'exactOut'}
           nodes={nodes}
         />
-        <div className="grid gap-3">
-          <label className="text-sm font-medium">Token Path</label>
-          <div className="text-xs text-muted-foreground mb-2">
-            WPLS will be automatically added as the first token in the path
+        {autoRoute ? (
+          <AddressInput
+            id="tokenOut"
+            fieldName="tokenOut"
+            label="Token Out"
+            value={formData.tokenOut || ''}
+            onValueChange={(value) => updateField('tokenOut', value)}
+            placeholder="0x... token address"
+          />
+        ) : (
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Token Path</label>
+            <div className="text-xs text-muted-foreground mb-2">
+              WPLS will be automatically added as the first token in the path
+            </div>
+            {validation.hardErrors.path && (
+              <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+            )}
+            <div className="space-y-2">
+              {(formData.path || []).map((item: string, index: number) => (
+                <PathTokenInput
+                  key={index}
+                  address={item}
+                  idx={index}
+                  onUpdate={(value) => updateArrayField('path', index, value)}
+                  onRemove={() => removeArrayItem('path', index)}
+                  hardError={validation.hardErrors[`path[${index}]`]}
+                  allowForEachItem={isInsideForEach}
+                />
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addArrayItem('path')}
+              className="w-full"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Add Token
+            </Button>
           </div>
-          {validation.hardErrors.path && (
-            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
-          )}
-          <div className="space-y-2">
-            {(formData.path || []).map((item: string, index: number) => (
-              <PathTokenInput
-                key={index}
-                address={item}
-                idx={index}
-                onUpdate={(value) => updateArrayField('path', index, value)}
-                onRemove={() => removeArrayItem('path', index)}
-                hardError={validation.hardErrors[`path[${index}]`]}
-                allowForEachItem={isInsideForEach}
-              />
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addArrayItem('path')}
-            className="w-full"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add Token
-          </Button>
-        </div>
+        )}
         <div className="grid gap-3">
           <SlippageSelector
             value={formData.slippage ?? 0.01}
@@ -657,9 +700,23 @@ export function NodeConfigSheet({
 
   const renderSwapToPLSConfig = () => {
     const swapMode = formData.swapMode || 'exactIn';
+    const autoRoute = formData.autoRoute ?? false;
     return (
       <div className="grid flex-1 auto-rows-min gap-6 px-4">
-        {renderDexSelector()}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium">Auto Route</label>
+            <p className="text-xs text-muted-foreground">
+              {isPro ? 'Finds the best swap route automatically' : 'Upgrade to Pro to use auto routing'}
+            </p>
+          </div>
+          <Switch
+            checked={autoRoute}
+            onCheckedChange={(checked) => updateField('autoRoute', checked)}
+            disabled={!isPro}
+          />
+        </div>
+        {!autoRoute && renderDexSelector()}
         <div className="grid gap-3">
           <label className="text-sm font-medium">Swap Mode</label>
           <Select
@@ -692,38 +749,49 @@ export function NodeConfigSheet({
           isPLSAmount={swapMode === 'exactOut'}
           nodes={nodes}
         />
-        <div className="grid gap-3">
-          <label className="text-sm font-medium">Token Path</label>
-          <div className="text-xs text-muted-foreground mb-2">
-            WPLS will be automatically added as the last token in the path
+        {autoRoute ? (
+          <AddressInput
+            id="tokenIn"
+            fieldName="tokenIn"
+            label="Token In"
+            value={formData.tokenIn || ''}
+            onValueChange={(value) => updateField('tokenIn', value)}
+            placeholder="0x... token address"
+          />
+        ) : (
+          <div className="grid gap-3">
+            <label className="text-sm font-medium">Token Path</label>
+            <div className="text-xs text-muted-foreground mb-2">
+              WPLS will be automatically added as the last token in the path
+            </div>
+            {validation.hardErrors.path && (
+              <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
+            )}
+            <div className="space-y-2">
+              {(formData.path || []).map((item: string, index: number) => (
+                <PathTokenInput
+                  key={index}
+                  address={item}
+                  idx={index}
+                  onUpdate={(value) => updateArrayField('path', index, value)}
+                  onRemove={() => removeArrayItem('path', index)}
+                  hardError={validation.hardErrors[`path[${index}]`]}
+                  allowForEachItem={isInsideForEach}
+                />
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addArrayItem('path')}
+              className="w-full"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Add Token
+            </Button>
           </div>
-          {validation.hardErrors.path && (
-            <p className="text-xs text-destructive">{validation.hardErrors.path}</p>
-          )}
-          <div className="space-y-2">
-            {(formData.path || []).map((item: string, index: number) => (
-              <PathTokenInput
-                key={index}
-                address={item}
-                idx={index}
-                onUpdate={(value) => updateArrayField('path', index, value)}
-                onRemove={() => removeArrayItem('path', index)}
-                hardError={validation.hardErrors[`path[${index}]`]}
-                allowForEachItem={isInsideForEach}
-              />
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => addArrayItem('path')}
-            className="w-full"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add Token
-          </Button>
-        </div>
+        )}
         <div className="grid gap-3">
           <SlippageSelector
             value={formData.slippage ?? 0.01}

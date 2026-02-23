@@ -1020,6 +1020,131 @@ function createTxOutput(receipt: ContractTransactionReceipt): { gasPrice: bigint
   };
 }
 
+// Piteas DEX aggregator constants
+const PITEAS_ROUTER = CONFIG.piteasRouter;
+const PITEAS_SDK_URL = CONFIG.piteasSdkUrl;
+
+/**
+ * Execute a swap via the Piteas DEX aggregator.
+ * Piteas finds the optimal multi-hop route off-chain and returns calldata
+ * to send directly to PiteasRouter.
+ */
+async function executePiteasSwap(
+  automationId: string,
+  tokenIn: string,
+  tokenOut: string,
+  amount: bigint,
+  slippage: number,
+  to: string
+): Promise<ContractTransactionReceipt> {
+  const wallet = await getWalletFromAutomation(automationId);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+
+  const tokenInAddress = tokenIn.toUpperCase() === "PLS" ? "PLS" : tokenIn;
+  const tokenOutAddress = tokenOut.toUpperCase() === "PLS" ? "PLS" : tokenOut;
+  const slippagePercent = Math.min(Math.max(slippage * 100, 0.01), 50);
+
+  const url = `${PITEAS_SDK_URL}?tokenInAddress=${tokenInAddress}&tokenOutAddress=${tokenOutAddress}&amount=${amount.toString()}&allowedSlippage=${slippagePercent}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    const status = res.status;
+    if (status === 429) throw new Error("Piteas rate limit exceeded (10 req/min). Try again shortly.");
+    if (status === 500) throw new Error("Piteas could not find a route for this swap.");
+    throw new Error(`Piteas API error: ${status}`);
+  }
+
+  const quote = await res.json();
+  if (!quote.methodParameters?.calldata) {
+    throw new Error("Piteas returned an invalid quote (no calldata).");
+  }
+
+  // Approve input token to PiteasRouter if not native PLS
+  if (tokenInAddress !== "PLS") {
+    const tokenContract = new Contract(tokenIn, erc20ABI, connectedWallet);
+    const allowance = await tokenContract.allowance(wallet.address, PITEAS_ROUTER);
+    if (allowance < amount) {
+      const approveTx = await tokenContract.approve(PITEAS_ROUTER, MaxUint256);
+      await approveTx.wait();
+    }
+  }
+
+  const tx = await connectedWallet.sendTransaction({
+    to: PITEAS_ROUTER,
+    data: quote.methodParameters.calldata,
+    value: BigInt(quote.methodParameters.value || "0"),
+    gasLimit: BigInt(Math.ceil((quote.gasUseEstimate || 500000) * 1.3)),
+  });
+
+  const receipt = await tx.wait();
+  if (!receipt) throw new Error("Piteas swap transaction receipt is null");
+  return receipt as ContractTransactionReceipt;
+}
+
+/**
+ * Extract output from a Piteas swap transaction.
+ * Piteas may route through unknown intermediaries, so we look for the last
+ * ERC20 Transfer event TO the recipient for the target token.
+ * For PLS output, we check the native value received.
+ */
+async function extractPiteasSwapOutput(
+  receipt: ContractTransactionReceipt,
+  tokenOut: string,
+  provider: JsonRpcProvider,
+  recipientAddress: string
+): Promise<{ amountOut: bigint; tokenOut: string; gasPrice: bigint; gasUsed: bigint; txHash: string } | null> {
+  const gasPrice = extractGasPrice(receipt);
+  const gasUsed = receipt.gasUsed || BigInt(0);
+  const txHash = receipt.hash;
+
+  const isPLSOut = tokenOut.toUpperCase() === "PLS";
+
+  if (isPLSOut) {
+    // For native PLS output, check WPLS Withdrawal events or native transfer
+    const wplsAddress = WPLS_ADDRESS.toLowerCase();
+    const wplsInterface = new Contract(WPLS_ADDRESS, [
+      "event Withdrawal(address indexed src, uint256 wad)",
+    ], provider).interface;
+
+    let amountOut = BigInt(0);
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== wplsAddress) continue;
+      try {
+        const parsed = wplsInterface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed && parsed.name === "Withdrawal") {
+          amountOut = parsed.args.wad as bigint;
+        }
+      } catch { continue; }
+    }
+    return { amountOut, tokenOut: WPLS_ADDRESS, gasPrice, gasUsed, txHash };
+  }
+
+  // For ERC20 output, find the last Transfer to the recipient
+  try {
+    const erc20Interface = new Contract(tokenOut, erc20ABI, provider).interface;
+    let amountOut = BigInt(0);
+
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== tokenOut.toLowerCase()) continue;
+      try {
+        const parsed = erc20Interface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (parsed && parsed.name === "Transfer") {
+          const to = parsed.args.to as string;
+          if (to.toLowerCase() === recipientAddress.toLowerCase()) {
+            amountOut = parsed.args.value as bigint;
+          }
+        }
+      } catch { continue; }
+    }
+    return { amountOut, tokenOut, gasPrice, gasUsed, txHash };
+  } catch (error) {
+    console.warn("Could not parse Piteas swap output:", error);
+  }
+
+  return { amountOut: BigInt(0), tokenOut, gasPrice, gasUsed, txHash };
+}
+
 /**
  * Extract output from addLiquidity transaction by parsing LP token mint Transfer event
  * Returns liquidity amount, amountA, amountB, and LP token address
@@ -1272,6 +1397,16 @@ export async function executeNode(
 
   switch (nodeType) {
     case "swap": {
+      if (nodeData.autoRoute) {
+        const amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+        const tokenIn = nodeData.tokenIn || (nodeData.usePLS ? "PLS" : "");
+        const tokenOut = nodeData.tokenOut || "";
+        if (!tokenIn || !tokenOut) throw new Error("Auto-route requires tokenIn and tokenOut addresses");
+        const receipt = await executePiteasSwap(automationId, tokenIn, tokenOut, amountIn, slippage, to);
+        const output = await extractPiteasSwapOutput(receipt, tokenOut, provider, to);
+        const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
+        return { result: receipt, context: updatedContext };
+      }
       const { routerAddress: swapRouter, contractAddress: swapContract, routerABI: swapRouterABI } = resolveDexAddresses(nodeData.dex);
       // Check if swapping PLS (native) or tokens
       if (nodeData.usePLS && nodeData.usePLS === true) {
@@ -1463,6 +1598,15 @@ export async function executeNode(
 
     case "swapFromPLS":
     case "swapPLS": { // Keep for backward compatibility
+      if (nodeData.autoRoute) {
+        const plsAmountAuto = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
+        const tokenOutAuto = nodeData.tokenOut || "";
+        if (!tokenOutAuto) throw new Error("Auto-route requires a tokenOut address");
+        const receiptAuto = await executePiteasSwap(automationId, "PLS", tokenOutAuto, plsAmountAuto, slippage, to);
+        const outputAuto = await extractPiteasSwapOutput(receiptAuto, tokenOutAuto, provider, to);
+        const updatedContextAuto = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAuto);
+        return { result: receiptAuto, context: updatedContextAuto };
+      }
       const { routerAddress: fromPLSRouter, contractAddress: fromPLSContract, routerABI: fromPLSRouterABI } = resolveDexAddresses(nodeData.dex);
       let pathSwap = nodeData.path || [];
       const swapModeFromPLS = nodeData.swapMode || 'exactIn';
@@ -1522,6 +1666,15 @@ export async function executeNode(
     }
 
     case "swapToPLS": {
+      if (nodeData.autoRoute) {
+        const amountInAuto = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+        const tokenInAuto = nodeData.tokenIn || "";
+        if (!tokenInAuto) throw new Error("Auto-route requires a tokenIn address");
+        const receiptAutoToPLS = await executePiteasSwap(automationId, tokenInAuto, "PLS", amountInAuto, slippage, to);
+        const outputAutoToPLS = await extractPiteasSwapOutput(receiptAutoToPLS, "PLS", provider, to);
+        const updatedContextAutoToPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAutoToPLS);
+        return { result: receiptAutoToPLS, context: updatedContextAutoToPLS };
+      }
       const { routerAddress: toPLSRouter, contractAddress: toPLSContract, routerABI: toPLSRouterABI } = resolveDexAddresses(nodeData.dex);
       let pathSwapToPLS = nodeData.path || [];
       const swapModeToPLS = nodeData.swapMode || 'exactIn';

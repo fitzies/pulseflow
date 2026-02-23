@@ -72,6 +72,16 @@ export async function POST(
         { status: 403, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    const hasAutoRoute = nodes.some((n: any) => n.data?.config?.autoRoute === true);
+    if (hasAutoRoute) {
+      return new Response(
+        JSON.stringify({
+          error: 'Auto Route is a Pro feature. Upgrade to Pro to run automations with auto routing.',
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
   }
 
   // Create execution record
