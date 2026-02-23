@@ -529,6 +529,8 @@ export function NodeConfigSheet({
               value={formData.tokenIn || ''}
               onValueChange={(value) => updateField('tokenIn', value)}
               placeholder="0x... token address"
+              hardError={validation.hardErrors.tokenIn}
+              allowForEachItem={isInsideForEach}
             />
             <AddressInput
               id="tokenOut"
@@ -537,6 +539,8 @@ export function NodeConfigSheet({
               value={formData.tokenOut || ''}
               onValueChange={(value) => updateField('tokenOut', value)}
               placeholder="0x... token address"
+              hardError={validation.hardErrors.tokenOut}
+              allowForEachItem={isInsideForEach}
             />
           </>
         ) : (
@@ -646,6 +650,8 @@ export function NodeConfigSheet({
             value={formData.tokenOut || ''}
             onValueChange={(value) => updateField('tokenOut', value)}
             placeholder="0x... token address"
+            hardError={validation.hardErrors.tokenOut}
+            allowForEachItem={isInsideForEach}
           />
         ) : (
           <div className="grid gap-3">
@@ -757,6 +763,8 @@ export function NodeConfigSheet({
             value={formData.tokenIn || ''}
             onValueChange={(value) => updateField('tokenIn', value)}
             placeholder="0x... token address"
+            hardError={validation.hardErrors.tokenIn}
+            allowForEachItem={isInsideForEach}
           />
         ) : (
           <div className="grid gap-3">
