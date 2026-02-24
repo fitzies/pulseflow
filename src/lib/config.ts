@@ -8,4 +8,6 @@ export const CONFIG = {
   pulsechainRpc: "https://rpc.pulsechain.com",
   piteasRouter: "0x6BF228eb7F8ad948d37deD07E595EfddfaAF88A6",
   piteasSdkUrl: "https://sdk.piteas.io/quote",
+  pulseXSwapRouter: "0xDA9aBA4eACF54E0273f56dfFee6B8F1e20B23Bba",
+  pulseXFactoryV1: "0x1715a3E4A142d8b698131108995174F37aEBA10D",
 } as const;
