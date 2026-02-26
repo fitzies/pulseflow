@@ -172,49 +172,40 @@ export async function GET(request: Request) {
       );
     }
 
-    // Determine base URL for API calls
-    // IMPORTANT: Set APP_URL env var to your production domain to avoid preview deployment protection issues
-    const baseUrl = process.env.APP_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    
-    console.log(`[Cron] Using base URL: ${baseUrl}`);
+    const workerUrl = process.env.WORKER_URL;
+    if (!workerUrl) {
+      throw new Error('WORKER_URL environment variable is not set');
+    }
 
-    // Build headers - include bypass secret if set (for Vercel Deployment Protection)
-    const headers: Record<string, string> = {
+    console.log(`[Cron] Using worker URL: ${workerUrl}`);
+
+    const workerHeaders: Record<string, string> = {
       'x-cron-secret': process.env.CRON_SECRET || '',
       'Content-Type': 'application/json',
     };
-    
-    // Add Vercel deployment protection bypass if configured
-    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-      headers['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-    }
 
-    // Fan-out: trigger each automation in parallel (fire-and-forget)
-    // Each automation runs in its own serverless function with its own 300s budget
+    // Fan-out: send each automation to the Railway worker (fire-and-forget)
+    // Worker responds 202 immediately and runs execution in the background
     const triggerPromises = allAutomationsToTrigger.map(async (automation) => {
       try {
-        const url = `${baseUrl}/api/automations/${automation.id}/run-cron`;
         const controller = new AbortController();
-        
-        // Give it 10s to get initial response (enough to check auth, not wait for completion)
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
+
         try {
-          const response = await fetch(url, {
+          const response = await fetch(`${workerUrl}/run-automation`, {
             method: 'POST',
-            headers,
+            headers: workerHeaders,
+            body: JSON.stringify({ automationId: automation.id, type: automation.type }),
             signal: controller.signal,
           });
-          
+
           clearTimeout(timeoutId);
-          
-          // If we got a quick response, check if it was an auth error
+
           if (response.status === 401) {
-            console.error(`[Cron] Auth failed for ${automation.id} - check APP_URL or VERCEL_AUTOMATION_BYPASS_SECRET`);
+            console.error(`[Cron] Worker auth failed for ${automation.id} - check CRON_SECRET on Railway`);
             return { automationId: automation.id, type: automation.type, triggered: false, error: 'auth_failed' };
           }
-          
+
           // Update lastTriggeredAt for price triggers
           if (automation.type === 'price_trigger') {
             await withRetry(() =>
@@ -224,15 +215,14 @@ export async function GET(request: Request) {
               })
             );
           }
-          
-          console.log(`[Cron] Triggered ${automation.type} automation ${automation.id} (status: ${response.status})`);
+
+          console.log(`[Cron] Dispatched ${automation.type} automation ${automation.id} to worker (status: ${response.status})`);
           return { automationId: automation.id, type: automation.type, triggered: true };
         } catch (fetchError: any) {
           clearTimeout(timeoutId);
-          
-          // AbortError means timeout - request was sent and is processing
+
+          // AbortError means 202 was sent but connection timed out — worker is processing
           if (fetchError.name === 'AbortError') {
-            // Update lastTriggeredAt for price triggers even on timeout (request was sent)
             if (automation.type === 'price_trigger') {
               await withRetry(() =>
                 prisma.automation.update({
@@ -241,13 +231,13 @@ export async function GET(request: Request) {
                 })
               );
             }
-            console.log(`[Cron] Triggered ${automation.type} automation ${automation.id} (processing)`);
+            console.log(`[Cron] Dispatched ${automation.type} automation ${automation.id} to worker (processing)`);
             return { automationId: automation.id, type: automation.type, triggered: true };
           }
           throw fetchError;
         }
       } catch (error) {
-        console.error(`[Cron] Failed to trigger automation ${automation.id}:`, error);
+        console.error(`[Cron] Failed to dispatch automation ${automation.id} to worker:`, error);
         return { automationId: automation.id, type: automation.type, triggered: false };
       }
     });

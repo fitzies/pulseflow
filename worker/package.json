@@ -1,0 +1,17 @@
+{
+  "name": "pulseflow-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts"
+  },
+  "dependencies": {
+    "express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0"
+  }
+}
