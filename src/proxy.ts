@@ -32,7 +32,5 @@ export const config = {
   matcher: [
     // Skip Next.js internals, static files, and cron routes (auth via CRON_SECRET, no Clerk needed)
     "/((?!_next|api/cron|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // API/trpc routes except cron (auth via CRON_SECRET)
-    "/(api|trpc)(?!/cron(?:/|$))(.*)",
   ],
 };
