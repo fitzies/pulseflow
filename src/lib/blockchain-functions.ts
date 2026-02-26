@@ -765,7 +765,7 @@ export async function transferPLS(
   const provider = getProvider();
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
 
-  const tx: ContractTransactionResponse = await connectedWallet.sendTransaction({
+  const tx = await connectedWallet.sendTransaction({
     to,
     value: amount,
   });
