@@ -3,7 +3,8 @@
 import { memo } from 'react';
 import { QuestionMarkCircleIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
-import { BaseNode } from '@/components/base-node';
+import { NodeCardWithStatus } from '@/components/node-card-with-status';
+import type { NodeStatus } from '@/components/node-status-indicator';
 import { LabeledHandle } from '@/components/labeled-handle';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
@@ -28,6 +29,7 @@ interface ConditionNodeData {
 
 export const ConditionNode = memo(({ data }: NodeProps) => {
   const nodeData = data as ConditionNodeData;
+  const status = (nodeData as { status?: NodeStatus })?.status ?? 'initial';
 
   const handleAddTrueClick = () => {
     nodeData?.onAddNode?.('output-true');
@@ -64,7 +66,7 @@ export const ConditionNode = memo(({ data }: NodeProps) => {
 
   return (
     <div className={NODE_WRAPPER_CLASS}>
-      <BaseNode className={`${NODE_WIDTH_CONDITION_CLASS} ${NODE_HEIGHT_CONDITION_CLASS} cursor-pointer`} onClick={handleNodeClick}>
+      <NodeCardWithStatus status={status} className={`${NODE_WIDTH_CONDITION_CLASS} ${NODE_HEIGHT_CONDITION_CLASS} cursor-pointer`} onClick={handleNodeClick}>
         <Handle type="target" position={Position.Top} className="opacity-0" />
         <div className="flex items-center justify-center p-3">
           <div className={`rounded-xl ${getNodeBackgroundColor('condition')} p-3 flex items-center justify-center`}>
@@ -124,7 +126,7 @@ export const ConditionNode = memo(({ data }: NodeProps) => {
             </Button>
           </div>
         )}
-      </BaseNode>
+      </NodeCardWithStatus>
       {showLabels && (
         <div className={NODE_LABEL_CONTAINER_CLASS}>
           <span className={NODE_TITLE_CLASS}>{conditionSummary || 'Condition'}</span>

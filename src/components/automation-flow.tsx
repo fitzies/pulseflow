@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef, ComponentType } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   applyNodeChanges,
@@ -11,7 +11,6 @@ import {
   type Node,
   type Edge,
   type NodeTypes,
-  type NodeProps,
   type EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -60,7 +59,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { ArrowPathIcon, PlayIcon, StopIcon, Cog6ToothIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
-import { NodeStatusIndicator, type NodeStatus } from '@/components/node-status-indicator';
+import type { NodeStatus } from '@/components/node-status-indicator';
 import { parseBlockchainError } from '@/lib/error-utils';
 import { AddNodeButtonEdge } from '@/components/add-node-button-edge';
 import { AIChatButton } from '@/components/ai-chat-button';
@@ -68,47 +67,33 @@ import { AIChatPanel } from '@/components/ai-chat-panel';
 import { AutomationExecutionsDialog } from '@/components/navbar-components/automation-executions-dialog';
 import { useRouter } from 'next/navigation';
 
-// Higher-order component to wrap nodes with status indicator
-function withStatusIndicator<P extends NodeProps>(WrappedComponent: ComponentType<P>) {
-  const WithStatusIndicator = (props: P) => {
-    const status = (props.data as { status?: NodeStatus })?.status || 'initial';
-    return (
-      <NodeStatusIndicator status={status}>
-        <WrappedComponent {...props} />
-      </NodeStatusIndicator>
-    );
-  };
-  WithStatusIndicator.displayName = `WithStatusIndicator(${WrappedComponent.displayName || WrappedComponent.name || 'Component'})`;
-  return WithStatusIndicator;
-}
-
 const nodeTypes: NodeTypes = {
-  start: withStatusIndicator(StartNode),
-  swap: withStatusIndicator(SwapNode),
-  swapFromPLS: withStatusIndicator(SwapFromPLSNode),
-  swapToPLS: withStatusIndicator(SwapToPLSNode),
-  transfer: withStatusIndicator(TransferNode),
-  transferPLS: withStatusIndicator(TransferPLSNode),
-  addLiquidity: withStatusIndicator(AddLiquidityNode),
-  addLiquidityPLS: withStatusIndicator(AddLiquidityPLSNode),
-  removeLiquidity: withStatusIndicator(RemoveLiquidityNode),
-  removeLiquidityPLS: withStatusIndicator(RemoveLiquidityPLSNode),
-  checkBalance: withStatusIndicator(CheckBalanceNode),
-  checkTokenBalance: withStatusIndicator(CheckTokenBalanceNode),
-  checkLPTokenAmounts: withStatusIndicator(CheckLPTokenAmountsNode),
-  burnToken: withStatusIndicator(BurnTokenNode),
-  claimToken: withStatusIndicator(ClaimTokenNode),
-  getParent: withStatusIndicator(GetParentNode),
-  wait: withStatusIndicator(WaitNode),
-  loop: withStatusIndicator(LoopNode),
-  gasGuard: withStatusIndicator(GasGuardNode),
-  condition: withStatusIndicator(ConditionNode),
-  telegram: withStatusIndicator(TelegramNode),
-  variable: withStatusIndicator(VariableNode),
-  calculator: withStatusIndicator(CalculatorNode),
-  dexQuote: withStatusIndicator(DexQuoteNode),
-  forEach: withStatusIndicator(ForEachNode),
-  endForEach: withStatusIndicator(EndForEachNode),
+  start: StartNode,
+  swap: SwapNode,
+  swapFromPLS: SwapFromPLSNode,
+  swapToPLS: SwapToPLSNode,
+  transfer: TransferNode,
+  transferPLS: TransferPLSNode,
+  addLiquidity: AddLiquidityNode,
+  addLiquidityPLS: AddLiquidityPLSNode,
+  removeLiquidity: RemoveLiquidityNode,
+  removeLiquidityPLS: RemoveLiquidityPLSNode,
+  checkBalance: CheckBalanceNode,
+  checkTokenBalance: CheckTokenBalanceNode,
+  checkLPTokenAmounts: CheckLPTokenAmountsNode,
+  burnToken: BurnTokenNode,
+  claimToken: ClaimTokenNode,
+  getParent: GetParentNode,
+  wait: WaitNode,
+  loop: LoopNode,
+  gasGuard: GasGuardNode,
+  condition: ConditionNode,
+  telegram: TelegramNode,
+  variable: VariableNode,
+  calculator: CalculatorNode,
+  dexQuote: DexQuoteNode,
+  forEach: ForEachNode,
+  endForEach: EndForEachNode,
 };
 
 const edgeTypes: EdgeTypes = {

@@ -3,7 +3,8 @@
 import { memo } from 'react';
 import { VariableIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { Handle, Position } from '@xyflow/react';
-import { BaseNode } from '@/components/base-node';
+import { NodeCardWithStatus } from '@/components/node-card-with-status';
+import type { NodeStatus } from '@/components/node-status-indicator';
 import { Button } from '@/components/ui/button';
 import type { NodeProps } from '@xyflow/react';
 import { getNodeBackgroundColor, getNodeTextColor, NODE_WRAPPER_CLASS, NODE_WIDTH_CLASS, NODE_HEIGHT_CLASS, NODE_LABEL_CONTAINER_CLASS, NODE_TITLE_CLASS, NODE_NOTES_CLASS } from './node-colors';
@@ -21,6 +22,7 @@ interface VariableNodeData {
 
 export const VariableNode = memo(({ data }: NodeProps) => {
   const nodeData = data as VariableNodeData;
+  const status = (nodeData as { status?: NodeStatus })?.status ?? 'initial';
   const handleAddClick = () => {
     nodeData?.onAddNode?.();
   };
@@ -30,7 +32,7 @@ export const VariableNode = memo(({ data }: NodeProps) => {
 
   return (
     <div className={NODE_WRAPPER_CLASS}>
-      <BaseNode className={`${NODE_WIDTH_CLASS} ${NODE_HEIGHT_CLASS} cursor-pointer`} onClick={handleNodeClick}>
+      <NodeCardWithStatus status={status} className={`${NODE_WIDTH_CLASS} ${NODE_HEIGHT_CLASS} cursor-pointer`} onClick={handleNodeClick}>
         <Handle type="target" position={Position.Top} className="opacity-0" />
         <div className="flex items-center justify-center p-3">
           <div className={`rounded-xl ${getNodeBackgroundColor('variable')} p-3 flex items-center justify-center`}>
@@ -53,7 +55,7 @@ export const VariableNode = memo(({ data }: NodeProps) => {
             </Button>
           </div>
         )}
-      </BaseNode>
+      </NodeCardWithStatus>
       {nodeData?.showNodeLabels !== false && (
         <div className={NODE_LABEL_CONTAINER_CLASS}>
           <span className={NODE_TITLE_CLASS}>
