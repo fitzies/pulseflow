@@ -27,8 +27,13 @@ import RecentExecutions from "./navbar-components/notification-menu";
 import { SearchCommandButton } from "./navbar-components/search-command-button";
 import { Bars3Icon, ViewColumnsIcon } from "@heroicons/react/24/solid";
 import { ExecutionsButton } from "./navbar-components/automation-executions-dialog";
+import { Badge } from "./ui/badge";
 
-export default async function Nav({ layout = "Automations" }: { layout?: "Automations" | "Executions" }) {
+export default async function Nav({
+  layout = "Automations",
+}: {
+  layout?: "Automations" | "Executions";
+}) {
   const user = await currentUser();
 
   if (!user) {
@@ -36,7 +41,10 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+  const dbUser = await getOrCreateDbUser(
+    user.id,
+    user.emailAddresses[0]?.emailAddress,
+  );
 
   // Get user's automations
   const automations = await prisma.automation.findMany({
@@ -78,8 +86,9 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
     name: automation.name,
   }));
 
-  const userDisplayName = user.firstName && user.lastName
-    ? `${user.firstName} ${user.lastName}`
+  const userDisplayName =
+    user.firstName && user.lastName ?
+      `${user.firstName} ${user.lastName}`
     : user.username || user.emailAddresses[0]?.emailAddress || "Account";
 
   const userEmail = user.emailAddresses[0]?.emailAddress || "";
@@ -116,7 +125,9 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
                 </DropdownMenu>
               </BreadcrumbItem>
               <BreadcrumbItem className="max-md:hidden">
-                <BreadcrumbLink href="/automations">{userDisplayName}</BreadcrumbLink>
+                <BreadcrumbLink href="/automations">
+                  {userDisplayName}
+                </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="max-md:hidden">
                 {" "}
@@ -124,7 +135,9 @@ export default async function Nav({ layout = "Automations" }: { layout?: "Automa
               </BreadcrumbSeparator>
               <BreadcrumbItem className="max-md:hidden">
                 <BreadcrumbLink asChild>
-                  {layout === "Automations" ? <Link href="/automations">Automations</Link> : <Link href="/executions">Executions</Link>}
+                  {layout === "Automations" ?
+                    <Link href="/automations">Automations</Link>
+                  : <Link href="/executions">Executions</Link>}
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <AutomationSelect automations={automations} />

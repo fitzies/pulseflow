@@ -169,3 +169,11 @@ model PushSubscription {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model CronRun {
+  id             String   @id @default(cuid())
+  status         String // "SUCCESS" | "FAILED"
+  error          String?
+  triggeredCount Int?
+  finishedAt     DateTime @default(now())
+}

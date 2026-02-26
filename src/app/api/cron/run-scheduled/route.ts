@@ -158,6 +158,9 @@ export async function GET(request: Request) {
     ];
 
     if (allAutomationsToTrigger.length === 0) {
+      await prisma.cronRun.create({
+        data: { status: 'SUCCESS', triggeredCount: 0 },
+      });
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -258,6 +261,10 @@ export async function GET(request: Request) {
     
     console.log(`[Cron] Successfully triggered ${triggeredCount} automations (${scheduledTriggered} scheduled, ${priceTriggered} price triggers)`);
 
+    await prisma.cronRun.create({
+      data: { status: 'SUCCESS', triggeredCount },
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -274,6 +281,16 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.error('[Cron] Critical error:', error);
+    try {
+      await prisma.cronRun.create({
+        data: {
+          status: 'FAILED',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+    } catch (dbErr) {
+      // Don't mask original error if DB write fails
+    }
     return new Response(
       JSON.stringify({
         success: false,
