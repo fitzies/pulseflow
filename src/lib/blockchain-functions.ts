@@ -12,7 +12,7 @@ import { prisma } from "./prisma";
 import { getWalletFromEncryptedKey } from "./wallet-generation";
 import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, nineMMRouter, PulseXRouter, NineMMRouterAddress, WPLS } from "./abis";
 import { CONFIG } from "./config";
-import { executePulseXSmartSwap } from "./pulsex-smart-router";
+import { executePulseXSmartSwap, executePulseXSmartSwapToPLS, findBestPath } from "./pulsex-smart-router";
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
 
@@ -753,21 +753,22 @@ export async function transferTokens(
 
 /**
  * Executes transfer PLS operation
+ * Sends native PLS directly from the wallet - no contract needed
  */
 export async function transferPLS(
   automationId: string,
   to: string,
   amount: bigint,
-  contractAddress?: string
+  _contractAddress?: string
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
-  const contract = getAutomationContract(wallet, contractAddress);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
 
-  const tx: ContractTransactionResponse = await contract.transferPLS(
+  const tx: ContractTransactionResponse = await connectedWallet.sendTransaction({
     to,
-    amount,
-    { value: amount }
-  );
+    value: amount,
+  });
 
   const receipt = await tx.wait();
   if (!receipt) {
@@ -1690,10 +1691,34 @@ export async function executeNode(
 
     case "swapToPLS": {
       if (nodeData.autoRoute) {
-        const amountInAuto = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
         const tokenInAuto = nodeData.tokenIn || "";
         if (!tokenInAuto) throw new Error("Auto-route requires a tokenIn address");
-        const receiptAutoToPLS = await executeAutoRouteSwap(automationId, tokenInAuto, "PLS", amountInAuto, slippage, to);
+        const swapModeAuto = nodeData.swapMode || 'exactIn';
+        let amountInAuto: bigint;
+        let amountOutMinOverride: bigint | undefined;
+
+        if (swapModeAuto === 'exactOut') {
+          const plsAmountOut = await resolveAmountField('plsAmountOut', nodeData, context, automationId, nodeType);
+          const bestPath = await findBestPath(tokenInAuto, WPLS, 10n ** 18n);
+          const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
+          const amountsIn = await routerContract.getAmountsIn(plsAmountOut, bestPath.path);
+          const calculatedAmountIn = amountsIn[0];
+          amountInAuto = (calculatedAmountIn * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
+          amountOutMinOverride = plsAmountOut;
+        } else {
+          amountInAuto = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+        }
+
+        const receiptAutoToPLS = await executePulseXSmartSwapToPLS(
+          automationId,
+          tokenInAuto,
+          amountInAuto,
+          slippage,
+          to,
+          getWalletFromAutomation,
+          getProvider,
+          amountOutMinOverride,
+        );
         const outputAutoToPLS = await extractPiteasSwapOutput(receiptAutoToPLS, "PLS", provider, to);
         const updatedContextAutoToPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAutoToPLS);
         return { result: receiptAutoToPLS, context: updatedContextAutoToPLS };

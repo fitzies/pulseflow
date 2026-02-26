@@ -194,3 +194,65 @@ export async function executePulseXSmartSwap(
     throw new Error("PulseX SmartRouter swap transaction receipt is null");
   return receipt as ContractTransactionReceipt;
 }
+
+/**
+ * Execute swap tokens → native PLS via Smart Router multicall.
+ * Swaps to WPLS, then unwraps to native PLS. No Piteas, no rate limits.
+ * @param amountOutMinOverride - For exactOut mode: use this as amountOutMin instead of slippage-derived value
+ */
+export async function executePulseXSmartSwapToPLS(
+  automationId: string,
+  tokenIn: string,
+  amount: bigint,
+  slippage: number,
+  recipient: string,
+  getWallet: (id: string) => Promise<Wallet>,
+  getEthersProvider: () => JsonRpcProvider,
+  amountOutMinOverride?: bigint,
+): Promise<ContractTransactionReceipt> {
+  const wallet = await getWallet(automationId);
+  const provider = getEthersProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+
+  const best = await findBestPath(tokenIn, WPLS_ADDRESS, amount);
+
+  const amountOutMin =
+    amountOutMinOverride ??
+    (best.amountOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+
+  // Approve input token to Smart Router
+  const tokenContract = new Contract(tokenIn, erc20ABI, connectedWallet);
+  const allowance: bigint = await tokenContract.allowance(
+    wallet.address,
+    PULSEX_SWAP_ROUTER,
+  );
+  if (allowance < amount) {
+    const approveTx = await tokenContract.approve(
+      PULSEX_SWAP_ROUTER,
+      MaxUint256,
+    );
+    await approveTx.wait();
+  }
+
+  const smartRouter = new Contract(
+    PULSEX_SWAP_ROUTER,
+    PulseXSwapRouterABI,
+    connectedWallet,
+  );
+
+  // Swap to WPLS, send output to router. Then unwrap to native PLS for recipient.
+  const swapCalldata = smartRouter.interface.encodeFunctionData(
+    "swapExactTokensForTokensV2",
+    [amount, amountOutMin, best.path, PULSEX_SWAP_ROUTER],
+  );
+  const unwrapCalldata = smartRouter.interface.encodeFunctionData(
+    "unwrapWETH9",
+    [amountOutMin, recipient],
+  );
+
+  const tx = await smartRouter.multicall([swapCalldata, unwrapCalldata]);
+  const receipt = await tx.wait();
+  if (!receipt)
+    throw new Error("PulseX SmartRouter swap-to-PLS transaction receipt is null");
+  return receipt as ContractTransactionReceipt;
+}
