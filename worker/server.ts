@@ -1,10 +1,75 @@
 import express from "express";
+import webpush from "web-push";
+import { CronExpressionParser } from "cron-parser";
 import type { Node, Edge } from "@xyflow/react";
 import { prisma } from "../src/lib/prisma";
 import { executeAutomationChain } from "../src/lib/automation-runner";
-import { getNextRunDate } from "../src/lib/cron-utils.server";
 import { findProNodesInDefinition, canUseProNodes } from "../src/lib/plan-limits";
-import { sendExecutionNotification } from "../src/lib/push-notification";
+
+// Inlined from cron-utils.server.ts (avoids 'server-only' guard)
+async function getNextRunDate(cronExpression: string, fromDate?: Date): Promise<Date | null> {
+  try {
+    const interval = CronExpressionParser.parse(cronExpression, {
+      currentDate: fromDate || new Date(),
+    });
+    return interval.next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+// Inlined from push-notification.ts (avoids @/ alias dependency at runtime)
+webpush.setVapidDetails(
+  "mailto:notifications@pulseflow.app",
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+  process.env.VAPID_PRIVATE_KEY!
+);
+
+async function sendExecutionNotification(
+  userId: string,
+  automationName: string,
+  status: "SUCCESS" | "FAILED" | "CANCELLED",
+  executionId: string
+) {
+  const subscriptions = await prisma.pushSubscription.findMany({ where: { userId } });
+  if (subscriptions.length === 0) return;
+
+  const statusText =
+    status === "SUCCESS" ? "completed successfully"
+    : status === "CANCELLED" ? "was cancelled"
+    : "encountered an error";
+
+  const payload = JSON.stringify({
+    title: `Automation ${status === "SUCCESS" ? "Completed" : status === "CANCELLED" ? "Cancelled" : "Failed"}`,
+    body: `${automationName} ${statusText}`,
+    url: `/automations?execution=${executionId}`,
+  });
+
+  const results = await Promise.allSettled(
+    subscriptions.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      )
+    )
+  );
+
+  const invalidEndpoints: string[] = [];
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      const error = result.reason as { statusCode?: number };
+      if (error.statusCode === 410 || error.statusCode === 404) {
+        invalidEndpoints.push(subscriptions[index].endpoint);
+      }
+    }
+  });
+
+  if (invalidEndpoints.length > 0) {
+    await prisma.pushSubscription.deleteMany({
+      where: { endpoint: { in: invalidEndpoints } },
+    });
+  }
+}
 
 const app = express();
 app.use(express.json());
