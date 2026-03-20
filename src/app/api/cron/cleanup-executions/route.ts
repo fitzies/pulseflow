@@ -2,9 +2,11 @@ import { prisma, withRetry } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/** Vercel Pro allows up to 300s; large deletes use batched work below. */
+export const maxDuration = 300;
 
 const DEFAULT_RETENTION_DAYS = 7;
+const DELETE_BATCH_SIZE = 2000;
 
 /** When `EXECUTION_RETENTION_DAYS` is unset, empty, or invalid, use 7. */
 function getRetentionDays(): number {
@@ -28,19 +30,36 @@ export async function GET(request: Request) {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
   try {
-    const result = await withRetry(() =>
-      prisma.execution.deleteMany({
-        where: { startedAt: { lt: cutoff } },
-      })
-    );
+    let deleted = 0;
+    let batches = 0;
+
+    for (;;) {
+      const rows = await withRetry(() =>
+        prisma.execution.findMany({
+          where: { startedAt: { lt: cutoff } },
+          select: { id: true },
+          take: DELETE_BATCH_SIZE,
+        })
+      );
+      if (rows.length === 0) break;
+
+      const result = await withRetry(() =>
+        prisma.execution.deleteMany({
+          where: { id: { in: rows.map((r) => r.id) } },
+        })
+      );
+      deleted += result.count;
+      batches += 1;
+    }
 
     console.log(
-      `[Cron] cleanup-executions: deleted ${result.count} rows older than ${retentionDays}d (before ${cutoff.toISOString()})`
+      `[Cron] cleanup-executions: deleted ${deleted} rows in ${batches} batch(es); older than ${retentionDays}d (before ${cutoff.toISOString()})`
     );
 
     return new Response(
       JSON.stringify({
-        deleted: result.count,
+        deleted,
+        batches,
         retentionDays,
         cutoff: cutoff.toISOString(),
       }),
