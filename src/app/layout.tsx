@@ -8,7 +8,11 @@ import { Toaster } from "@/components/ui/sonner";
 import HomeNavWrapper from "@/components/home-nav-wrapper";
 import HomeNav from "@/components/home-nav";
 import { Analytics } from "@vercel/analytics/next";
+import { VantageProvider } from "@ojflabs/vantage/react";
 import { IconPreferenceProvider } from "@/components/icon-preference-provider";
+
+const VANTAGE_PROJECT = process.env.NEXT_PUBLIC_VANTAGE_PROJECT ?? "";
+const VANTAGE_WRITE_KEY = process.env.NEXT_PUBLIC_VANTAGE_WRITE_KEY ?? "";
 // Code rabbit
 
 const dmSans = DM_Sans({
@@ -46,6 +50,13 @@ export default function RootLayout({
           >
             <IconPreferenceProvider>
               <Analytics />
+              {VANTAGE_PROJECT && VANTAGE_WRITE_KEY ? (
+                <VantageProvider
+                  project={VANTAGE_PROJECT}
+                  writeKey={VANTAGE_WRITE_KEY}
+                  endpoint="https://vantage.ojflabs.com/api/events"
+                />
+              ) : null}
               <HomeNavWrapper>
                 <HomeNav />
               </HomeNavWrapper>
