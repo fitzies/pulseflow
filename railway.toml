@@ -1,0 +1,9 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm exec prisma generate"
+
+[deploy]
+startCommand = "pnpm run railway:worker"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ALWAYS"
