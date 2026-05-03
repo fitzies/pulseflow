@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "tsx server.ts",
-    "dev": "tsx watch server.ts"
+    "dev": "tsx watch server.ts",
+    "scheduler": "tsx scheduled-tick.ts"
   },
   "dependencies": {
     "express": "^5.0.0"

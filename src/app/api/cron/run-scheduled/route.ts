@@ -1,5 +1,6 @@
 import { prisma, withRetry } from '@/lib/prisma';
 import { getTokenPriceUSD, evaluatePriceCondition } from '@/lib/blockchain-functions';
+import { getNextRunDate } from '@/lib/cron-utils.server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,11 @@ export async function GET(request: Request) {
           nextRunAt: {
             lte: now,
           },
+          executions: {
+            none: {
+              status: 'RUNNING',
+            },
+          },
           user: {
             plan: {
               in: ['PRO', 'ULTRA'],
@@ -55,6 +61,7 @@ export async function GET(request: Request) {
         },
         select: {
           id: true,
+          cronExpression: true,
         },
       })
     );
@@ -70,6 +77,11 @@ export async function GET(request: Request) {
           priceTriggerLpAddress: { not: null },
           priceTriggerOperator: { not: null },
           priceTriggerValue: { not: null },
+          executions: {
+            none: {
+              status: 'RUNNING',
+            },
+          },
           user: {
             plan: {
               in: ['PRO', 'ULTRA'],
@@ -151,10 +163,96 @@ export async function GET(request: Request) {
     const priceTriggerToFire = priceTriggerResults.filter(r => r.shouldTrigger);
     console.log(`[Cron] ${priceTriggerToFire.length} price triggers will fire`);
 
+    // Atomically claim scheduled automations before dispatching. This prevents
+    // overlapping scheduler ticks from sending the same due automation twice.
+    const scheduledToFire: { id: string; type: 'scheduled' }[] = [];
+    for (const automation of dueAutomations) {
+      if (!automation.cronExpression) {
+        continue;
+      }
+
+      const nextRunAt = await getNextRunDate(automation.cronExpression, now);
+      const claim = await withRetry(() =>
+        prisma.automation.updateMany({
+          where: {
+            id: automation.id,
+            triggerMode: 'SCHEDULE',
+            cronExpression: automation.cronExpression,
+            nextRunAt: {
+              lte: now,
+            },
+            executions: {
+              none: {
+                status: 'RUNNING',
+              },
+            },
+            user: {
+              plan: {
+                in: ['PRO', 'ULTRA'],
+              },
+            },
+          },
+          data: {
+            nextRunAt,
+          },
+        })
+      );
+
+      if (claim.count === 1) {
+        scheduledToFire.push({ id: automation.id, type: 'scheduled' });
+      } else {
+        console.log(`[Cron] Skipped scheduled automation ${automation.id}; it was already claimed or is running`);
+      }
+    }
+
+    // Claim price triggers before dispatching for the same reason.
+    const priceTriggerAutomationById = new Map(priceTriggerAutomations.map((a) => [a.id, a]));
+    const priceTriggersToFireClaimed: { id: string; type: 'price_trigger' }[] = [];
+    for (const trigger of priceTriggerToFire) {
+      const automation = priceTriggerAutomationById.get(trigger.id);
+      if (!automation) {
+        continue;
+      }
+
+      const cooldownMinutes = automation.priceTriggerCooldownMinutes ?? 15;
+      const cooldownThreshold = new Date(now.getTime() - cooldownMinutes * 60 * 1000);
+      const claim = await withRetry(() =>
+        prisma.automation.updateMany({
+          where: {
+            id: trigger.id,
+            triggerMode: 'PRICE_TRIGGER',
+            executions: {
+              none: {
+                status: 'RUNNING',
+              },
+            },
+            OR: [
+              { priceTriggerLastTriggeredAt: null },
+              { priceTriggerLastTriggeredAt: { lte: cooldownThreshold } },
+            ],
+            user: {
+              plan: {
+                in: ['PRO', 'ULTRA'],
+              },
+            },
+          },
+          data: {
+            priceTriggerLastTriggeredAt: now,
+          },
+        })
+      );
+
+      if (claim.count === 1) {
+        priceTriggersToFireClaimed.push({ id: trigger.id, type: 'price_trigger' });
+      } else {
+        console.log(`[Cron] Skipped price trigger automation ${trigger.id}; it was already claimed or is running`);
+      }
+    }
+
     // Combine scheduled and price trigger automations
     const allAutomationsToTrigger = [
-      ...dueAutomations.map(a => ({ id: a.id, type: 'scheduled' as const })),
-      ...priceTriggerToFire.map(a => ({ id: a.id, type: 'price_trigger' as const })),
+      ...scheduledToFire,
+      ...priceTriggersToFireClaimed,
     ];
 
     if (allAutomationsToTrigger.length === 0) {
@@ -206,16 +304,6 @@ export async function GET(request: Request) {
             return { automationId: automation.id, type: automation.type, triggered: false, error: 'auth_failed' };
           }
 
-          // Update lastTriggeredAt for price triggers
-          if (automation.type === 'price_trigger') {
-            await withRetry(() =>
-              prisma.automation.update({
-                where: { id: automation.id },
-                data: { priceTriggerLastTriggeredAt: now },
-              })
-            );
-          }
-
           console.log(`[Cron] Dispatched ${automation.type} automation ${automation.id} to worker (status: ${response.status})`);
           return { automationId: automation.id, type: automation.type, triggered: true };
         } catch (fetchError: any) {
@@ -223,14 +311,6 @@ export async function GET(request: Request) {
 
           // AbortError means 202 was sent but connection timed out — worker is processing
           if (fetchError.name === 'AbortError') {
-            if (automation.type === 'price_trigger') {
-              await withRetry(() =>
-                prisma.automation.update({
-                  where: { id: automation.id },
-                  data: { priceTriggerLastTriggeredAt: now },
-                })
-              );
-            }
             console.log(`[Cron] Dispatched ${automation.type} automation ${automation.id} to worker (processing)`);
             return { automationId: automation.id, type: automation.type, triggered: true };
           }

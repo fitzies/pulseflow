@@ -2,10 +2,13 @@
   "name": "pulseflow",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.8.0",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "railway:worker": "tsx worker/server.ts",
+    "railway:scheduler": "tsx worker/scheduled-tick.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
