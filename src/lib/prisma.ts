@@ -12,25 +12,40 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+function isRetryablePrismaError(error: unknown): boolean {
+  const retryableCodes = ["P1001", "P2024"]; // Connection failed + pool timeout
+  const prismaError = error as { code?: string; errorCode?: string; name?: string; message?: string };
+  const message = prismaError?.message ?? "";
+
+  return (
+    retryableCodes.includes(prismaError?.code ?? "") ||
+    retryableCodes.includes(prismaError?.errorCode ?? "") ||
+    prismaError?.name === "PrismaClientInitializationError" ||
+    message.includes("Can't reach database server") ||
+    message.includes("Timed out fetching a new connection") ||
+    message.includes("Connection terminated") ||
+    message.includes("closed the connection")
+  );
+}
+
 /**
- * Retry wrapper for Prisma operations that may fail due to Neon cold starts or pool exhaustion
- * Handles P1001 (connection failed) and P2024 (pool timeout) errors with exponential backoff
+ * Retry wrapper for Prisma operations that may fail due to Neon cold starts or pool exhaustion.
+ * Defaults to one retry only: initial attempt + one retry.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  retries = 3,
-  baseDelay = 1000
+  maxAttempts = 2,
+  baseDelayMs = 1000
 ): Promise<T> {
-  const retryableCodes = ["P1001", "P2024"]; // Connection failed + Pool timeout
-  
-  for (let i = 0; i < retries; i++) {
+  const attempts = Math.min(Math.max(maxAttempts, 1), 2);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       return await fn();
     } catch (error: unknown) {
-      const prismaError = error as { code?: string };
-      if (retryableCodes.includes(prismaError?.code ?? "") && i < retries - 1) {
-        const delay = baseDelay * (i + 1);
-        console.warn(`[Prisma] ${prismaError.code} error, retrying in ${delay}ms (${i + 1}/${retries})...`);
+      if (isRetryablePrismaError(error) && attempt < attempts) {
+        const delay = baseDelayMs * attempt;
+        console.warn(`[Prisma] Retryable database error, retrying once in ${delay}ms`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }

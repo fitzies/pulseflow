@@ -12,6 +12,7 @@ PulseFlow uses two Railway services from this GitHub repo:
    - Config file: `railway.scheduler.toml`
    - Start command: `pnpm run railway:scheduler`
    - Cron schedule: `*/20 * * * *`
+   - Restart policy: `NEVER`
    - Purpose: calls `APP_URL/api/cron/run-scheduled` with the shared `CRON_SECRET`, then exits.
 
 Required Railway variables:
@@ -32,6 +33,8 @@ Required Vercel variables:
 Notes:
 
 - The scheduler service must be a Railway cron service, not a persistent web service.
+- The scheduler service must not use Railway platform retries; database operations retry at most once in application code.
 - The worker service must remain persistent because it listens for `/run-automation`.
 - Keep the scheduler and worker as separate Railway services even though they deploy from the same repository.
 - When creating `pulseflow-scheduler` from GitHub, set its Railway config source to `railway.scheduler.toml` so it does not inherit the worker config in `railway.toml`.
+- If Railway logs stop after `Calling ...`, check Vercel logs for `/api/cron/run-scheduled`; Vercel likely returned a non-2xx response or the scheduler request timed out.

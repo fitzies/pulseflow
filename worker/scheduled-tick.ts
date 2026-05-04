@@ -6,6 +6,8 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+const REQUEST_TIMEOUT_MS = 55_000;
+
 async function main() {
   const appUrl = requiredEnv("APP_URL").replace(/\/+$/, "");
   const cronSecret = requiredEnv("CRON_SECRET");
@@ -14,12 +16,28 @@ async function main() {
 
   console.log(`[Railway Cron] Calling ${url}`);
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      authorization: `Bearer ${cronSecret}`,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${cronSecret}`,
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      console.error(`[Railway Cron] Scheduler request timed out after ${REQUEST_TIMEOUT_MS}ms`);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const body = await response.text();
   console.log(`[Railway Cron] Scheduler responded ${response.status}: ${body}`);

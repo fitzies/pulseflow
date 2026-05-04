@@ -6,6 +6,28 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Cron orchestrator only needs 60s to dispatch
 
+type StaleCleanupResult = {
+  success: boolean;
+  cleaned?: number;
+  error?: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
+
+async function recordCronRun(data: {
+  status: 'SUCCESS' | 'FAILED';
+  triggeredCount?: number;
+  error?: string;
+}) {
+  try {
+    await withRetry(() => prisma.cronRun.create({ data }), 2, 250);
+  } catch (error) {
+    console.error('[Cron] Failed to record cron run:', error);
+  }
+}
+
 export async function GET(request: Request) {
   // Verify the request is from Vercel Cron
   const authHeader = request.headers.get('authorization');
@@ -19,24 +41,36 @@ export async function GET(request: Request) {
   const now = new Date();
 
   try {
-    // Clean up stale executions (RUNNING for more than 10 minutes)
-    const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
-    const staleCleanup = await withRetry(() =>
-      prisma.execution.updateMany({
-        where: {
-          status: 'RUNNING',
-          startedAt: { lt: staleThreshold },
-        },
-        data: {
-          status: 'FAILED',
-          error: 'Execution timed out',
-          finishedAt: now,
-        },
-      })
-    );
+    const warnings: string[] = [];
+    let staleCleanup: StaleCleanupResult = { success: true, cleaned: 0 };
 
-    if (staleCleanup.count > 0) {
-      console.log(`[Cron] Cleaned up ${staleCleanup.count} stale executions`);
+    // Clean up stale executions (RUNNING for more than 10 minutes)
+    try {
+      const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
+      const staleCleanupResult = await withRetry(() =>
+        prisma.execution.updateMany({
+          where: {
+            status: 'RUNNING',
+            startedAt: { lt: staleThreshold },
+          },
+          data: {
+            status: 'FAILED',
+            error: 'Execution timed out',
+            finishedAt: now,
+          },
+        })
+      );
+
+      staleCleanup = { success: true, cleaned: staleCleanupResult.count };
+
+      if (staleCleanupResult.count > 0) {
+        console.log(`[Cron] Cleaned up ${staleCleanupResult.count} stale executions`);
+      }
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      staleCleanup = { success: false, error: errorMessage };
+      warnings.push('Stale execution cleanup failed; stale RUNNING rows may suppress due automations.');
+      console.error('[Cron] Stale execution cleanup failed:', error);
     }
 
     // Find all scheduled automations that are due to run
@@ -195,7 +229,9 @@ export async function GET(request: Request) {
           data: {
             nextRunAt,
           },
-        })
+        }),
+        2,
+        250
       );
 
       if (claim.count === 1) {
@@ -239,7 +275,9 @@ export async function GET(request: Request) {
           data: {
             priceTriggerLastTriggeredAt: now,
           },
-        })
+        }),
+        2,
+        250
       );
 
       if (claim.count === 1) {
@@ -256,15 +294,15 @@ export async function GET(request: Request) {
     ];
 
     if (allAutomationsToTrigger.length === 0) {
-      await prisma.cronRun.create({
-        data: { status: 'SUCCESS', triggeredCount: 0 },
-      });
+      await recordCronRun({ status: 'SUCCESS', triggeredCount: 0 });
       return new Response(
         JSON.stringify({ 
           success: true, 
           triggered: 0,
           scheduled: { found: dueAutomations.length, triggered: 0 },
           priceTriggers: { found: priceTriggerAutomations.length, triggered: 0, results: priceTriggerResults },
+          staleCleanup,
+          warnings,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
@@ -331,9 +369,7 @@ export async function GET(request: Request) {
     
     console.log(`[Cron] Successfully triggered ${triggeredCount} automations (${scheduledTriggered} scheduled, ${priceTriggered} price triggers)`);
 
-    await prisma.cronRun.create({
-      data: { status: 'SUCCESS', triggeredCount },
-    });
+    await recordCronRun({ status: 'SUCCESS', triggeredCount });
 
     return new Response(
       JSON.stringify({
@@ -342,6 +378,8 @@ export async function GET(request: Request) {
         total: allAutomationsToTrigger.length,
         scheduled: { found: dueAutomations.length, triggered: scheduledTriggered },
         priceTriggers: { found: priceTriggerAutomations.length, triggered: priceTriggered, results: priceTriggerResults },
+        staleCleanup,
+        warnings,
         results,
       }),
       {
@@ -351,20 +389,14 @@ export async function GET(request: Request) {
     );
   } catch (error) {
     console.error('[Cron] Critical error:', error);
-    try {
-      await prisma.cronRun.create({
-        data: {
-          status: 'FAILED',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      });
-    } catch (dbErr) {
-      // Don't mask original error if DB write fails
-    }
+    await recordCronRun({
+      status: 'FAILED',
+      error: getErrorMessage(error),
+    });
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error),
       }),
       {
         status: 500,
