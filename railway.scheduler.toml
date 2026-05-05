@@ -6,4 +6,3 @@ buildCommand = "pnpm exec prisma generate"
 startCommand = "pnpm run railway:scheduler"
 cronSchedule = "*/20 * * * *"
 restartPolicyType = "NEVER"
-restartPolicyMaxRetries = 0
