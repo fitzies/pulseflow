@@ -5,6 +5,6 @@ buildCommand = "pnpm exec prisma generate"
 [deploy]
 startCommand = "pnpm run railway:scheduler"
 # Poll more frequently than the minimum 20-minute automation interval so a
-# delayed or missed Railway tick cannot postpone an automation by 20 minutes.
-cronSchedule = "*/5 * * * *"
+# delayed or missed Railway tick is retried within 10 minutes.
+cronSchedule = "*/10 * * * *"
 restartPolicyType = "NEVER"

@@ -11,9 +11,9 @@ PulseFlow uses two Railway services from this GitHub repo:
 2. `pulseflow-scheduler` cron service
    - Config file: `railway.scheduler.toml`
    - Start command: `pnpm run railway:scheduler`
-   - Cron schedule: `*/5 * * * *`
+   - Cron schedule: `*/10 * * * *`
    - Restart policy: `NEVER`
-   - Purpose: polls `APP_URL/api/cron/run-scheduled` with the shared `CRON_SECRET`, then exits. The five-minute poll interval is intentionally shorter than the minimum 20-minute automation interval, so a delayed or missed Railway tick does not postpone an automation by a full interval.
+   - Purpose: polls `APP_URL/api/cron/run-scheduled` with the shared `CRON_SECRET`, then exits. The ten-minute poll interval is intentionally shorter than the minimum 20-minute automation interval, so a delayed or missed Railway tick is retried within 10 minutes.
 
 Required Railway variables:
 
