@@ -1,6 +1,6 @@
 {
   "buildCommand": "npx prisma generate && next build",
-  "installCommand": "npm install",  
+  "installCommand": "pnpm install --frozen-lockfile",
   "crons": [
     {
       "path": "/api/cron/run-scheduled",
