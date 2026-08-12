@@ -28,7 +28,7 @@ import { SlippageSelector } from '@/components/slippage-selector';
 import { AmountSelector } from '@/components/amount-selector';
 import type { Node, Edge } from '@xyflow/react';
 import { CONFIG } from '@/lib/config';
-import { SCHEDULE_PRESETS, validateMinimumIntervalClient } from '@/lib/cron-utils';
+import { formatCronExpression, SCHEDULE_PRESETS, validateMinimumIntervalClient } from '@/lib/cron-utils';
 import { updateAutomationSchedule, updateAutomationPriceTrigger } from '@/lib/actions/automations';
 import { toast } from 'sonner';
 import { useNodeValidation } from '@/components/hooks/useNodeValidation';
@@ -310,10 +310,8 @@ export function NodeConfigSheet({
   // Schedule state for start node
   const [scheduleTriggerMode, setScheduleTriggerMode] = useState<'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER'>(triggerMode);
   const [schedulePreset, setSchedulePreset] = useState<string>(
-    SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || SCHEDULE_PRESETS[0].value
+    SCHEDULE_PRESETS.find((p) => p.value === cronExpression)?.value || cronExpression || SCHEDULE_PRESETS[0].value
   );
-  const [customCronExpression, setCustomCronExpression] = useState(cronExpression || '');
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [cronError, setCronError] = useState<string | null>(null);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
@@ -345,10 +343,10 @@ export function NodeConfigSheet({
     if (matchingPreset) {
       setSchedulePreset(matchingPreset.value);
     } else {
-      setSchedulePreset(SCHEDULE_PRESETS[0].value);
+      // Preserve legacy/custom schedules instead of silently displaying the
+      // first preset while the database continues using another expression.
+      setSchedulePreset(cronExpression || SCHEDULE_PRESETS[0].value);
     }
-    setShowAdvanced(false);
-    setCustomCronExpression(cronExpression || '');
     setCronError(null);
 
     // Reset price trigger state
@@ -1950,7 +1948,6 @@ export function NodeConfigSheet({
             <Select
               value={schedulePreset}
               onValueChange={(value) => {
-                setShowAdvanced(false);
                 setSchedulePreset(value);
                 setCronError(null);
               }}
@@ -1959,6 +1956,11 @@ export function NodeConfigSheet({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {cronExpression && !SCHEDULE_PRESETS.some((preset) => preset.value === cronExpression) && (
+                  <SelectItem value={cronExpression}>
+                    {formatCronExpression(cronExpression)} (legacy)
+                  </SelectItem>
+                )}
                 {SCHEDULE_PRESETS.map((preset) => (
                   <SelectItem key={preset.value} value={preset.value}>
                     {preset.label}
