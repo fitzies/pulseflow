@@ -1175,7 +1175,7 @@ export function AutomationFlow({
             aria-label="Run automation"
             disabled={
               isRunning ||
-              triggerMode === 'SCHEDULE' ||
+              (triggerMode === 'SCHEDULE' && userPlan !== 'FREE') ||
               !isFreeAutomation ||
               (manualRunUsage !== null && manualRunUsage.used >= manualRunUsage.limit)
             }

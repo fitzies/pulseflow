@@ -710,24 +710,10 @@ export async function selectFreeAutomation(automationId: string) {
     });
     if (!automation) return { success: false, error: "Automation not found." };
 
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: dbUser.id },
-        data: { freeAutomationId: automationId },
-      }),
-      prisma.automation.update({
-        where: { id: automationId },
-        data: {
-          triggerMode: "MANUAL",
-          cronExpression: null,
-          nextRunAt: null,
-          priceTriggerLpAddress: null,
-          priceTriggerOperator: null,
-          priceTriggerValue: null,
-          priceTriggerLastTriggeredAt: null,
-        },
-      }),
-    ]);
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: { freeAutomationId: automationId },
+    });
 
     revalidatePath("/automations");
     revalidatePath(`/automations/${automationId}`);

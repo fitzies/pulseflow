@@ -45,14 +45,6 @@ export function validateManualRunCapabilities(
     throw new ManualRunError("Choose a plan before running automations.", "NO_PLAN", 403);
   }
 
-  if (plan === "FREE" && triggerMode !== "MANUAL") {
-    throw new ManualRunError(
-      "Free automations can only be triggered manually. Switch this automation to Manual or upgrade to Pro.",
-      "AUTOMATED_TRIGGER",
-      403
-    );
-  }
-
   if (plan === "FREE") {
     const disallowed = findDisallowedFreeNodes(nodes);
     if (disallowed.length > 0) {
@@ -152,6 +144,20 @@ export async function createManualExecution(input: {
     }
 
     if (user.plan === "FREE") {
+      const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
+      await tx.execution.updateMany({
+        where: {
+          userId: input.userId,
+          status: "RUNNING",
+          startedAt: { lt: staleThreshold },
+        },
+        data: {
+          status: "FAILED",
+          error: "Execution timed out",
+          finishedAt: now,
+        },
+      });
+
       const runningExecution = await tx.execution.findFirst({
         where: { userId: input.userId, status: "RUNNING" },
         select: { id: true },

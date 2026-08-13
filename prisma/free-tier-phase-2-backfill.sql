@@ -5,20 +5,6 @@ UPDATE "User"
 SET "plan" = 'FREE'
 WHERE "plan" IS NULL;
 
-UPDATE "Automation" AS a
-SET
-  "triggerMode" = 'MANUAL',
-  "cronExpression" = NULL,
-  "nextRunAt" = NULL,
-  "priceTriggerLpAddress" = NULL,
-  "priceTriggerOperator" = NULL,
-  "priceTriggerValue" = NULL,
-  "priceTriggerLastTriggeredAt" = NULL
-FROM "User" AS u
-WHERE a."userId" = u."id"
-  AND u."plan" = 'FREE'
-  AND a."triggerMode" <> 'MANUAL';
-
 UPDATE "User" AS u
 SET "freeAutomationId" = (
   SELECT a."id"

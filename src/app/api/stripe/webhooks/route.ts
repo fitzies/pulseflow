@@ -64,6 +64,10 @@ export async function POST(request: Request) {
           const customerId = session.customer as string;
           const email = await getCustomerEmail(customerId);
 
+          if (!plan) {
+            throw new Error(`Unknown Stripe price ID on checkout completion: ${priceId}`);
+          }
+
           // Update user with subscription info
           await prisma.user.update({
             where: { stripeCustomerId: customerId },
@@ -113,12 +117,25 @@ export async function POST(request: Request) {
         const customerId = subscription.customer as string;
         const email = await getCustomerEmail(customerId);
 
-        await prisma.user.update({
+        if (!plan) {
+          throw new Error(`Unknown Stripe price ID on subscription update: ${priceId}`);
+        }
+
+        const user = await prisma.user.findUnique({
           where: { stripeCustomerId: customerId },
-          data: {
-            plan,
-            stripePriceId: priceId,
-          },
+          select: { id: true, stripeSubscriptionId: true },
+        });
+
+        // Stripe can deliver old subscription events after a replacement has
+        // become active. Never let a stale event overwrite the current plan.
+        if (!user || user.stripeSubscriptionId !== subscription.id) {
+          console.log(`Ignoring stale subscription.updated event for ${subscription.id}`);
+          break;
+        }
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { plan, stripePriceId: priceId },
         });
 
         await notifyAdmin(
@@ -140,6 +157,7 @@ export async function POST(request: Request) {
           where: { stripeCustomerId: customerId },
           select: {
             id: true,
+            stripeSubscriptionId: true,
             automations: {
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               take: 1,
@@ -148,31 +166,20 @@ export async function POST(request: Request) {
           },
         });
 
-        if (user) {
-          await prisma.$transaction([
-            prisma.user.update({
-              where: { id: user.id },
-              data: {
-                plan: "FREE",
-                freeAutomationId: user.automations[0]?.id ?? null,
-                stripeSubscriptionId: null,
-                stripePriceId: null,
-              },
-            }),
-            prisma.automation.updateMany({
-              where: { userId: user.id },
-              data: {
-                triggerMode: "MANUAL",
-                cronExpression: null,
-                nextRunAt: null,
-                priceTriggerLpAddress: null,
-                priceTriggerOperator: null,
-                priceTriggerValue: null,
-                priceTriggerLastTriggeredAt: null,
-              },
-            }),
-          ]);
+        if (!user || user.stripeSubscriptionId !== subscription.id) {
+          console.log(`Ignoring stale subscription.deleted event for ${subscription.id}`);
+          break;
         }
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            plan: "FREE",
+            freeAutomationId: user.automations[0]?.id ?? null,
+            stripeSubscriptionId: null,
+            stripePriceId: null,
+          },
+        });
 
         await notifyAdmin(
           `❌ *Subscription Cancelled*\n\n` +
