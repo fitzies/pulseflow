@@ -14,8 +14,9 @@ model User {
   clerkId String  @unique
   email   String?
 
-  plan        Plan?
-  trialEndsAt DateTime?
+  plan             Plan?     @default(FREE)
+  trialEndsAt      DateTime?
+  freeAutomationId String?
 
   // Stripe fields
   stripeCustomerId     String? @unique
@@ -30,10 +31,12 @@ model User {
 
   automations       Automation[]
   executions        Execution[]
+  dailyRunUsages    DailyRunUsage[]
   pushSubscriptions PushSubscription[]
 }
 
 enum Plan {
+  FREE
   BASIC
   PRO
   ULTRA
@@ -104,6 +107,20 @@ model Execution {
   user       User           @relation(fields: [userId], references: [id])
   automation Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
   logs       ExecutionLog[]
+}
+
+model DailyRunUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  utcDate   String
+  runCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, utcDate])
+  @@index([utcDate])
 }
 
 model ExecutionLog {

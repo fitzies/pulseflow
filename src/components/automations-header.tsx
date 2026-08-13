@@ -40,7 +40,8 @@ interface AutomationsHeaderProps {
   canCreateMore: boolean;
   currentCount: number;
   planLimit: number | null;
-  userPlan: "BASIC" | "PRO" | "ULTRA" | null;
+  userPlan: "FREE" | "BASIC" | "PRO" | "ULTRA" | null;
+  freeAutomationId: string | null;
   automationNames: Array<{ id: string; name: string }>;
   totalSuccessRate: number;
   totalPlsBalance: string;
@@ -68,6 +69,7 @@ export default function AutomationsHeader({
   currentCount,
   planLimit,
   userPlan,
+  freeAutomationId,
   automationNames,
   totalSuccessRate,
   totalPlsBalance,
@@ -142,6 +144,7 @@ export default function AutomationsHeader({
             <AutomationCards
               automations={filteredAutomations}
               userPlan={userPlan}
+              freeAutomationId={freeAutomationId}
             />
           </div>
         </div>

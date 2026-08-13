@@ -4,7 +4,7 @@ import { CronExpressionParser } from "cron-parser";
 import type { Node, Edge } from "@xyflow/react";
 import { prisma } from "../src/lib/prisma";
 import { executeAutomationChain } from "../src/lib/automation-runner";
-import { findProNodesInDefinition, canUseProNodes } from "../src/lib/plan-limits";
+import { findProNodesInDefinition, canUseProNodes, canUseAutomatedTriggers } from "../src/lib/plan-limits";
 
 // Inlined from cron-utils.server.ts (avoids 'server-only' guard)
 async function getNextRunDate(cronExpression: string, fromDate?: Date): Promise<Date | null> {
@@ -126,6 +126,17 @@ async function runAutomation(
 
     if (!automation) {
       console.error(`[Worker] Automation ${automationId} not found`);
+      return;
+    }
+
+    if (!canUseAutomatedTriggers(automation.user.plan)) {
+      console.log(`[Worker] Skipping ${automationId}: automated runs require Pro or Ultra`);
+      return;
+    }
+
+    const expectedTriggerMode = type === "scheduled" ? "SCHEDULE" : "PRICE_TRIGGER";
+    if (automation.triggerMode !== expectedTriggerMode) {
+      console.log(`[Worker] Skipping ${automationId}: trigger mode no longer matches ${type}`);
       return;
     }
 

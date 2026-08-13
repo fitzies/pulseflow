@@ -274,7 +274,7 @@ interface SelectNodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectNode: (nodeType: NodeType) => void;
-  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  userPlan: 'FREE' | 'BASIC' | 'PRO' | 'ULTRA' | null;
   isInsertingBetween?: boolean;
 }
 
@@ -297,6 +297,7 @@ const nodeGroups = {
 };
 
 const planHierarchy: Record<string, number> = {
+  FREE: 0,
   BASIC: 1,
   PRO: 2,
   ULTRA: 3,

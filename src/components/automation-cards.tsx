@@ -14,6 +14,7 @@ import {
   Heart,
   Star,
   Trash2,
+  LockKeyhole,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -25,8 +26,11 @@ import {
 } from "./ui/dropdown-menu";
 import { Separator } from "./ui/separator";
 import { AutomationExecutionsDialog } from "./navbar-components/automation-executions-dialog";
-import { duplicateAutomation } from "@/lib/actions/automations";
-import { createShareCode } from "@/lib/actions/automations";
+import {
+  createShareCode,
+  duplicateAutomation,
+  selectFreeAutomation,
+} from "@/lib/actions/automations";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
@@ -58,10 +62,12 @@ type AutomationWithExecutions = {
 function AutomationRow({
   automation,
   userPlan,
+  freeAutomationId,
   isLast,
 }: {
   automation: AutomationWithExecutions;
-  userPlan: "BASIC" | "PRO" | "ULTRA" | null;
+  userPlan: "FREE" | "BASIC" | "PRO" | "ULTRA" | null;
+  freeAutomationId: string | null;
   isLast: boolean;
 }) {
   const router = useRouter();
@@ -70,7 +76,9 @@ function AutomationRow({
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isFavorite, setIsFavorite] = useState(automation.isFavorite);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [isSelectingFree, setIsSelectingFree] = useState(false);
 
+  const isLockedOnFree = userPlan === "FREE" && freeAutomationId !== automation.id;
   const isRunning = automation.executions.length > 0;
   const isScheduled =
     automation.triggerMode === "SCHEDULE" && automation.nextRunAt;
@@ -138,6 +146,20 @@ function AutomationRow({
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete");
+    }
+  };
+
+  const handleSelectFree = async () => {
+    setIsSelectingFree(true);
+    try {
+      const result = await selectFreeAutomation(automation.id);
+      if (!result.success) throw new Error(result.error || "Failed to select automation");
+      toast.success(`${automation.name} is now your Free automation`);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to select automation");
+    } finally {
+      setIsSelectingFree(false);
     }
   };
 
@@ -233,13 +255,17 @@ function AutomationRow({
                       : "outline"
               }
             >
-              {isRunning
-                ? "Running"
-                : automation.isActive
-                  ? "Active"
-                  : isScheduled
-                    ? `Scheduled ${formatNextRun(automation.nextRunAt!)}`
-                    : "Inactive"}
+              {isLockedOnFree
+                ? "Locked on Free"
+                : isRunning
+                  ? "Running"
+                  : automation.isActive
+                    ? "Active"
+                    : isScheduled
+                      ? `Scheduled ${formatNextRun(automation.nextRunAt!)}`
+                      : userPlan === "FREE"
+                        ? "Free automation"
+                        : "Inactive"}
             </Badge>
             <div onClick={(e) => e.stopPropagation()}>
               <DropdownMenu>
@@ -256,6 +282,18 @@ function AutomationRow({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {isLockedOnFree && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectFree();
+                      }}
+                      disabled={isSelectingFree}
+                    >
+                      <LockKeyhole className="h-4 w-4 mr-2" />
+                      {isSelectingFree ? "Selecting..." : "Use on Free"}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -327,9 +365,11 @@ function AutomationRow({
 export default function AutomationCards({
   automations,
   userPlan,
+  freeAutomationId,
 }: {
   automations: AutomationWithExecutions[];
-  userPlan: "BASIC" | "PRO" | "ULTRA" | null;
+  userPlan: "FREE" | "BASIC" | "PRO" | "ULTRA" | null;
+  freeAutomationId: string | null;
 }) {
   return (
     <Card className="shadow-none bg-stone-900/60 md:col-span-3 col-span-4">
@@ -339,6 +379,7 @@ export default function AutomationCards({
             key={automation.id}
             automation={automation}
             userPlan={userPlan}
+            freeAutomationId={freeAutomationId}
             isLast={index === automations.length - 1}
           />
         ))}

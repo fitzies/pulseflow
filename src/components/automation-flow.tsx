@@ -115,7 +115,7 @@ interface AutomationFlowProps {
   automationId: string;
   walletAddress: string;
   automationName: string;
-  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  userPlan: 'FREE' | 'BASIC' | 'PRO' | 'ULTRA' | null;
   defaultSlippage: number;
   rpcEndpoint: string | null;
   showNodeLabels: boolean;
@@ -130,6 +130,8 @@ interface AutomationFlowProps {
   priceTriggerOperator: string | null;
   priceTriggerValue: number | null;
   priceTriggerCooldownMinutes: number | null;
+  manualRunUsage: { used: number; limit: number; resetAt: string } | null;
+  isFreeAutomation: boolean;
 }
 
 const PULSECHAIN_RPC = 'https://rpc.pulsechain.com';
@@ -154,6 +156,8 @@ export function AutomationFlow({
   priceTriggerOperator: initialPriceTriggerOperator,
   priceTriggerValue: initialPriceTriggerValue,
   priceTriggerCooldownMinutes: initialPriceTriggerCooldownMinutes,
+  manualRunUsage: initialManualRunUsage,
+  isFreeAutomation,
 }: AutomationFlowProps) {
   const nodesToUse = useMemo(() => {
     if (initialNodes && initialNodes.length > 0) {
@@ -202,6 +206,7 @@ export function AutomationFlow({
   const [priceTriggerCooldownMinutes, setPriceTriggerCooldownMinutes] = useState(initialPriceTriggerCooldownMinutes);
   const [aiChatOpen, setAiChatOpen] = useState(false);
   const [executionsDialogOpen, setExecutionsDialogOpen] = useState(false);
+  const [manualRunUsage, setManualRunUsage] = useState(initialManualRunUsage);
 
   // Check if user has Pro/Ultra for AI access
   const hasAiAccess = userPlan === 'PRO' || userPlan === 'ULTRA';
@@ -784,6 +789,9 @@ export function AutomationFlow({
 
       if (!response.ok) {
         const error = await response.json();
+        if (error.code === 'RUN_LIMIT' && error.limit && error.resetAt) {
+          setManualRunUsage({ used: error.used ?? error.limit, limit: error.limit, resetAt: error.resetAt });
+        }
         toast.error(error.error || 'Failed to start automation');
         setIsRunning(false);
         return;
@@ -811,7 +819,13 @@ export function AutomationFlow({
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.slice(6));
 
-            if (data.type === 'node_start') {
+            if (data.type === 'quota') {
+              setManualRunUsage({
+                used: data.used,
+                limit: data.limit,
+                resetAt: data.resetAt,
+              });
+            } else if (data.type === 'node_start') {
               setNodeStatuses((prev) => ({
                 ...prev,
                 [data.nodeId]: 'loading',
@@ -1144,12 +1158,27 @@ export function AutomationFlow({
       </AlertDialog>
 
       {/* Player Controls - Bottom Center */}
-      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2">
+        {!isFreeAutomation ? (
+          <div className="rounded-full border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            Locked on Free — select this automation from the Automations page
+          </div>
+        ) : manualRunUsage ? (
+          <div className="rounded-full border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            <span className="font-medium text-foreground">{manualRunUsage.used}/{manualRunUsage.limit}</span> Free runs used today · resets 00:00 UTC
+          </div>
+        ) : null}
         <div className="rounded-full bg-card border shadow-lg px-4 py-2 flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            disabled={isRunning || triggerMode === 'SCHEDULE'}
+            aria-label="Run automation"
+            disabled={
+              isRunning ||
+              triggerMode === 'SCHEDULE' ||
+              !isFreeAutomation ||
+              (manualRunUsage !== null && manualRunUsage.used >= manualRunUsage.limit)
+            }
             onClick={handleStart}
             className="rounded-full h-10 w-10"
           >

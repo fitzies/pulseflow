@@ -228,7 +228,7 @@ interface NodeConfigSheetProps {
   // Schedule props for start node
   automationId: string;
   walletAddress: string;
-  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  userPlan: 'FREE' | 'BASIC' | 'PRO' | 'ULTRA' | null;
   triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER';
   cronExpression: string | null;
   onScheduleUpdate: (triggerMode: 'MANUAL' | 'SCHEDULE' | 'PRICE_TRIGGER', cronExpression: string | null, nextRunAt: Date | null) => void;

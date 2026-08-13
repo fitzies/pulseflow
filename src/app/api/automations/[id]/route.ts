@@ -100,9 +100,16 @@ export async function DELETE(
       );
     }
 
-    // Delete the automation (cascade will handle executions and logs)
-    await prisma.automation.delete({
-      where: { id: automationId },
+    // Delete the automation (cascade will handle executions and logs). Clear
+    // the Free-tier selection so the next eligible automation can be chosen.
+    await prisma.$transaction(async (tx) => {
+      await tx.automation.delete({ where: { id: automationId } });
+      if (dbUser.freeAutomationId === automationId) {
+        await tx.user.update({
+          where: { id: dbUser.id },
+          data: { freeAutomationId: null },
+        });
+      }
     });
 
     // Revalidate the automations page

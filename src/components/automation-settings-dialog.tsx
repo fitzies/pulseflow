@@ -44,7 +44,7 @@ interface AutomationSettingsDialogProps {
   initialShowNodeLabels: boolean;
   initialBetaFeatures: boolean;
   initialCommunityVisible: boolean;
-  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  userPlan: 'FREE' | 'BASIC' | 'PRO' | 'ULTRA' | null;
   onSettingsUpdate?: () => void;
   onReset?: () => void;
   onDelete?: () => void;

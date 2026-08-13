@@ -136,14 +136,43 @@ export async function POST(request: Request) {
         const priceId = subscription.items.data[0]?.price.id;
         const plan = getPlanFromPriceId(priceId);
 
-        await prisma.user.update({
+        const user = await prisma.user.findUnique({
           where: { stripeCustomerId: customerId },
-          data: {
-            plan: null,
-            stripeSubscriptionId: null,
-            stripePriceId: null,
+          select: {
+            id: true,
+            automations: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              take: 1,
+              select: { id: true },
+            },
           },
         });
+
+        if (user) {
+          await prisma.$transaction([
+            prisma.user.update({
+              where: { id: user.id },
+              data: {
+                plan: "FREE",
+                freeAutomationId: user.automations[0]?.id ?? null,
+                stripeSubscriptionId: null,
+                stripePriceId: null,
+              },
+            }),
+            prisma.automation.updateMany({
+              where: { userId: user.id },
+              data: {
+                triggerMode: "MANUAL",
+                cronExpression: null,
+                nextRunAt: null,
+                priceTriggerLpAddress: null,
+                priceTriggerOperator: null,
+                priceTriggerValue: null,
+                priceTriggerLastTriggeredAt: null,
+              },
+            }),
+          ]);
+        }
 
         await notifyAdmin(
           `❌ *Subscription Cancelled*\n\n` +

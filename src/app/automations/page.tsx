@@ -199,6 +199,7 @@ export default async function Page() {
           currentCount={currentCount}
           planLimit={planLimit}
           userPlan={dbUser.plan}
+          freeAutomationId={dbUser.freeAutomationId}
           automationNames={automations.map((a) => ({ id: a.id, name: a.name }))}
           totalSuccessRate={totalSuccessRate}
           totalPlsBalance={totalPlsBalance}

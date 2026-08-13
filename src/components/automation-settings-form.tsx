@@ -83,7 +83,7 @@ interface AutomationSettingsFormProps {
   initialShowNodeLabels: boolean;
   initialBetaFeatures: boolean;
   initialCommunityVisible: boolean;
-  userPlan: 'BASIC' | 'PRO' | 'ULTRA' | null;
+  userPlan: 'FREE' | 'BASIC' | 'PRO' | 'ULTRA' | null;
 }
 
 export function AutomationSettingsForm({

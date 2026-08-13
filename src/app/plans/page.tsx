@@ -1,6 +1,6 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { prisma, getOrCreateDbUser } from "@/lib/prisma";
+import { getOrCreateDbUser } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,24 +15,23 @@ import { cn } from "@/lib/utils";
 import { PlanFeatures, plans } from "@/lib/plan-limits";
 import { CheckoutButton } from "@/components/checkout-button";
 import { ManageSubscriptionButton } from "@/components/manage-subscription-button";
+import type { Plan } from "@prisma/client";
 
-type Plan = "BASIC" | "PRO" | "ULTRA" | null;
-
-
+type DisplayPlan = Extract<Plan, "FREE" | "PRO" | "ULTRA">;
 
 function PlanCard({
   plan,
   features,
   currentPlan,
 }: {
-  plan: Plan;
+  plan: DisplayPlan;
   features: PlanFeatures;
-  currentPlan: Plan;
+  currentPlan: Plan | null;
 }) {
   const isCurrentPlan = currentPlan === plan;
   const isUpgrade =
-    (currentPlan === "BASIC" && plan === "PRO") ||
-    (currentPlan === "BASIC" && plan === "ULTRA") ||
+    ((currentPlan === "FREE" || currentPlan === "BASIC") &&
+      (plan === "PRO" || plan === "ULTRA")) ||
     (currentPlan === "PRO" && plan === "ULTRA");
 
   return (
@@ -40,7 +39,7 @@ function PlanCard({
       className={cn(
         "flex-1 flex flex-col",
         isCurrentPlan && "border-primary ring-2 ring-primary/20",
-        features.highlight && !isCurrentPlan && "border-primary"
+        features.highlight && !isCurrentPlan && "border-primary",
       )}
     >
       <CardHeader>
@@ -49,8 +48,14 @@ function PlanCard({
       </CardHeader>
       <CardContent className="space-y-6 flex-1">
         <div className="flex items-baseline gap-1">
-          <span className="text-4xl font-bold">${features.price}</span>
-          <span className="text-muted-foreground">/month</span>
+          {features.price === 0 ? (
+            <span className="text-4xl font-bold">Free</span>
+          ) : (
+            <>
+              <span className="text-4xl font-bold">${features.price}</span>
+              <span className="text-muted-foreground">/month</span>
+            </>
+          )}
         </div>
         <ul className="space-y-3">
           {features.features.map((feature, idx) => (
@@ -66,9 +71,17 @@ function PlanCard({
           <Button variant="outline" className="w-full bg-transparent" disabled>
             Current Plan
           </Button>
-        ) : currentPlan === null && plan ? (
+        ) : plan === "FREE" ? (
+          currentPlan === null ? (
+            <Button variant="outline" className="w-full" disabled>
+              Included for free
+            </Button>
+          ) : (
+            <ManageSubscriptionButton label="Downgrade" className="w-full" />
+          )
+        ) : currentPlan === null || currentPlan === "FREE" ? (
           <CheckoutButton plan={plan} className="w-full">
-            Get Started
+            {isUpgrade ? "Upgrade" : "Get Started"}
           </CheckoutButton>
         ) : (
           <ManageSubscriptionButton
@@ -76,7 +89,12 @@ function PlanCard({
             className="w-full"
           />
         )}
-        {(plan === "BASIC" || plan === "PRO") && (
+        {plan === "FREE" && (
+          <p className="text-center text-sm text-muted-foreground">
+            No card required
+          </p>
+        )}
+        {plan === "PRO" && (
           <p className="text-center text-sm text-muted-foreground">
             3-day free trial
           </p>
@@ -85,7 +103,6 @@ function PlanCard({
     </Card>
   );
 }
-
 
 export default async function Page({
   searchParams,
@@ -110,20 +127,26 @@ export default async function Page({
   }
 
   // Get or create user in database
-  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+  const dbUser = await getOrCreateDbUser(
+    user.id,
+    user.emailAddresses[0]?.emailAddress,
+  );
 
-  const currentPlan: Plan = dbUser.plan;
-
+  const currentPlan: Plan | null = dbUser.plan;
 
   return (
     <main className="min-h-[90vh] flex items-center justify-center bg-background p-6">
       <div className="flex flex-col md:flex-row gap-6 max-w-5xl w-full">
-        <PlanCard plan="BASIC" features={plans.BASIC} currentPlan={currentPlan} />
+        <PlanCard plan="FREE" features={plans.FREE} currentPlan={currentPlan} />
         <PlanCard plan="PRO" features={plans.PRO} currentPlan={currentPlan} />
-        <PlanCard plan="ULTRA" features={plans.ULTRA} currentPlan={currentPlan} />
+        <PlanCard
+          plan="ULTRA"
+          features={plans.ULTRA}
+          currentPlan={currentPlan}
+        />
       </div>
     </main>
   );
 }
 
-export { PlanCard }
+export { PlanCard };

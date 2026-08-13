@@ -5,11 +5,46 @@ import { revalidatePath } from "next/cache";
 import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { generateWallet } from "@/lib/wallet-generation";
 import { executeAutomationChain } from "@/lib/automation-runner";
-import { getPlanLimit, canCreateAutomation, findProNodesInDefinition, canUseProNodes } from "@/lib/plan-limits";
+import { getPlanLimit, canCreateAutomation, canUseAutomatedTriggers } from "@/lib/plan-limits";
+import { createManualExecution, validateManualRunCapabilities } from "@/lib/manual-execution";
 import { validateMinimumInterval, getNextRunDate } from "@/lib/cron-utils.server";
 import { serializeForJson } from "@/lib/serialization";
 import type { Node, Edge } from "@xyflow/react";
-import type { TriggerMode } from "@prisma/client";
+import type { Prisma, TriggerMode } from "@prisma/client";
+
+async function createWithinPlanLimit<T extends { id: string }>(
+  userId: string,
+  create: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`;
+
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    const currentCount = await tx.automation.count({ where: { userId } });
+    const planLimit = getPlanLimit(user?.plan ?? null);
+
+    if (!user || !canCreateAutomation(currentCount, user.plan)) {
+      throw new Error(
+        planLimit === null
+          ? "You've reached your automation limit."
+          : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`
+      );
+    }
+
+    const automation = await create(tx);
+    if (user.plan === "FREE") {
+      await tx.user.update({
+        where: { id: userId },
+        data: { freeAutomationId: automation.id },
+      });
+    }
+
+    return automation;
+  });
+}
 
 export async function createAutomation(name: string, communityVisible: boolean = false) {
   try {
@@ -26,47 +61,35 @@ export async function createAutomation(name: string, communityVisible: boolean =
     // Get or create user in database
     const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
-    // Check if user has a plan
-    if (dbUser.plan === null) {
-      return {
-        success: false,
-        error: "You need to upgrade to a plan to create automations.",
-      };
-    }
-
-    // Check automation limit
-    const currentCount = await prisma.automation.count({
-      where: { userId: dbUser.id },
-    });
-
-    const planLimit = getPlanLimit(dbUser.plan);
-    
+    // Creating a wallet is deliberately done after an early limit check, while
+    // the transaction helper below remains the authoritative race-safe check.
+    const currentCount = await prisma.automation.count({ where: { userId: dbUser.id } });
     if (!canCreateAutomation(currentCount, dbUser.plan)) {
-      const limitMessage = planLimit === null 
-        ? "You've reached your automation limit."
-        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? 's' : ''}. Upgrade to create more.`;
-      
+      const planLimit = getPlanLimit(dbUser.plan);
       return {
         success: false,
-        error: limitMessage,
+        error: planLimit === null
+          ? "You've reached your automation limit."
+          : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`,
       };
     }
 
-    // Generate wallet
     const { address, encryptedKey } = await generateWallet();
 
     // Create automation
-    const automation = await prisma.automation.create({
-      data: {
-        name,
-        userId: dbUser.id,
-        walletAddress: address,
-        walletEncKey: encryptedKey,
-        definition: {},
-        isActive: false,
-        communityVisible,
-      },
-    });
+    const automation = await createWithinPlanLimit(dbUser.id, (tx) =>
+      tx.automation.create({
+        data: {
+          name,
+          userId: dbUser.id,
+          walletAddress: address,
+          walletEncKey: encryptedKey,
+          definition: {},
+          isActive: false,
+          communityVisible,
+        },
+      })
+    );
 
     // Revalidate the automations page
     revalidatePath("/automations");
@@ -121,6 +144,12 @@ export async function updateAutomationDefinition(
         error: "You don't have permission to update this automation.",
       };
     }
+
+    validateManualRunCapabilities(
+      dbUser.plan,
+      automation.triggerMode,
+      nodes as Node[]
+    );
 
     // Update automation definition
     await prisma.automation.update({
@@ -194,27 +223,11 @@ export async function runAutomation(automationId: string) {
       };
     }
 
-    // Check for PRO-only nodes that the user's plan doesn't support
-    if (!canUseProNodes(dbUser.plan)) {
-      const proNodes = findProNodesInDefinition(nodes);
-      if (proNodes.length > 0) {
-        const nodeNames = proNodes.map((n) => n.label).join(", ");
-        return {
-          success: false,
-          error: `This automation contains Pro nodes: ${nodeNames}. Upgrade to Pro to run this automation.`,
-          proNodes: proNodes.map((n) => n.type),
-        };
-      }
-    }
-
-    // Create execution record
-    const execution = await prisma.execution.create({
-      data: {
-        userId: dbUser.id,
-        automationId: automation.id,
-        status: "RUNNING",
-        wasScheduled: false,
-      },
+    const { execution } = await createManualExecution({
+      userId: dbUser.id,
+      automationId: automation.id,
+      triggerMode: automation.triggerMode,
+      nodes,
     });
 
     try {
@@ -291,8 +304,8 @@ export async function updateAutomationSchedule(
     // Get or create user in database
     const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
-    // Check if user has PRO or ULTRA plan for scheduling
-    if (triggerMode === "SCHEDULE" && dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
+    // Automated triggers require PRO or ULTRA.
+    if (triggerMode !== "MANUAL" && !canUseAutomatedTriggers(dbUser.plan)) {
       return {
         success: false,
         error: "Scheduling is a Pro feature. Please upgrade your plan.",
@@ -378,7 +391,7 @@ export async function updateAutomationPriceTrigger(
     const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
     // Check if user has PRO or ULTRA plan for price triggers
-    if (dbUser.plan !== "PRO" && dbUser.plan !== "ULTRA") {
+    if (!canUseAutomatedTriggers(dbUser.plan)) {
       return {
         success: false,
         error: "Price triggers are a Pro feature. Please upgrade your plan.",
@@ -484,24 +497,6 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
 
     const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
-    if (dbUser.plan === null) {
-      return { success: false, error: "You need to upgrade to a plan to create automations." };
-    }
-
-    // Check automation limit
-    const currentCount = await prisma.automation.count({
-      where: { userId: dbUser.id },
-    });
-
-    const planLimit = getPlanLimit(dbUser.plan);
-
-    if (!canCreateAutomation(currentCount, dbUser.plan)) {
-      const limitMessage = planLimit === null
-        ? "You've reached your automation limit."
-        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`;
-      return { success: false, error: limitMessage };
-    }
-
     // Fetch source automation and verify ownership
     const sourceAutomation = await prisma.automation.findUnique({
       where: { id: sourceAutomationId },
@@ -515,24 +510,37 @@ export async function duplicateAutomation(sourceAutomationId: string, newName: s
       return { success: false, error: "You don't have permission to duplicate this automation." };
     }
 
+    const currentCount = await prisma.automation.count({ where: { userId: dbUser.id } });
+    if (!canCreateAutomation(currentCount, dbUser.plan)) {
+      const planLimit = getPlanLimit(dbUser.plan);
+      return {
+        success: false,
+        error: planLimit === null
+          ? "You've reached your automation limit."
+          : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`,
+      };
+    }
+
     // Generate new wallet
     const { address, encryptedKey } = await generateWallet();
 
     // Create duplicated automation
-    const automation = await prisma.automation.create({
-      data: {
-        name: newName,
-        userId: dbUser.id,
-        walletAddress: address,
-        walletEncKey: encryptedKey,
-        definition: sourceAutomation.definition ?? {},
-        isActive: false,
-        defaultSlippage: sourceAutomation.defaultSlippage,
-        rpcEndpoint: sourceAutomation.rpcEndpoint,
-        showNodeLabels: sourceAutomation.showNodeLabels,
-        communityVisible,
-      },
-    });
+    const automation = await createWithinPlanLimit(dbUser.id, (tx) =>
+      tx.automation.create({
+        data: {
+          name: newName,
+          userId: dbUser.id,
+          walletAddress: address,
+          walletEncKey: encryptedKey,
+          definition: sourceAutomation.definition ?? {},
+          isActive: false,
+          defaultSlippage: sourceAutomation.defaultSlippage,
+          rpcEndpoint: sourceAutomation.rpcEndpoint,
+          showNodeLabels: sourceAutomation.showNodeLabels,
+          communityVisible,
+        },
+      })
+    );
 
     revalidatePath("/automations");
 
@@ -612,24 +620,6 @@ export async function createAutomationFromShare(shareString: string, name: strin
 
     const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
 
-    if (dbUser.plan === null) {
-      return { success: false, error: "You need to upgrade to a plan to create automations." };
-    }
-
-    // Check automation limit
-    const currentCount = await prisma.automation.count({
-      where: { userId: dbUser.id },
-    });
-
-    const planLimit = getPlanLimit(dbUser.plan);
-
-    if (!canCreateAutomation(currentCount, dbUser.plan)) {
-      const limitMessage = planLimit === null
-        ? "You've reached your automation limit."
-        : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`;
-      return { success: false, error: limitMessage };
-    }
-
     // Extract share code from string
     const shareCode = extractShareCode(shareString);
 
@@ -654,25 +644,43 @@ export async function createAutomationFromShare(shareString: string, name: strin
     }
 
     const definition = sharedAutomation.definition as { nodes?: unknown[]; edges?: unknown[] };
+    validateManualRunCapabilities(
+      dbUser.plan,
+      "MANUAL",
+      (definition?.nodes || []) as Node[]
+    );
+
+    const currentCount = await prisma.automation.count({ where: { userId: dbUser.id } });
+    if (!canCreateAutomation(currentCount, dbUser.plan)) {
+      const planLimit = getPlanLimit(dbUser.plan);
+      return {
+        success: false,
+        error: planLimit === null
+          ? "You've reached your automation limit."
+          : `You've reached your plan limit of ${planLimit} automation${planLimit !== 1 ? "s" : ""}. Upgrade to create more.`,
+      };
+    }
 
     // Generate wallet
     const { address, encryptedKey } = await generateWallet();
 
     // Create automation from shared definition
-    const automation = await prisma.automation.create({
-      data: {
-        name,
-        userId: dbUser.id,
-        walletAddress: address,
-        walletEncKey: encryptedKey,
-        definition: {
-          nodes: definition?.nodes || [],
-          edges: definition?.edges || [],
-        } as any,
-        isActive: false,
-        communityVisible,
-      },
-    });
+    const automation = await createWithinPlanLimit(dbUser.id, (tx) =>
+      tx.automation.create({
+        data: {
+          name,
+          userId: dbUser.id,
+          walletAddress: address,
+          walletEncKey: encryptedKey,
+          definition: {
+            nodes: definition?.nodes || [],
+            edges: definition?.edges || [],
+          } as any,
+          isActive: false,
+          communityVisible,
+        },
+      })
+    );
 
     revalidatePath("/automations");
 
@@ -682,6 +690,52 @@ export async function createAutomationFromShare(shareString: string, name: strin
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to create automation from share.",
+    };
+  }
+}
+
+export async function selectFreeAutomation(automationId: string) {
+  try {
+    const user = await currentUser();
+    if (!user) return { success: false, error: "Unauthorized. Please sign in." };
+
+    const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+    if (dbUser.plan !== "FREE") {
+      return { success: false, error: "Automation selection is only needed on the Free plan." };
+    }
+
+    const automation = await prisma.automation.findFirst({
+      where: { id: automationId, userId: dbUser.id },
+      select: { id: true },
+    });
+    if (!automation) return { success: false, error: "Automation not found." };
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: dbUser.id },
+        data: { freeAutomationId: automationId },
+      }),
+      prisma.automation.update({
+        where: { id: automationId },
+        data: {
+          triggerMode: "MANUAL",
+          cronExpression: null,
+          nextRunAt: null,
+          priceTriggerLpAddress: null,
+          priceTriggerOperator: null,
+          priceTriggerValue: null,
+          priceTriggerLastTriggeredAt: null,
+        },
+      }),
+    ]);
+
+    revalidatePath("/automations");
+    revalidatePath(`/automations/${automationId}`);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to select automation.",
     };
   }
 }

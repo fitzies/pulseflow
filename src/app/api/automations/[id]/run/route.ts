@@ -1,7 +1,7 @@
 import { currentUser } from '@clerk/nextjs/server';
 import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { executeAutomationChain, type ProgressEvent } from '@/lib/automation-runner';
-import { findProNodesInDefinition, canUseProNodes } from '@/lib/plan-limits';
+import { createManualExecution, ManualRunError } from '@/lib/manual-execution';
 import { sendExecutionNotification } from '@/lib/push-notification';
 import { serializeForJson } from '@/lib/serialization';
 import type { Node, Edge } from '@xyflow/react';
@@ -59,40 +59,26 @@ export async function POST(
     );
   }
 
-  // Check for PRO-only nodes that the user's plan doesn't support
-  if (!canUseProNodes(dbUser.plan)) {
-    const proNodes = findProNodesInDefinition(nodes);
-    if (proNodes.length > 0) {
-      const nodeNames = proNodes.map((n) => n.label).join(', ');
-      return new Response(
-        JSON.stringify({
-          error: `This automation contains Pro nodes: ${nodeNames}. Upgrade to Pro to run this automation.`,
-          proNodes: proNodes.map((n) => n.type),
-        }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const hasAutoRoute = nodes.some((n: any) => n.data?.config?.autoRoute === true);
-    if (hasAutoRoute) {
-      return new Response(
-        JSON.stringify({
-          error: 'Auto Route is a Pro feature. Upgrade to Pro to run automations with auto routing.',
-        }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-  }
-
-  // Create execution record
-  const execution = await prisma.execution.create({
-    data: {
+  let execution;
+  let usage;
+  try {
+    const launch = await createManualExecution({
       userId: dbUser.id,
       automationId: automation.id,
-      status: 'RUNNING',
-      wasScheduled: false,
-    },
-  });
+      triggerMode: automation.triggerMode,
+      nodes,
+    });
+    execution = launch.execution;
+    usage = launch.usage;
+  } catch (error) {
+    if (error instanceof ManualRunError) {
+      return new Response(
+        JSON.stringify({ error: error.message, code: error.code, ...error.details }),
+        { status: error.status, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    throw error;
+  }
 
   // Create a stream for SSE
   const encoder = new TextEncoder();
@@ -115,6 +101,10 @@ export async function POST(
       const serializeResult = (result: any): any => serializeForJson(result);
 
       try {
+        if (usage) {
+          sendEvent({ type: 'quota', ...usage });
+        }
+
         // Execute with progress callback
         await executeAutomationChain(
           automationId,

@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-
-type Plan = "BASIC" | "PRO" | "ULTRA";
+import type { CheckoutPlan } from "@/lib/stripe-config";
 
 export function CheckoutButton({
   plan,
@@ -13,7 +12,7 @@ export function CheckoutButton({
   variant = "default",
   disabled = false,
 }: {
-  plan: Plan;
+  plan: CheckoutPlan;
   children: React.ReactNode;
   className?: string;
   variant?: "default" | "outline";

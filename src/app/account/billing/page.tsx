@@ -41,12 +41,18 @@ export default async function BillingPage() {
                 <p className="text-sm text-muted-foreground">Current Plan</p>
                 <p className="text-2xl font-bold">{plans[currentPlan].name}</p>
                 <p className="text-muted-foreground">
-                  ${plans[currentPlan].price}/month
+                  {currentPlan === "FREE"
+                    ? "Free · No card required"
+                    : `$${plans[currentPlan].price}/month`}
                 </p>
               </div>
 
               {hasSubscription ? (
                 <ManageSubscriptionButton />
+              ) : currentPlan === "FREE" ? (
+                <Button asChild>
+                  <Link href="/plans">View Upgrades</Link>
+                </Button>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No active Stripe subscription found.

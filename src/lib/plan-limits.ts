@@ -1,89 +1,108 @@
 import { Plan } from "@prisma/client";
 
-// Node types that require PRO or higher plan
-const PRO_ONLY_NODES = ["wait", "loop", "gasGuard", "condition"] as const;
+export const FREE_DAILY_RUN_LIMIT = 5;
+
+// Control-flow nodes require PRO or higher. Keep this server-side list in sync
+// with the node picker; imported definitions must not bypass plan checks.
+const PRO_ONLY_NODES = ["wait", "loop", "gasGuard", "condition", "forEach", "endForEach"] as const;
+
+const FREE_ALLOWED_NODES = [
+  "start",
+  "swap",
+  "swapFromPLS",
+  "swapToPLS",
+  "transfer",
+  "transferPLS",
+  "addLiquidity",
+  "addLiquidityPLS",
+  "removeLiquidity",
+  "removeLiquidityPLS",
+  "checkBalance",
+  "checkTokenBalance",
+  "checkLPTokenAmounts",
+  "burnToken",
+  "claimToken",
+  "getParent",
+  "telegram",
+  "variable",
+  "calculator",
+  "dexQuote",
+] as const;
+
+const NODE_LABELS: Record<string, string> = {
+  wait: "Wait",
+  loop: "Repeat",
+  gasGuard: "Gas Guard",
+  condition: "Condition",
+  forEach: "For Each",
+  endForEach: "For Each",
+};
 
 type ProNodeType = (typeof PRO_ONLY_NODES)[number];
 
-/**
- * Check if a node type requires PRO plan
- */
 export function isProNode(nodeType: string): nodeType is ProNodeType {
   return PRO_ONLY_NODES.includes(nodeType as ProNodeType);
 }
 
-/**
- * Find all PRO-only nodes in an automation definition
- * @returns Array of { nodeType, label } for each PRO node found
- */
 export function findProNodesInDefinition(
   nodes: { type?: string }[]
 ): { type: string; label: string }[] {
-  const proNodeLabels: Record<ProNodeType, string> = {
-    wait: "Wait",
-    loop: "Loop",
-    gasGuard: "Gas Guard",
-    condition: "Condition",
-  };
-
   const found: { type: string; label: string }[] = [];
   const seen = new Set<string>();
 
   for (const node of nodes) {
     if (node.type && isProNode(node.type) && !seen.has(node.type)) {
       seen.add(node.type);
-      found.push({ type: node.type, label: proNodeLabels[node.type] });
+      found.push({ type: node.type, label: NODE_LABELS[node.type] ?? node.type });
     }
   }
 
   return found;
 }
 
-/**
- * Check if a user's plan allows running automations with PRO nodes
- */
+export function findDisallowedFreeNodes(
+  nodes: { type?: string }[]
+): { type: string; label: string }[] {
+  const allowed = new Set<string>(FREE_ALLOWED_NODES);
+  const found: { type: string; label: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const node of nodes) {
+    if (node.type && !allowed.has(node.type) && !seen.has(node.type)) {
+      seen.add(node.type);
+      found.push({ type: node.type, label: NODE_LABELS[node.type] ?? node.type });
+    }
+  }
+
+  return found;
+}
+
 export function canUseProNodes(plan: Plan | null): boolean {
   return plan === "PRO" || plan === "ULTRA";
 }
 
-/**
- * Get the maximum number of automations allowed for a plan
- * @param plan - The user's plan (BASIC, PRO, ULTRA, or null)
- * @returns The limit as a number, or null for unlimited/no plan
- */
+export function canUseAutomatedTriggers(plan: Plan | null): boolean {
+  return plan === "PRO" || plan === "ULTRA";
+}
+
 export function getPlanLimit(plan: Plan | null): number | null {
   switch (plan) {
+    case "FREE":
+      return 1;
     case "BASIC":
       return 3;
     case "PRO":
       return 10;
     case "ULTRA":
-      return null; // Unlimited
+      return null;
     default:
-      return null; // No plan
+      return 0;
   }
 }
 
-/**
- * Check if a user can create more automations based on their current count and plan
- * @param currentCount - The number of automations the user currently has
- * @param plan - The user's plan (BASIC, PRO, ULTRA, or null)
- * @returns true if the user can create more automations, false otherwise
- */
 export function canCreateAutomation(currentCount: number, plan: Plan | null): boolean {
   const limit = getPlanLimit(plan);
-
-  // If no plan, cannot create
-  if (plan === null) {
-    return false;
-  }
-
-  // If unlimited (ULTRA), always allow
-  if (limit === null) {
-    return true;
-  }
-
-  // Check if current count is below limit
+  if (limit === null) return plan === "ULTRA";
   return currentCount < limit;
 }
 
@@ -94,12 +113,26 @@ export interface PlanFeatures {
   maxAutomations: number | "Unlimited";
   features: string[];
   highlight?: boolean;
+  legacy?: boolean;
 }
 
-export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
+export const plans: Record<Plan, PlanFeatures> = {
+  FREE: {
+    name: "Free",
+    description: "Build and run your first automation",
+    price: 0,
+    maxAutomations: 1,
+    features: [
+      "1 automation",
+      "5 manual runs per day",
+      "Swap, transfer, and liquidity operations",
+      "Balance and price checks",
+      "Telegram notifications",
+    ],
+  },
   BASIC: {
     name: "Basic",
-    description: "For getting started with automation",
+    description: "Legacy plan",
     price: 6,
     maxAutomations: 3,
     features: [
@@ -108,6 +141,7 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
       "Balance and price checks",
       "Telegram notifications",
     ],
+    legacy: true,
   },
   PRO: {
     name: "Pro",
@@ -116,10 +150,10 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
     maxAutomations: 10,
     features: [
       "Up to 10 automations",
-      "Everything in Basic",
-      "Wait, Loop, and Conditional nodes",
+      "Unlimited manual runs",
+      "Wait, Loop, Conditional, and For Each nodes",
       "Gas Guard protection",
-      "Scheduled triggers",
+      "Scheduled and price triggers",
       "AI Integration",
     ],
     highlight: true,
@@ -130,7 +164,7 @@ export const plans: Record<Exclude<Plan, null>, PlanFeatures> = {
     price: 29,
     maxAutomations: "Unlimited",
     features: [
-      "Unlimited automations",
+      "Unlimited automations and runs",
       "Everything in Pro",
       "Advanced analytics",
       "Early access to new features",

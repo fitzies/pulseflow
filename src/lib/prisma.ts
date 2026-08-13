@@ -60,13 +60,40 @@ export async function withRetry<T>(
  * This was moved out of middleware since Prisma can't run on Edge runtime
  */
 export async function getOrCreateDbUser(clerkId: string, email?: string) {
-  return prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { clerkId },
     update: email ? { email } : {},
     create: {
       clerkId,
       email: email ?? null,
-      plan: null,
+      plan: "FREE",
     },
   });
+
+  // Existing users without a plan are upgraded in place to the permanent Free
+  // tier. Keeping the database column nullable makes this rollout compatible
+  // with the previous deployment while instances drain.
+  let resolvedUser = user;
+  if (resolvedUser.plan === null) {
+    resolvedUser = await prisma.user.update({
+      where: { id: resolvedUser.id },
+      data: { plan: "FREE" },
+    });
+  }
+
+  if (resolvedUser.plan === "FREE" && !resolvedUser.freeAutomationId) {
+    const firstAutomation = await prisma.automation.findFirst({
+      where: { userId: resolvedUser.id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    if (firstAutomation) {
+      resolvedUser = await prisma.user.update({
+        where: { id: resolvedUser.id },
+        data: { freeAutomationId: firstAutomation.id },
+      });
+    }
+  }
+
+  return resolvedUser;
 }

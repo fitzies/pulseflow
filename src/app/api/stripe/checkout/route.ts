@@ -2,8 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma, getOrCreateDbUser } from "@/lib/prisma";
-import { getPriceIdFromPlan } from "@/lib/stripe-config";
-import { Plan } from "@prisma/client";
+import { getPriceIdFromPlan, isCheckoutPlan } from "@/lib/stripe-config";
 
 export async function POST(request: Request) {
   try {
@@ -13,10 +12,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { plan } = (await request.json()) as { plan: Plan };
+    const { plan } = (await request.json()) as { plan?: unknown };
 
-    if (!plan || !["BASIC", "PRO", "ULTRA"].includes(plan)) {
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    // FREE has no Stripe price and must never create a Checkout Session.
+    if (!isCheckoutPlan(plan)) {
+      return NextResponse.json({ error: "Invalid paid plan" }, { status: 400 });
     }
 
     // Get or create user in database
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
           dbUserId: user.id,
           plan,
         },
-        ...((plan === "BASIC" || plan === "PRO") && { trial_period_days: 3 }),
+        ...(plan === "PRO" && { trial_period_days: 3 }),
       },
     });
 
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     console.error("Checkout error:", error);
     return NextResponse.json(
       { error: "Failed to create checkout session" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

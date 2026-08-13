@@ -2,6 +2,7 @@ import { currentUser } from '@clerk/nextjs/server';
 import { prisma, getOrCreateDbUser } from '@/lib/prisma';
 import { AutomationFlow } from '@/components/automation-flow';
 import type { Node, Edge } from '@xyflow/react';
+import { getManualRunUsage } from '@/lib/manual-execution';
 
 interface PageProps {
   params: Promise<{ automation: string }>;
@@ -53,6 +54,10 @@ export default async function Page({ params }: PageProps) {
     orderBy: { startedAt: 'desc' },
   });
 
+  const manualRunUsage = await getManualRunUsage(dbUser.id, dbUser.plan);
+  const isFreeAutomation =
+    dbUser.plan !== 'FREE' || dbUser.freeAutomationId === automation.id;
+
   // Parse definition JSON for nodes and edges
   let initialNodes: Node[] = [];
   let initialEdges: Edge[] = [];
@@ -84,6 +89,8 @@ export default async function Page({ params }: PageProps) {
       priceTriggerOperator={automation.priceTriggerOperator}
       priceTriggerValue={automation.priceTriggerValue}
       priceTriggerCooldownMinutes={automation.priceTriggerCooldownMinutes}
+      manualRunUsage={manualRunUsage}
+      isFreeAutomation={isFreeAutomation}
     />
   );
 }
