@@ -132,7 +132,7 @@ export async function createManualExecution(input: {
   return prisma.$transaction(async (tx) => {
     // Serialize starts per user so quota, selection, and running checks cannot
     // be bypassed with concurrent requests.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${input.userId})::bigint)`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${input.userId})::bigint)::text AS "lock"`;
 
     const [databaseClock] = await tx.$queryRaw<
       { utcDate: string; resetAt: Date; now: Date }[]

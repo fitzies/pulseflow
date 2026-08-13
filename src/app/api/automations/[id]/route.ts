@@ -103,7 +103,7 @@ export async function DELETE(
     // Serialize against Free-tier selection changes. The database foreign key
     // clears freeAutomationId automatically when the selected automation is deleted.
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)::text AS "lock"`;
       await tx.automation.delete({ where: { id: automationId } });
     });
 

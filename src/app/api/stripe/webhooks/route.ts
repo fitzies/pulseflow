@@ -39,7 +39,7 @@ async function reconcileCustomerSubscription(customerId: string) {
     // Every webhook for a customer converges on Stripe's current state while
     // holding the same lock, so out-of-order events cannot overwrite a newer
     // subscription.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${customerId})::bigint)`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${customerId})::bigint)::text AS "lock"`;
 
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,

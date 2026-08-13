@@ -17,7 +17,7 @@ async function createWithinPlanLimit<T extends { id: string }>(
   create: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)::text AS "lock"`;
 
     const user = await tx.user.findUnique({
       where: { id: userId },
@@ -705,7 +705,7 @@ export async function selectFreeAutomation(automationId: string) {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)::text AS "lock"`;
 
       const automation = await tx.automation.findFirst({
         where: { id: automationId, userId: dbUser.id },
