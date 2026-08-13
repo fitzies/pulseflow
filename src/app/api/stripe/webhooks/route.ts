@@ -27,6 +27,75 @@ async function getCustomerEmail(customerId: string): Promise<string> {
   }
 }
 
+const ENTITLED_SUBSCRIPTION_STATUSES = new Set<Stripe.Subscription.Status>([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+]);
+
+async function reconcileCustomerSubscription(customerId: string) {
+  return prisma.$transaction(async (tx) => {
+    // Every webhook for a customer converges on Stripe's current state while
+    // holding the same lock, so out-of-order events cannot overwrite a newer
+    // subscription.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${customerId})::bigint)`;
+
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 100,
+    });
+    const current = subscriptions.data
+      .filter((subscription) => ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status))
+      .sort((a, b) => b.created - a.created)[0] ?? null;
+
+    const user = await tx.user.findUnique({
+      where: { stripeCustomerId: customerId },
+      select: {
+        id: true,
+        freeAutomationId: true,
+        automations: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+    if (!user) throw new Error(`No user found for Stripe customer ${customerId}`);
+
+    if (!current) {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          plan: "FREE",
+          freeAutomationId: user.freeAutomationId ?? user.automations[0]?.id ?? null,
+          stripeSubscriptionId: null,
+          stripePriceId: null,
+        },
+      });
+      return { plan: "FREE" as const, subscription: null };
+    }
+
+    const priceId = current.items.data[0]?.price.id;
+    const plan = getPlanFromPriceId(priceId);
+    if (!plan) {
+      throw new Error(`Unknown Stripe price ID on active subscription ${current.id}: ${priceId}`);
+    }
+
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        plan,
+        stripeSubscriptionId: current.id,
+        stripePriceId: priceId,
+      },
+    });
+
+    return { plan, subscription: current };
+  }, { maxWait: 5_000, timeout: 15_000 });
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const headersList = await headers();
@@ -55,38 +124,17 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
 
         if (session.mode === "subscription" && session.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(
-            session.subscription as string
-          );
-
-          const priceId = subscription.items.data[0]?.price.id;
-          const plan = getPlanFromPriceId(priceId);
           const customerId = session.customer as string;
           const email = await getCustomerEmail(customerId);
-
-          if (!plan) {
-            throw new Error(`Unknown Stripe price ID on checkout completion: ${priceId}`);
-          }
-
-          // Update user with subscription info
-          await prisma.user.update({
-            where: { stripeCustomerId: customerId },
-            data: {
-              plan,
-              stripeSubscriptionId: subscription.id,
-              stripePriceId: priceId,
-            },
-          });
-
-          const hasTrial = subscription.trial_end !== null;
-          const trialInfo = hasTrial
-            ? `\n🎁 Trial until: ${new Date(subscription.trial_end! * 1000).toLocaleDateString()}`
+          const current = await reconcileCustomerSubscription(customerId);
+          const trialInfo = current.subscription?.trial_end
+            ? `\n🎁 Trial until: ${new Date(current.subscription.trial_end * 1000).toLocaleDateString()}`
             : "";
 
           await notifyAdmin(
             `🎉 *New Subscription!*\n\n` +
             `📧 ${email}\n` +
-            `📦 Plan: ${plan || "Unknown"}${trialInfo}`
+            `📦 Plan: ${current.plan}${trialInfo}`
           );
         }
         break;
@@ -96,14 +144,13 @@ export async function POST(request: Request) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
         const email = await getCustomerEmail(customerId);
-        const priceId = subscription.items.data[0]?.price.id;
-        const plan = getPlanFromPriceId(priceId);
+        const current = await reconcileCustomerSubscription(customerId);
 
         if (subscription.trial_end) {
           await notifyAdmin(
             `🆓 *New Trial Started!*\n\n` +
             `📧 ${email}\n` +
-            `📦 Plan: ${plan || "Unknown"}\n` +
+            `📦 Plan: ${current.plan}\n` +
             `⏰ Trial ends: ${new Date(subscription.trial_end * 1000).toLocaleDateString()}`
           );
         }
@@ -112,36 +159,14 @@ export async function POST(request: Request) {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
-        const priceId = subscription.items.data[0]?.price.id;
-        const plan = getPlanFromPriceId(priceId);
         const customerId = subscription.customer as string;
         const email = await getCustomerEmail(customerId);
-
-        if (!plan) {
-          throw new Error(`Unknown Stripe price ID on subscription update: ${priceId}`);
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { stripeCustomerId: customerId },
-          select: { id: true, stripeSubscriptionId: true },
-        });
-
-        // Stripe can deliver old subscription events after a replacement has
-        // become active. Never let a stale event overwrite the current plan.
-        if (!user || user.stripeSubscriptionId !== subscription.id) {
-          console.log(`Ignoring stale subscription.updated event for ${subscription.id}`);
-          break;
-        }
-
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { plan, stripePriceId: priceId },
-        });
+        const current = await reconcileCustomerSubscription(customerId);
 
         await notifyAdmin(
           `🔄 *Subscription Updated*\n\n` +
           `📧 ${email}\n` +
-          `📦 Plan: ${plan || "Unknown"}`
+          `📦 Plan: ${current.plan}`
         );
         break;
       }
@@ -150,41 +175,19 @@ export async function POST(request: Request) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
         const email = await getCustomerEmail(customerId);
-        const priceId = subscription.items.data[0]?.price.id;
-        const plan = getPlanFromPriceId(priceId);
+        const current = await reconcileCustomerSubscription(customerId);
 
-        const user = await prisma.user.findUnique({
-          where: { stripeCustomerId: customerId },
-          select: {
-            id: true,
-            stripeSubscriptionId: true,
-            automations: {
-              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-              take: 1,
-              select: { id: true },
-            },
-          },
-        });
-
-        if (!user || user.stripeSubscriptionId !== subscription.id) {
-          console.log(`Ignoring stale subscription.deleted event for ${subscription.id}`);
+        if (current.subscription) {
+          console.log(
+            `Subscription ${subscription.id} was deleted; customer remains on ${current.subscription.id}`
+          );
           break;
         }
-
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            plan: "FREE",
-            freeAutomationId: user.automations[0]?.id ?? null,
-            stripeSubscriptionId: null,
-            stripePriceId: null,
-          },
-        });
 
         await notifyAdmin(
           `❌ *Subscription Cancelled*\n\n` +
           `📧 ${email}\n` +
-          `📦 Was on: ${plan || "Unknown"}`
+          `📦 Downgraded to: FREE`
         );
         break;
       }
