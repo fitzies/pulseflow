@@ -208,6 +208,31 @@ export function AutomationFlow({
   const [executionsDialogOpen, setExecutionsDialogOpen] = useState(false);
   const [manualRunUsage, setManualRunUsage] = useState(initialManualRunUsage);
 
+  useEffect(() => {
+    if (!manualRunUsage) return;
+
+    const resetUsage = () => {
+      if (Date.now() >= new Date(manualRunUsage.resetAt).getTime()) {
+        const now = new Date();
+        const nextReset = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+        );
+        setManualRunUsage({ ...manualRunUsage, used: 0, resetAt: nextReset.toISOString() });
+      }
+    };
+
+    const delay = Math.max(0, new Date(manualRunUsage.resetAt).getTime() - Date.now());
+    const timeout = window.setTimeout(resetUsage, delay + 1000);
+    window.addEventListener('focus', resetUsage);
+    document.addEventListener('visibilitychange', resetUsage);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener('focus', resetUsage);
+      document.removeEventListener('visibilitychange', resetUsage);
+    };
+  }, [manualRunUsage]);
+
   // Check if user has Pro/Ultra for AI access
   const hasAiAccess = userPlan === 'PRO' || userPlan === 'ULTRA';
 

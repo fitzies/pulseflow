@@ -65,10 +65,20 @@ export function validateManualRunCapabilities(
     }
   }
 
-  if (!canUseProNodes(plan)) {
-    const hasAutoRoute = nodes.some(
-      (node) => (node as Node<{ config?: { autoRoute?: boolean } }>).data?.config?.autoRoute === true
+  const autoRouteValues = nodes
+    .map((node) => (node as Node<{ config?: { autoRoute?: unknown } }>).data?.config?.autoRoute)
+    .filter((value) => value !== undefined);
+
+  if (autoRouteValues.some((value) => typeof value !== "boolean")) {
+    throw new ManualRunError(
+      "This automation has an invalid Auto Route setting. Open the swap node and save it again.",
+      "PAID_FEATURE",
+      400
     );
+  }
+
+  if (!canUseProNodes(plan)) {
+    const hasAutoRoute = autoRouteValues.some((value) => value === true);
     if (hasAutoRoute) {
       throw new ManualRunError(
         "Auto Route is a Pro feature. Upgrade to Pro to run automations with auto routing.",
@@ -84,7 +94,18 @@ async function resolveFreeAutomationId(
   userId: string,
   currentSelection: string | null
 ): Promise<string | null> {
-  if (currentSelection) return currentSelection;
+  if (currentSelection) {
+    const selectedAutomation = await tx.automation.findFirst({
+      where: { id: currentSelection, userId },
+      select: { id: true },
+    });
+    if (selectedAutomation) return selectedAutomation.id;
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { freeAutomationId: null },
+    });
+  }
 
   const firstAutomation = await tx.automation.findFirst({
     where: { userId },
@@ -108,14 +129,18 @@ export async function createManualExecution(input: {
   triggerMode: TriggerMode;
   nodes: Node[];
 }) {
-  const now = new Date();
-  const utcDate = utcDateKey(now);
-  const resetAt = nextUtcReset(now).toISOString();
-
   return prisma.$transaction(async (tx) => {
     // Serialize starts per user so quota, selection, and running checks cannot
     // be bypassed with concurrent requests.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${input.userId})::bigint)`;
+
+    const [databaseClock] = await tx.$queryRaw<
+      { utcDate: string; resetAt: Date; now: Date }[]
+    >`SELECT
+        to_char(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS "utcDate",
+        ((date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') + interval '1 day') AT TIME ZONE 'UTC') AS "resetAt",
+        CURRENT_TIMESTAMP AS "now"`;
+    const { utcDate, resetAt, now } = databaseClock;
 
     const user = await tx.user.findUnique({
       where: { id: input.userId },
@@ -185,7 +210,7 @@ export async function createManualExecution(input: {
           `You've used all ${FREE_DAILY_RUN_LIMIT} Free runs for today. Upgrade to Pro for unlimited runs.`,
           "RUN_LIMIT",
           429,
-          { used: FREE_DAILY_RUN_LIMIT, limit: FREE_DAILY_RUN_LIMIT, resetAt }
+          { used: FREE_DAILY_RUN_LIMIT, limit: FREE_DAILY_RUN_LIMIT, resetAt: resetAt.toISOString() }
         );
       }
     }
@@ -202,7 +227,7 @@ export async function createManualExecution(input: {
     return {
       execution,
       usage: user.plan === "FREE"
-        ? { used: usage?.runCount ?? 0, limit: FREE_DAILY_RUN_LIMIT, resetAt }
+        ? { used: usage?.runCount ?? 0, limit: FREE_DAILY_RUN_LIMIT, resetAt: resetAt.toISOString() }
         : null,
     };
   });

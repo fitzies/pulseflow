@@ -704,15 +704,26 @@ export async function selectFreeAutomation(automationId: string) {
       return { success: false, error: "Automation selection is only needed on the Free plan." };
     }
 
-    const automation = await prisma.automation.findFirst({
-      where: { id: automationId, userId: dbUser.id },
-      select: { id: true },
-    });
-    if (!automation) return { success: false, error: "Automation not found." };
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)`;
 
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: { freeAutomationId: automationId },
+      const automation = await tx.automation.findFirst({
+        where: { id: automationId, userId: dbUser.id },
+        select: { id: true, definition: true },
+      });
+      if (!automation) throw new Error("Automation not found.");
+
+      const definition = automation.definition as { nodes?: Node[] } | null;
+      validateManualRunCapabilities(
+        "FREE",
+        "MANUAL",
+        definition?.nodes || []
+      );
+
+      await tx.user.update({
+        where: { id: dbUser.id },
+        data: { freeAutomationId: automationId },
+      });
     });
 
     revalidatePath("/automations");

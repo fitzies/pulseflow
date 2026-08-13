@@ -100,16 +100,11 @@ export async function DELETE(
       );
     }
 
-    // Delete the automation (cascade will handle executions and logs). Clear
-    // the Free-tier selection so the next eligible automation can be chosen.
+    // Serialize against Free-tier selection changes. The database foreign key
+    // clears freeAutomationId automatically when the selected automation is deleted.
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${dbUser.id})::bigint)`;
       await tx.automation.delete({ where: { id: automationId } });
-      if (dbUser.freeAutomationId === automationId) {
-        await tx.user.update({
-          where: { id: dbUser.id },
-          data: { freeAutomationId: null },
-        });
-      }
     });
 
     // Revalidate the automations page

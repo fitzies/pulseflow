@@ -14,9 +14,10 @@ model User {
   clerkId String  @unique
   email   String?
 
-  plan             Plan?     @default(FREE)
+  plan             Plan?       @default(FREE)
   trialEndsAt      DateTime?
   freeAutomationId String?
+  freeAutomation   Automation? @relation("FreeAutomation", fields: [freeAutomationId], references: [id], onDelete: SetNull)
 
   // Stripe fields
   stripeCustomerId     String? @unique
@@ -81,9 +82,10 @@ model Automation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id])
-  executions Execution[]
-  aiChat     AIChat?
+  user             User        @relation(fields: [userId], references: [id])
+  selectedAsFreeBy User[]      @relation("FreeAutomation")
+  executions       Execution[]
+  aiChat           AIChat?
 }
 
 enum TriggerMode {
