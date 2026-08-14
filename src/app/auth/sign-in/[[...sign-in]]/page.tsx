@@ -1,20 +1,18 @@
-import { SignIn } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
-export default function SignInPage() {
-  return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <SignIn
-        routing="path"
-        path="/auth/sign-in"
-        fallbackRedirectUrl="/"
-        signUpUrl="/auth/sign-up"
-        appearance={{
-          elements: {
-            rootBox: "mx-auto",
-            card: "shadow-lg",
-          },
-        }}
-      />
-    </div>
-  );
+import { AuthScreen } from "@/components/auth/auth-screen";
+import { getSafeAuthRedirect } from "@/lib/auth-redirect";
+
+type SignInPageProps = {
+  searchParams: Promise<{ redirect_url?: string | string[] }>;
+};
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
+  const params = await searchParams;
+  const redirectUrl = getSafeAuthRedirect(params.redirect_url);
+
+  if (await currentUser()) redirect(redirectUrl);
+
+  return <AuthScreen mode="sign-in" redirectUrl={redirectUrl} />;
 }

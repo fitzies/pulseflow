@@ -1,14 +1,7 @@
 "use server";
 
-import webpush from "web-push";
 import { prisma, getOrCreateDbUser } from "@/lib/prisma";
 import { currentUser } from "@clerk/nextjs/server";
-
-webpush.setVapidDetails(
-  "mailto:notifications@pulseflow.app",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
 
 export async function subscribeUser(subscription: {
   endpoint: string;
@@ -17,7 +10,10 @@ export async function subscribeUser(subscription: {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+  const dbUser = await getOrCreateDbUser(
+    user.id,
+    user.emailAddresses[0]?.emailAddress,
+  );
 
   await prisma.pushSubscription.upsert({
     where: { endpoint: subscription.endpoint },
@@ -37,7 +33,10 @@ export async function unsubscribeUser(endpoint: string) {
   const user = await currentUser();
   if (!user) throw new Error("Unauthorized");
 
-  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+  const dbUser = await getOrCreateDbUser(
+    user.id,
+    user.emailAddresses[0]?.emailAddress,
+  );
 
   await prisma.pushSubscription.deleteMany({
     where: {
@@ -53,7 +52,10 @@ export async function getSubscriptionStatus() {
   const user = await currentUser();
   if (!user) return { subscribed: false };
 
-  const dbUser = await getOrCreateDbUser(user.id, user.emailAddresses[0]?.emailAddress);
+  const dbUser = await getOrCreateDbUser(
+    user.id,
+    user.emailAddresses[0]?.emailAddress,
+  );
 
   const count = await prisma.pushSubscription.count({
     where: { userId: dbUser.id },

@@ -8,9 +8,10 @@ export default function HomeNavWrapper({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isAutomationRoute = pathname?.startsWith("/automations");
+  const usesDedicatedNavigation =
+    pathname?.startsWith("/automations") || pathname?.startsWith("/auth");
 
-  if (isAutomationRoute) {
+  if (usesDedicatedNavigation) {
     return null;
   }
 

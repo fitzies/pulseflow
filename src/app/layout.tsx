@@ -33,15 +33,17 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider
+      signInUrl="/auth/sign-in"
+      signUpUrl="/auth/sign-up"
+      signInFallbackRedirectUrl="/automations"
+      signUpFallbackRedirectUrl="/automations"
       appearance={{
         baseTheme: shadcn,
         cssLayerName: "clerk",
       }}
     >
       <html lang="en" suppressHydrationWarning>
-        <body
-          className={`${dmSans.variable} font-sans antialiased`}
-        >
+        <body className={`${dmSans.variable} font-sans antialiased`}>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"

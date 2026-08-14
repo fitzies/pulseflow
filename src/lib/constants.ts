@@ -1,4 +1,4 @@
 export const AUTH_URLS = {
-  signIn: "https://accounts.pulseflow.co/sign-in",
-  signUp: "https://accounts.pulseflow.co/sign-up",
+  signIn: "/auth/sign-in",
+  signUp: "/auth/sign-up",
 } as const;
