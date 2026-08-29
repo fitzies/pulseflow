@@ -3,6 +3,10 @@ import { erc20ABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from './abis';
 import { getProvider } from './blockchain-functions';
 import { prisma } from './prisma';
 import { getWalletFromEncryptedKey } from './wallet-generation';
+import {
+  resolveLpRatioTokens,
+  type LpRatioAmountConfig,
+} from './lp-ratio-config';
 
 /**
  * Variable reference types for amount fields
@@ -11,8 +15,7 @@ export type AmountValue =
   | { type: 'static'; value: string } // User-entered value
   | { type: 'previousOutput'; field: string; percentage: number } // Use output from previous node
   | { type: 'currentBalance'; token: string; percentage: number } // Use current wallet balance
-  | { type: 'lpRatio'; baseTokenField: string; baseAmountField: string; pairedToken: string } // New: field reference for dynamic resolution
-  | { type: 'lpRatio'; baseToken: string; baseAmountField: string; pairedToken: string } // Legacy: stored token value (auto-fixed at runtime)
+  | LpRatioAmountConfig
   | { type: 'variable'; variableName: string }; // Reference a named variable from the flow
 
 /**
@@ -192,28 +195,9 @@ export async function resolveAmountWithNodeData(
     return 0n;
   }
 
-  // Determine token addresses - support both new (baseTokenField) and legacy (baseToken) formats
-  let baseToken: string;
-  
-  if ('baseTokenField' in amountConfig && amountConfig.baseTokenField) {
-    // New format: resolve field reference from nodeData
-    baseToken = nodeData[amountConfig.baseTokenField];
-    if (!baseToken) {
-      throw new Error(`LP ratio baseTokenField '${amountConfig.baseTokenField}' not found in nodeData`);
-    }
-  } else if ('baseToken' in amountConfig && amountConfig.baseToken) {
-    // Legacy format: auto-fix by using nodeData.token instead of stored value
-    // This fixes misconfigured automations where the token was changed after selecting LP Ratio
-    baseToken = nodeData.token || nodeData.tokenA || amountConfig.baseToken;
-  } else {
-    throw new Error('LP ratio config missing both baseTokenField and baseToken');
-  }
-  
-  const pairedToken = amountConfig.pairedToken === 'PLS' ? WPLS : amountConfig.pairedToken;
-
-  if (!baseToken || !pairedToken) {
-    throw new Error('LP ratio calculation requires both tokens to be specified');
-  }
+  const resolvedTokens = resolveLpRatioTokens(amountConfig, nodeData);
+  const baseToken = resolvedTokens.baseToken;
+  const pairedToken = resolvedTokens.pairedToken === 'PLS' ? WPLS : resolvedTokens.pairedToken;
 
   try {
     // Get pair address from factory

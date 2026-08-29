@@ -1,5 +1,6 @@
 import { prisma, withRetry } from '@/lib/prisma';
 import { getNextRunDate } from '@/lib/cron-utils.server';
+import { getAutomatedTriggerStateWhere } from '@/lib/automated-trigger-state';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     const dueAutomations = await withRetry(() =>
       prisma.automation.findMany({
         where: {
-          triggerMode: 'SCHEDULE',
+          ...getAutomatedTriggerStateWhere('scheduled'),
           nextRunAt: {
             lte: now,
           },
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
         prisma.automation.updateMany({
           where: {
             id: automation.id,
-            triggerMode: 'SCHEDULE',
+            ...getAutomatedTriggerStateWhere('scheduled'),
             cronExpression: automation.cronExpression,
             nextRunAt: {
               lte: now,

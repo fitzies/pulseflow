@@ -1,22 +1,14 @@
 import express from "express";
 import webpush from "web-push";
-import { CronExpressionParser } from "cron-parser";
 import type { Node, Edge } from "@xyflow/react";
 import { prisma } from "../src/lib/prisma";
 import { executeAutomationChain } from "../src/lib/automation-runner";
 import { findProNodesInDefinition, canUseProNodes, canUseAutomatedTriggers } from "../src/lib/plan-limits";
-
-// Inlined from cron-utils.server.ts (avoids 'server-only' guard)
-async function getNextRunDate(cronExpression: string, fromDate?: Date): Promise<Date | null> {
-  try {
-    const interval = CronExpressionParser.parse(cronExpression, {
-      currentDate: fromDate || new Date(),
-    });
-    return interval.next().toDate();
-  } catch {
-    return null;
-  }
-}
+import {
+  getAutomatedTriggerStateWhere,
+  isAutomatedTriggerEnabled,
+  type AutomatedTriggerType,
+} from "../src/lib/automated-trigger-state";
 
 // Inlined from push-notification.ts (avoids @/ alias dependency at runtime)
 webpush.setVapidDetails(
@@ -87,11 +79,11 @@ app.post("/run-automation", (req, res) => {
 
   const { automationId, type } = req.body as {
     automationId: string;
-    type: "scheduled" | "price_trigger";
+    type: AutomatedTriggerType;
   };
 
-  if (!automationId) {
-    res.status(400).json({ error: "automationId is required" });
+  if (!automationId || (type !== "scheduled" && type !== "price_trigger")) {
+    res.status(400).json({ error: "automationId and a valid trigger type are required" });
     return;
   }
 
@@ -106,7 +98,7 @@ app.post("/run-automation", (req, res) => {
 
 async function runAutomation(
   automationId: string,
-  type: "scheduled" | "price_trigger"
+  type: AutomatedTriggerType
 ) {
   const now = new Date();
   console.log(`[Worker] Starting automation ${automationId} (${type})`);
@@ -134,9 +126,8 @@ async function runAutomation(
       return;
     }
 
-    const expectedTriggerMode = type === "scheduled" ? "SCHEDULE" : "PRICE_TRIGGER";
-    if (automation.triggerMode !== expectedTriggerMode) {
-      console.log(`[Worker] Skipping ${automationId}: trigger mode no longer matches ${type}`);
+    if (!isAutomatedTriggerEnabled(automation, type)) {
+      console.log(`[Worker] Skipping ${automationId}: ${type} trigger is no longer enabled`);
       return;
     }
 
@@ -166,14 +157,48 @@ async function runAutomation(
       }
     }
 
-    const execution = await prisma.execution.create({
-      data: {
-        userId: automation.user.id,
-        automationId: automation.id,
-        status: "RUNNING",
-        wasScheduled: true,
-      },
+    const execution = await prisma.$transaction(async (tx) => {
+      // This write locks the automation row and checks its trigger state in the
+      // same transaction that creates the execution. A concurrent Stop either
+      // disables the trigger first, or waits and then cancels this execution.
+      const claim = await tx.automation.updateMany({
+        where: {
+          id: automation.id,
+          ...getAutomatedTriggerStateWhere(type),
+          executions: {
+            none: {
+              status: "RUNNING",
+            },
+          },
+          user: {
+            plan: {
+              in: ["PRO", "ULTRA"],
+            },
+          },
+        },
+        data: {
+          lastRunAt: now,
+        },
+      });
+
+      if (claim.count !== 1) {
+        return null;
+      }
+
+      return tx.execution.create({
+        data: {
+          userId: automation.user.id,
+          automationId: automation.id,
+          status: "RUNNING",
+          wasScheduled: true,
+        },
+      });
     });
+
+    if (!execution) {
+      console.log(`[Worker] Skipping ${automationId}: trigger was disabled or an execution is already running`);
+      return;
+    }
 
     try {
       await executeAutomationChain(
@@ -185,24 +210,44 @@ async function runAutomation(
         execution.id
       );
 
-      await prisma.execution.update({
-        where: { id: execution.id },
+      const completedExecution = await prisma.execution.updateMany({
+        where: {
+          id: execution.id,
+          status: "RUNNING",
+        },
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
         },
       });
 
-      if (automation.cronExpression) {
-        const nextRun = await getNextRunDate(automation.cronExpression);
-        await prisma.automation.update({
-          where: { id: automationId },
-          data: {
-            lastRunAt: now,
-            nextRunAt: nextRun,
-          },
+      if (completedExecution.count !== 1) {
+        const currentExecution = await prisma.execution.findUnique({
+          where: { id: execution.id },
+          select: { status: true },
         });
+
+        if (currentExecution?.status === "CANCELLED") {
+          await sendExecutionNotification(
+            automation.user.id,
+            automation.name,
+            "CANCELLED",
+            execution.id
+          );
+          console.log(`[Worker] Automation ${automationId} was cancelled`);
+          return;
+        }
+
+        throw new Error(`Execution ${execution.id} left RUNNING state before completion`);
       }
+
+      await prisma.automation.updateMany({
+        where: {
+          id: automationId,
+          ...getAutomatedTriggerStateWhere(type),
+        },
+        data: { lastRunAt: new Date() },
+      });
 
       await sendExecutionNotification(
         automation.user.id,
@@ -218,29 +263,32 @@ async function runAutomation(
           ? executionError.message
           : "Unknown execution error";
 
-      const isCancelled = errorMessage === "Execution cancelled by user";
+      const failedExecution = await prisma.execution.updateMany({
+        where: {
+          id: execution.id,
+          status: "RUNNING",
+        },
+        data: {
+          status: "FAILED",
+          error: errorMessage,
+          finishedAt: new Date(),
+        },
+      });
+      const currentExecution = failedExecution.count === 0
+        ? await prisma.execution.findUnique({
+            where: { id: execution.id },
+            select: { status: true },
+          })
+        : null;
+      const isCancelled = currentExecution?.status === "CANCELLED";
 
-      if (!isCancelled) {
-        await prisma.execution.update({
-          where: { id: execution.id },
-          data: {
-            status: "FAILED",
-            error: errorMessage,
-            finishedAt: new Date(),
-          },
-        });
-      }
-
-      if (automation.cronExpression) {
-        const nextRun = await getNextRunDate(automation.cronExpression);
-        await prisma.automation.update({
-          where: { id: automationId },
-          data: {
-            lastRunAt: now,
-            nextRunAt: nextRun,
-          },
-        });
-      }
+      await prisma.automation.updateMany({
+        where: {
+          id: automationId,
+          ...getAutomatedTriggerStateWhere(type),
+        },
+        data: { lastRunAt: new Date() },
+      });
 
       await sendExecutionNotification(
         automation.user.id,

@@ -15,6 +15,8 @@ import { CONFIG } from "./config";
 import { executePulseXSmartSwap, executePulseXSmartSwapToPLS, findBestPath } from "./pulsex-smart-router";
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
+import { assertLpRatioMatchesAddLiquidityPair } from "./lp-ratio-config";
+import { addFeeOnTransferInputBuffer, isFeeOnTransferWrapperFailure, isKnownFeeOnTransferToken } from "./fee-on-transfer";
 
 // WPLS address for price calculations
 const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
@@ -446,15 +448,59 @@ export async function swapTokensForPLS(
   path: string[],
   to: string,
   deadline: bigint,
-  contractAddress?: string
+  contractAddress?: string,
+  routerAddress: string = PulseXRouter,
+  routerABI: readonly any[] = pulsexRouterABI,
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
   const contract = getAutomationContract(wallet, contractAddress);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+
+  const swapWithFeeOnTransferSupport = async (): Promise<ContractTransactionReceipt> => {
+    if (path.length === 0) {
+      throw new Error("Token path must contain an input token");
+    }
+
+    const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
+    const balance: bigint = await tokenContract.balanceOf(wallet.address);
+    if (balance < amountIn) {
+      throw new Error("Wallet has insufficient input-token balance for this swap");
+    }
+
+    const allowance: bigint = await tokenContract.allowance(
+      wallet.address,
+      routerAddress,
+    );
+
+    if (allowance < amountIn) {
+      const approveTx = await tokenContract.approve(routerAddress, MaxUint256);
+      await approveTx.wait();
+    }
+
+    const router = new Contract(routerAddress, routerABI, connectedWallet);
+    const tx: ContractTransactionResponse =
+      await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        amountIn,
+        amountOutMin,
+        path,
+        to,
+        deadline,
+      );
+
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error("Transaction receipt is null");
+    }
+    return receipt as ContractTransactionReceipt;
+  };
+
+  if (path.length > 0 && isKnownFeeOnTransferToken(path[0])) {
+    return swapWithFeeOnTransferSupport();
+  }
 
   // Approve input token if needed (first token in path)
   if (path.length > 0) {
-    const provider = getProvider();
-    const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
     const tokenContract = new Contract(path[0], erc20ABI, connectedWallet);
     const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;
 
@@ -466,13 +512,21 @@ export async function swapTokensForPLS(
     }
   }
 
-  const tx: ContractTransactionResponse = await contract.swapExactTokensForPLS(
-    amountIn,
-    amountOutMin,
-    path,
-    to,
-    deadline
-  );
+  let tx: ContractTransactionResponse;
+  try {
+    tx = await contract.swapExactTokensForPLS(
+      amountIn,
+      amountOutMin,
+      path,
+      to,
+      deadline
+    );
+  } catch (error) {
+    if (isFeeOnTransferWrapperFailure(error)) {
+      return swapWithFeeOnTransferSupport();
+    }
+    throw error;
+  }
 
   const receipt = await tx.wait();
   if (!receipt) {
@@ -969,6 +1023,33 @@ async function extractSwapOutput(
   const txHash = receipt.hash;
 
   try {
+    if (tokenOut.toLowerCase() === WPLS_ADDRESS.toLowerCase()) {
+      const wplsInterface = new Contract(WPLS_ADDRESS, [
+        "event Withdrawal(address indexed src, uint256 wad)",
+      ], provider).interface;
+      let amountOut = 0n;
+
+      for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== WPLS_ADDRESS.toLowerCase()) continue;
+
+        try {
+          const parsed = wplsInterface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+          if (parsed?.name === "Withdrawal") {
+            amountOut = parsed.args.wad as bigint;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (amountOut > 0n) {
+        return { amountOut, tokenOut, gasPrice, gasUsed, txHash };
+      }
+    }
+
     // Use ERC20 Transfer event to detect output amount
     // Transfer event: Transfer(address indexed from, address indexed to, uint256 value)
     const erc20Interface = new Contract(tokenOut, erc20ABI, provider).interface;
@@ -1544,6 +1625,10 @@ export async function executeNode(
 
         return { result: receiptAddLP, context: updatedContextAddLP };
       } else {
+        // Do not quote one pair and submit liquidity for another. This also
+        // resolves legacy copied paired-token addresses against current tokenB.
+        assertLpRatioMatchesAddLiquidityPair(nodeData.amountBDesired, nodeData);
+
         const amountADesired = await resolveAmountField('amountADesired', nodeData, context, automationId, nodeType);
         // Calculate amountBDesired using quote if only amountA is provided
         let amountBDesired = await resolveAmountField('amountBDesired', nodeData, context, automationId, nodeType);
@@ -1696,29 +1781,53 @@ export async function executeNode(
         const swapModeAuto = nodeData.swapMode || 'exactIn';
         let amountInAuto: bigint;
         let amountOutMinOverride: bigint | undefined;
+        let bestPathAuto: Awaited<ReturnType<typeof findBestPath>> | undefined;
 
         if (swapModeAuto === 'exactOut') {
           const plsAmountOut = await resolveAmountField('plsAmountOut', nodeData, context, automationId, nodeType);
           const bestPath = await findBestPath(tokenInAuto, WPLS, 10n ** 18n);
+          bestPathAuto = bestPath;
           const routerContract = new Contract(PulseXRouter, pulsexRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(plsAmountOut, bestPath.path);
-          const calculatedAmountIn = amountsIn[0];
+          const calculatedAmountIn = addFeeOnTransferInputBuffer(
+            amountsIn[0],
+            tokenInAuto,
+          );
           amountInAuto = (calculatedAmountIn * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
           amountOutMinOverride = plsAmountOut;
         } else {
           amountInAuto = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
         }
 
-        const receiptAutoToPLS = await executePulseXSmartSwapToPLS(
-          automationId,
-          tokenInAuto,
-          amountInAuto,
-          slippage,
-          to,
-          getWalletFromAutomation,
-          getProvider,
-          amountOutMinOverride,
-        );
+        let receiptAutoToPLS: ContractTransactionReceipt;
+        if (isKnownFeeOnTransferToken(tokenInAuto)) {
+          const bestPath = bestPathAuto ?? await findBestPath(tokenInAuto, WPLS, amountInAuto);
+          const amountOutMin = amountOutMinOverride ??
+            (bestPath.amountOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+
+          receiptAutoToPLS = await swapTokensForPLS(
+            automationId,
+            amountInAuto,
+            amountOutMin,
+            bestPath.path,
+            to,
+            deadline,
+            AUTOMATION_CONTRACT_ADDRESS,
+            PulseXRouter,
+            pulsexRouterABI,
+          );
+        } else {
+          receiptAutoToPLS = await executePulseXSmartSwapToPLS(
+            automationId,
+            tokenInAuto,
+            amountInAuto,
+            slippage,
+            to,
+            getWalletFromAutomation,
+            getProvider,
+            amountOutMinOverride,
+          );
+        }
         const outputAutoToPLS = await extractPiteasSwapOutput(receiptAutoToPLS, "PLS", provider, to);
         const updatedContextAutoToPLS = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAutoToPLS);
         return { result: receiptAutoToPLS, context: updatedContextAutoToPLS };
@@ -1742,7 +1851,10 @@ export async function executeNode(
         if (pathSwapToPLS.length > 0 && plsAmountOut > 0n) {
           const routerContract = new Contract(toPLSRouter, toPLSRouterABI, provider);
           const amountsIn = await routerContract.getAmountsIn(plsAmountOut, pathSwapToPLS);
-          const calculatedAmountIn = amountsIn[0];
+          const calculatedAmountIn = addFeeOnTransferInputBuffer(
+            amountsIn[0],
+            pathSwapToPLS[0],
+          );
           // Apply slippage: amountIn = calculatedAmountIn * (1 + slippage) - user willing to spend up to this
           amountInSwapToPLS = (calculatedAmountIn * BigInt(Math.floor((1 + slippage) * 10000))) / 10000n;
           // amountOutMin is the user's desired PLS output
@@ -1771,7 +1883,9 @@ export async function executeNode(
         pathSwapToPLS,
         to,
         deadline,
-        contractAddress || toPLSContract
+        contractAddress || toPLSContract,
+        toPLSRouter,
+        toPLSRouterABI,
       );
 
       // Extract output

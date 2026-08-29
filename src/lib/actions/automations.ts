@@ -241,14 +241,28 @@ export async function runAutomation(automationId: string) {
         execution.id
       );
 
-      // Update execution status to SUCCESS
-      await prisma.execution.update({
-        where: { id: execution.id },
+      const completedExecution = await prisma.execution.updateMany({
+        where: { id: execution.id, status: "RUNNING" },
         data: {
           status: "SUCCESS",
           finishedAt: new Date(),
         },
       });
+
+      if (completedExecution.count !== 1) {
+        const currentExecution = await prisma.execution.findUnique({
+          where: { id: execution.id },
+          select: { status: true },
+        });
+        if (currentExecution?.status === "CANCELLED") {
+          return {
+            success: false,
+            error: "Execution cancelled by user",
+            executionId: execution.id,
+          };
+        }
+        throw new Error(`Execution ${execution.id} left RUNNING state before completion`);
+      }
 
       return {
         success: true,
@@ -261,14 +275,28 @@ export async function runAutomation(automationId: string) {
         ? executionError.message
         : "Unknown execution error";
 
-      await prisma.execution.update({
-        where: { id: execution.id },
+      const failedExecution = await prisma.execution.updateMany({
+        where: { id: execution.id, status: "RUNNING" },
         data: {
           status: "FAILED",
           error: errorMessage,
           finishedAt: new Date(),
         },
       });
+
+      if (failedExecution.count === 0) {
+        const currentExecution = await prisma.execution.findUnique({
+          where: { id: execution.id },
+          select: { status: true },
+        });
+        if (currentExecution?.status === "CANCELLED") {
+          return {
+            success: false,
+            error: "Execution cancelled by user",
+            executionId: execution.id,
+          };
+        }
+      }
 
       return {
         success: false,

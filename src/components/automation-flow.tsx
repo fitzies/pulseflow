@@ -907,7 +907,6 @@ export function AutomationFlow({
     setStopDialogOpen(false);
 
     try {
-      // Call the stop endpoint to cancel the execution
       const response = await fetch(`/api/automations/${automationId}/stop`, {
         method: 'POST',
       });
@@ -918,17 +917,37 @@ export function AutomationFlow({
         return;
       }
 
-      // Abort the stream reader
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      const result = await response.json() as {
+        triggerDisabled: boolean;
+        cancelledExecutionCount: number;
+      };
+
+      if (result.triggerDisabled) {
+        setTriggerMode('MANUAL');
+        setCronExpression(null);
+        setNextRunAt(null);
       }
 
-      toast.info('Stopping automation...');
+      if (result.cancelledExecutionCount > 0) {
+        setIsRunning(false);
+        setActiveExecutionId(null);
+        abortControllerRef.current?.abort();
+      }
+
+      if (result.triggerDisabled && result.cancelledExecutionCount > 0) {
+        toast.info('Automatic runs disabled and current run cancelled');
+      } else if (result.triggerDisabled) {
+        toast.info('Automatic runs disabled');
+      } else if (result.cancelledExecutionCount > 0) {
+        toast.info('Stopping current run...');
+      } else {
+        toast.info('Automation is already stopped');
+      }
     } catch (error) {
       console.error('Error stopping automation:', error);
       toast.error('Failed to stop automation');
     }
-  }, [automationId]);
+  }, [automationId, triggerMode]);
 
   const lastNodeIds = useMemo(() => {
     // Find ALL nodes that have no outgoing edges (supports branching with multiple terminal nodes)
@@ -1170,7 +1189,9 @@ export function AutomationFlow({
           <AlertDialogHeader>
             <AlertDialogTitle>Stop Automation</AlertDialogTitle>
             <AlertDialogDescription>
-              This will stop the automation after the current node finishes. Already executed transactions cannot be undone.
+              {triggerMode !== 'MANUAL'
+                ? 'This disables future automatic runs and cancels any current run after its active node finishes. Already executed transactions cannot be undone.'
+                : 'This cancels the current run after its active node finishes. Already executed transactions cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1216,7 +1237,8 @@ export function AutomationFlow({
           <Button
             variant="ghost"
             size="icon"
-            disabled={!isRunning}
+            aria-label={triggerMode !== 'MANUAL' ? 'Disable automatic runs' : 'Stop automation'}
+            disabled={!isRunning && triggerMode === 'MANUAL'}
             onClick={() => setStopDialogOpen(true)}
             className="rounded-full h-10 w-10 text-destructive hover:text-destructive"
           >

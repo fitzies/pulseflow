@@ -17,6 +17,11 @@ import type { AmountValue } from '@/lib/execution-context';
 import { getNumericOutputFields } from '@/lib/node-outputs';
 import { WPLS } from '@/lib/abis';
 import type { Node } from '@xyflow/react';
+import {
+  hasCurrentLpRatioFieldReferences,
+  normalizeLpRatioFieldReferences,
+  type LpRatioFieldConfig,
+} from '@/lib/lp-ratio-config';
 
 interface LpQuoteState {
   loading: boolean;
@@ -40,12 +45,7 @@ interface AmountSelectorProps {
   formData?: Record<string, any>; // Full form data (to access path for swap nodes)
   isPLSAmount?: boolean; // Whether this is a PLS amount field
   // For LP ratio calculation
-  lpRatioConfig?: {
-    baseTokenField: string; // e.g., 'tokenA'
-    baseAmountField: string; // e.g., 'amountADesired'
-    pairedTokenField: string; // e.g., 'tokenB' or 'token' for PLS
-    isPLS?: boolean; // If pairing with PLS
-  };
+  lpRatioConfig?: LpRatioFieldConfig;
   // All nodes in the flow (for extracting variables)
   nodes?: Node[];
 }
@@ -150,6 +150,20 @@ export function AmountSelector({
     quotedAmount: null,
   });
 
+  // Upgrade legacy copied token addresses to field references as soon as the
+  // config is opened. Future token changes then resolve against current data.
+  useEffect(() => {
+    if (
+      normalizedValue.type !== 'lpRatio' ||
+      !lpRatioConfig ||
+      hasCurrentLpRatioFieldReferences(normalizedValue, lpRatioConfig)
+    ) {
+      return;
+    }
+
+    onChange(normalizeLpRatioFieldReferences(normalizedValue, lpRatioConfig));
+  }, [normalizedValue, lpRatioConfig, onChange]);
+
   // Extract base amount value from config
   const getBaseAmountValue = useCallback((): string | null => {
     if (!lpRatioConfig || !formData) return null;
@@ -229,13 +243,13 @@ export function AmountSelector({
       if (baseAmountIsLpRatio) {
         return;
       }
-      // Store field REFERENCES - will be resolved dynamically at execution time
-      onChange({
-        type: 'lpRatio',
-        baseTokenField: lpRatioConfig.baseTokenField, // Field name, not value! Resolved at execution time
-        baseAmountField: lpRatioConfig.baseAmountField, // Field name, not value!
-        pairedToken: lpRatioConfig.isPLS ? 'PLS' : (formData[lpRatioConfig.pairedTokenField] || ''),
-      });
+      onChange(normalizeLpRatioFieldReferences(
+        {
+          type: 'lpRatio',
+          baseAmountField: lpRatioConfig.baseAmountField,
+        },
+        lpRatioConfig
+      ));
     } else if (mode === 'previousOutput') {
       // Use numeric fields only
       const defaultField = availableFields[0] || 'amountOut';
