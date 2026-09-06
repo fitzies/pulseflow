@@ -514,12 +514,25 @@ export async function swapTokensForPLS(
 
   let tx: ContractTransactionResponse;
   try {
-    tx = await contract.swapExactTokensForPLS(
+    const estimatedGas = await contract.swapExactTokensForPLS.estimateGas(
       amountIn,
       amountOutMin,
       path,
       to,
       deadline
+    );
+    // Leave room for state changes before mining and the final WPLS unwrap.
+    // A 368,900 estimate exhausted gas there; 500,000 passed the failed-block replay.
+    const bufferedGas = (estimatedGas * 130n + 99n) / 100n;
+    const gasLimit = bufferedGas > 500_000n ? bufferedGas : 500_000n;
+
+    tx = await contract.swapExactTokensForPLS(
+      amountIn,
+      amountOutMin,
+      path,
+      to,
+      deadline,
+      { gasLimit }
     );
   } catch (error) {
     if (isFeeOnTransferWrapperFailure(error)) {
