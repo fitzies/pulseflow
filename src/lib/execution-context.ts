@@ -1,4 +1,4 @@
-import { Contract, parseEther } from 'ethers';
+import { Contract, parseUnits } from 'ethers';
 import { erc20ABI, pairABI, pulsexRouterABI, PulseXRouter, WPLS } from './abis';
 import { getProvider } from './blockchain-functions';
 import { prisma } from './prisma';
@@ -87,7 +87,8 @@ export function resolveForEachAddresses(
 export async function resolveAmount(
   amountConfig: AmountValue | string | undefined,
   context: ExecutionContext,
-  automationId: string
+  automationId: string,
+  decimals = 18,
 ): Promise<bigint> {
   // Handle legacy string values (backward compatibility)
   if (typeof amountConfig === 'string') {
@@ -102,13 +103,10 @@ export async function resolveAmount(
   // Handle static values
   if (amountConfig.type === 'static') {
     const value = amountConfig.value || '0';
-    // Convert human-readable amount (e.g., "1.5") to wei
-    try {
-      return parseEther(value);
-    } catch {
-      // If parseEther fails, try parsing as bigint directly (for legacy wei values)
-      return BigInt(value || '0');
-    }
+    // Only static amounts are human-readable. Other sources already use raw units.
+    const amount = parseUnits(value, decimals);
+    if (amount < 0n) throw new Error('Amount cannot be negative');
+    return amount;
   }
 
   // Handle previous output
@@ -157,14 +155,27 @@ export async function resolveAmount(
   throw new Error(`Unknown amount config type: ${(amountConfig as any).type}`);
 }
 
-/**
- * Resolve an amount value that may be lpRatio type (requires nodeData context)
- */
+export interface AmountResolutionOptions {
+  token?: string;
+  readDecimals?: (token: string) => Promise<number>;
+}
+
+async function readTokenDecimals(token: string): Promise<number> {
+  const contract = new Contract(token, ['function decimals() view returns (uint8)'], getProvider());
+  try {
+    return Number(await contract.decimals());
+  } catch {
+    throw new Error(`Cannot read decimals for token ${token}. Please retry.`);
+  }
+}
+
+/** Resolve static token amounts and LP ratios without rescaling raw outputs. */
 export async function resolveAmountWithNodeData(
   amountConfig: AmountValue | string | undefined,
   nodeData: Record<string, any>,
   context: ExecutionContext,
-  automationId: string
+  automationId: string,
+  options: AmountResolutionOptions = {},
 ): Promise<bigint> {
   // Handle non-lpRatio types with standard resolver
   if (!amountConfig || typeof amountConfig === 'string') {
@@ -172,7 +183,10 @@ export async function resolveAmountWithNodeData(
   }
 
   if (amountConfig.type !== 'lpRatio' && amountConfig.type !== 'variable') {
-    return resolveAmount(amountConfig, context, automationId);
+    const decimals = amountConfig.type === 'static' && options.token && options.token !== 'PLS'
+      ? await (options.readDecimals ?? readTokenDecimals)(options.token)
+      : 18;
+    return resolveAmount(amountConfig, context, automationId, decimals);
   }
 
   // Handle variable type
@@ -189,15 +203,21 @@ export async function resolveAmountWithNodeData(
     throw new Error(`LP ratio base amount field '${amountConfig.baseAmountField}' not found in nodeData`);
   }
 
-  // Recursively resolve (but baseAmountConfig shouldn't be lpRatio to avoid circular)
-  const baseAmount = await resolveAmountWithNodeData(baseAmountConfig, nodeData, context, automationId);
+  if (baseAmountConfig.type === 'lpRatio') {
+    throw new Error('LP ratio base amount cannot reference another LP ratio');
+  }
+  const resolvedTokens = resolveLpRatioTokens(amountConfig, nodeData);
+  const baseToken = resolvedTokens.baseToken === 'PLS' ? WPLS : resolvedTokens.baseToken;
+  const pairedToken = resolvedTokens.pairedToken === 'PLS' ? WPLS : resolvedTokens.pairedToken;
+  const isBackwardsConfig = pairedToken.toLowerCase() === WPLS.toLowerCase()
+    && amountConfig.baseAmountField.toLowerCase().includes('pls');
+  const baseAmount = await resolveAmountWithNodeData(baseAmountConfig, nodeData, context, automationId, {
+    ...options,
+    token: isBackwardsConfig ? 'PLS' : baseToken,
+  });
   if (baseAmount === 0n) {
     return 0n;
   }
-
-  const resolvedTokens = resolveLpRatioTokens(amountConfig, nodeData);
-  const baseToken = resolvedTokens.baseToken;
-  const pairedToken = resolvedTokens.pairedToken === 'PLS' ? WPLS : resolvedTokens.pairedToken;
 
   try {
     // Get pair address from factory
@@ -229,12 +249,6 @@ export async function resolveAmountWithNodeData(
     // When pairedToken is PLS/WPLS and baseAmountField references a PLS amount field,
     // the user actually wants to calculate token amount FROM PLS amount.
     // In this case baseToken points to the token but baseAmount is in PLS units.
-    const isPLSPair = pairedToken.toLowerCase() === WPLS.toLowerCase();
-    const baseAmountFieldLower = amountConfig.baseAmountField?.toLowerCase() || '';
-    const isBackwardsConfig = isPLSPair && (
-      baseAmountFieldLower.includes('pls') || 
-      baseAmountFieldLower === 'plsamount'
-    );
     
     // For backwards config: user knows PLS amount, wants token amount
     // Formula: tokenAmount = plsAmount * reserveToken / reservePLS

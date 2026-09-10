@@ -12,6 +12,7 @@ import { prisma } from "./prisma";
 import { getWalletFromEncryptedKey } from "./wallet-generation";
 import { erc20ABI, playgroundTokenABI, pairABI, pulsexRouterABI, nineMMRouter, PulseXRouter, NineMMRouterAddress, WPLS } from "./abis";
 import { CONFIG } from "./config";
+import { getAmountToken } from "./amount-token";
 import { executePulseXSmartSwap, executePulseXSmartSwapToPLS, findBestPath } from "./pulsex-smart-router";
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
@@ -1002,8 +1003,15 @@ async function resolveAmountField(
     }
   }
 
-  // Use resolveAmountWithNodeData to support lpRatio field references
-  return resolveAmountWithNodeData(amountConfig, nodeData, context, automationId);
+  // Select units only for user-entered amounts; balances and variables are raw.
+  let token = amountConfig?.type === 'static'
+    ? getAmountToken(field, nodeData, nodeType)
+    : undefined;
+  if (token && (nodeType === 'burn' || nodeType === 'burnToken')) {
+    // Burning playground tokens consumes the entered amount of the parent token.
+    token = await new Contract(token, playgroundTokenABI, getProvider()).parent();
+  }
+  return resolveAmountWithNodeData(amountConfig, nodeData, context, automationId, { token });
 }
 
 /**
