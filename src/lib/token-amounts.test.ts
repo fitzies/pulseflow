@@ -39,6 +39,8 @@ test('input, output, auto-route, transfer and quote fields select the appropriat
     ['amountIn', { autoRoute: true, tokenIn: HEX }, 'swap', 8],
     ['amountIn', { autoRoute: true, usePLS: true }, 'swap', 18],
     ['amountOut', { path: [CONFIG.wpls, HEX] }, 'swapFromPLS', 8],
+    ['amountOut', { autoRoute: true, tokenIn: TWO_PLS, tokenOut: HEX }, 'swap', 8],
+    ['amountOut', { autoRoute: true, tokenOut: HEX }, 'swapFromPLS', 8],
     ['plsAmountOut', { path: [HEX, CONFIG.wpls] }, 'swapToPLS', 18],
     ['amount', { token: EHEX }, 'transfer', 8],
     ['amount', { path: [TWO_PLS, HEX], quoteMode: 'amountsIn' }, 'dexQuote', 8],

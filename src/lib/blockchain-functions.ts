@@ -1250,7 +1250,9 @@ async function extractPiteasSwapOutput(
 }
 
 /**
- * Try PulseX SmartRouter first (no rate limit), fall back to Piteas on failure.
+ * Try PulseX SmartRouter first, with Piteas fallback for Amount In swaps.
+ * The Piteas integration only supports input amounts and cannot preserve an
+ * explicit output minimum, so Amount Out failures must propagate.
  */
 async function executeAutoRouteSwap(
   automationId: string,
@@ -1259,13 +1261,15 @@ async function executeAutoRouteSwap(
   amount: bigint,
   slippage: number,
   to: string,
+  swapMode: "exactIn" | "exactOut" = "exactIn",
 ): Promise<ContractTransactionReceipt> {
   try {
     return await executePulseXSmartSwap(
       automationId, tokenIn, tokenOut, amount, slippage, to,
-      getWalletFromAutomation, getProvider,
+      getWalletFromAutomation, getProvider, swapMode,
     );
   } catch (error) {
+    if (swapMode === "exactOut") throw error;
     console.warn(`PulseX smart routing failed, falling back to Piteas: ${error}`);
     return executePiteasSwap(automationId, tokenIn, tokenOut, amount, slippage, to);
   }
@@ -1524,11 +1528,12 @@ export async function executeNode(
   switch (nodeType) {
     case "swap": {
       if (nodeData.autoRoute) {
-        const amountIn = await resolveAmountField('amountIn', nodeData, context, automationId, nodeType);
+        const swapMode = nodeData.swapMode === 'exactOut' ? 'exactOut' : 'exactIn';
+        const amount = await resolveAmountField(swapMode === 'exactOut' ? 'amountOut' : 'amountIn', nodeData, context, automationId, nodeType);
         const tokenIn = nodeData.tokenIn || (nodeData.usePLS ? "PLS" : "");
         const tokenOut = nodeData.tokenOut || "";
         if (!tokenIn || !tokenOut) throw new Error("Auto-route requires tokenIn and tokenOut addresses");
-        const receipt = await executeAutoRouteSwap(automationId, tokenIn, tokenOut, amountIn, slippage, to);
+        const receipt = await executeAutoRouteSwap(automationId, tokenIn, tokenOut, amount, slippage, to, swapMode);
         const output = await extractPiteasSwapOutput(receipt, tokenOut, provider, to);
         const updatedContext = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, output);
         return { result: receipt, context: updatedContext };
@@ -1729,10 +1734,11 @@ export async function executeNode(
     case "swapFromPLS":
     case "swapPLS": { // Keep for backward compatibility
       if (nodeData.autoRoute) {
-        const plsAmountAuto = await resolveAmountField('plsAmount', nodeData, context, automationId, nodeType);
+        const swapModeAuto = nodeData.swapMode === 'exactOut' ? 'exactOut' : 'exactIn';
+        const amountAuto = await resolveAmountField(swapModeAuto === 'exactOut' ? 'amountOut' : 'plsAmount', nodeData, context, automationId, nodeType);
         const tokenOutAuto = nodeData.tokenOut || "";
         if (!tokenOutAuto) throw new Error("Auto-route requires a tokenOut address");
-        const receiptAuto = await executeAutoRouteSwap(automationId, "PLS", tokenOutAuto, plsAmountAuto, slippage, to);
+        const receiptAuto = await executeAutoRouteSwap(automationId, "PLS", tokenOutAuto, amountAuto, slippage, to, swapModeAuto);
         const outputAuto = await extractPiteasSwapOutput(receiptAuto, tokenOutAuto, provider, to);
         const updatedContextAuto = updateContextWithOutput(context, nodeData.nodeId || 'unknown', nodeType, outputAuto);
         return { result: receiptAuto, context: updatedContextAuto };

@@ -24,6 +24,7 @@ const PAIR_ABI = [
 ];
 const ROUTER_V2_ABI = [
   "function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)",
+  "function getAmountsIn(uint256 amountOut, address[] path) view returns (uint256[] amounts)",
 ];
 
 const BASE_TOKENS = [
@@ -53,17 +54,20 @@ async function pairExists(
 interface CandidatePath {
   path: string[];
   amountOut: bigint;
+  amountIn: bigint;
 }
 
 /**
- * Build candidate paths and find the one with the best output.
+ * Build candidate paths and select the best quote for the requested swap mode.
  * Checks direct pair + 2-hop routes via each base token.
  */
 export async function findBestPath(
   tokenIn: string,
   tokenOut: string,
-  amountIn: bigint,
+  amount: bigint,
+  swapMode: "exactIn" | "exactOut" = "exactIn",
 ): Promise<CandidatePath> {
+  if (amount <= 0n) throw new Error("Swap amount must be greater than zero");
   const provider = getSmartRouterProvider();
   const factoryV2 = new Contract(PULSEX_FACTORY_V2, FACTORY_ABI, provider);
   const router = new Contract(CONFIG.pulseXRouter, ROUTER_V2_ABI, provider);
@@ -103,18 +107,23 @@ export async function findBestPath(
   const quotes = await Promise.all(
     validPaths.map(async (path) => {
       try {
-        const amounts: bigint[] = await router.getAmountsOut(amountIn, path);
-        return { path, amountOut: amounts[amounts.length - 1] };
+        const amounts: bigint[] = swapMode === "exactOut"
+          ? await router.getAmountsIn(amount, path)
+          : await router.getAmountsOut(amount, path);
+        return { path, amountIn: amounts[0], amountOut: amounts[amounts.length - 1] };
       } catch {
-        return { path, amountOut: 0n };
+        return { path, amountIn: 0n, amountOut: 0n };
       }
     }),
   );
 
-  const best = quotes.reduce((a, b) => (b.amountOut > a.amountOut ? b : a));
-  if (best.amountOut === 0n) {
-    throw new Error("All PulseX V2 routes returned zero output");
+  const usableQuotes = quotes.filter(quote => quote.amountIn > 0n && quote.amountOut > 0n);
+  if (usableQuotes.length === 0) {
+    throw new Error("No PulseX V2 route could quote the requested amount");
   }
+  const best = usableQuotes.reduce((a, b) => swapMode === "exactOut"
+    ? (b.amountIn < a.amountIn ? b : a)
+    : (b.amountOut > a.amountOut ? b : a));
 
   return best;
 }
@@ -133,7 +142,11 @@ export async function executePulseXSmartSwap(
   to: string,
   getWallet: (id: string) => Promise<Wallet>,
   getEthersProvider: () => JsonRpcProvider,
+  swapMode: "exactIn" | "exactOut" = "exactIn",
 ): Promise<ContractTransactionReceipt> {
+  if (!Number.isFinite(slippage) || slippage < 0 || slippage >= 1) {
+    throw new Error("Slippage must be between 0 and 1");
+  }
   const wallet = await getWallet(automationId);
   const provider = getEthersProvider();
   const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
@@ -143,10 +156,15 @@ export async function executePulseXSmartSwap(
   const tokenOutAddr =
     tokenOut.toUpperCase() === "PLS" ? WPLS_ADDRESS : tokenOut;
 
-  const best = await findBestPath(tokenInAddr, tokenOutAddr, amount);
-
-  const amountOutMin =
-    (best.amountOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
+  const best = await findBestPath(tokenInAddr, tokenOutAddr, amount, swapMode);
+  // Match manual Amount Out swaps: spend the buffered input and enforce the
+  // requested output as an on-chain minimum. Round input up to avoid underfunding.
+  const amountIn = swapMode === "exactOut"
+    ? (best.amountIn * BigInt(10000 + Math.round(slippage * 10000)) + 9999n) / 10000n
+    : amount;
+  const amountOutMin = swapMode === "exactOut"
+    ? amount
+    : (best.amountOut * BigInt(Math.floor((1 - slippage) * 10000))) / 10000n;
 
   // Approve input token to Smart Router
   if (tokenIn.toUpperCase() !== "PLS") {
@@ -155,7 +173,7 @@ export async function executePulseXSmartSwap(
       wallet.address,
       PULSEX_SWAP_ROUTER,
     );
-    if (allowance < amount) {
+    if (allowance < amountIn) {
       const approveTx = await tokenContract.approve(
         PULSEX_SWAP_ROUTER,
         MaxUint256,
@@ -174,15 +192,15 @@ export async function executePulseXSmartSwap(
   if (tokenIn.toUpperCase() === "PLS") {
     // Native PLS → token: use swapExactTokensForTokensV2 via WPLS path, send value
     tx = await smartRouter.swapExactTokensForTokensV2(
-      amount,
+      amountIn,
       amountOutMin,
       best.path,
       to,
-      { value: amount },
+      { value: amountIn },
     );
   } else {
     tx = await smartRouter.swapExactTokensForTokensV2(
-      amount,
+      amountIn,
       amountOutMin,
       best.path,
       to,
