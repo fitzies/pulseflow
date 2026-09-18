@@ -17,7 +17,7 @@ import { executePulseXSmartSwap, executePulseXSmartSwapToPLS, findBestPath } fro
 import type { ExecutionContext, AmountValue } from "./execution-context";
 import { resolveAmount, resolveAmountWithNodeData, extractNodeOutput, updateContextWithOutput, setVariable, evaluateExpression } from "./execution-context";
 import { assertLpRatioMatchesAddLiquidityPair } from "./lp-ratio-config";
-import { addFeeOnTransferInputBuffer, isFeeOnTransferWrapperFailure, isKnownFeeOnTransferToken } from "./fee-on-transfer";
+import { addFeeOnTransferInputBuffer, applyFeeOnTransferOutput, isFeeOnTransferWrapperFailure, isKnownFeeOnTransferToken } from "./fee-on-transfer";
 
 // WPLS address for price calculations
 const WPLS_ADDRESS = "0xA1077a294dDE1B09bB078844df40758a5D0f9a27";
@@ -551,6 +551,14 @@ export async function swapTokensForPLS(
 
 /**
  * Executes add liquidity operation
+ *
+ * For fee-on-transfer tokens the automation wrapper cannot be used: it pulls
+ * the exact desired amount and forwards the exact amount to the router, but
+ * the transfer tax means it always receives less and the router pull reverts.
+ * In that case the wallet deposits straight into the PulseX router, which
+ * mints LP from the pair's actual balances. amountADesired/amountBDesired and
+ * the minimums are net-of-tax targets; sent amounts are grossed up so the
+ * pair receives exactly the desired liquidity.
  */
 export async function addLiquidity(
   automationId: string,
@@ -565,11 +573,72 @@ export async function addLiquidity(
   contractAddress?: string
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+
+  const feeOnTransfer = isKnownFeeOnTransferToken(tokenA) || isKnownFeeOnTransferToken(tokenB);
+  if (feeOnTransfer) {
+    // Deposit straight into the router, bypassing the wrapper contract.
+    const walletBalanceA: bigint = await new Contract(tokenA, erc20ABI, connectedWallet).balanceOf(wallet.address);
+    const walletBalanceB: bigint = await new Contract(tokenB, erc20ABI, connectedWallet).balanceOf(wallet.address);
+    const amountASent = addFeeOnTransferInputBuffer(amountADesired, tokenA);
+    const amountBSent = addFeeOnTransferInputBuffer(amountBDesired, tokenB);
+    if (walletBalanceA < amountASent) {
+      throw new Error("Wallet has insufficient tokenA balance for this liquidity deposit (including the transfer fee)");
+    }
+    if (walletBalanceB < amountBSent) {
+      throw new Error("Wallet has insufficient tokenB balance for this liquidity deposit (including the transfer fee)");
+    }
+
+    const tokenAContract = new Contract(tokenA, erc20ABI, connectedWallet);
+    const tokenBContract = new Contract(tokenB, erc20ABI, connectedWallet);
+    const allowanceA: bigint = await tokenAContract.allowance(wallet.address, PulseXRouter);
+    if (allowanceA < amountASent) {
+      const approveTxA = await tokenAContract.approve(PulseXRouter, MaxUint256);
+      await approveTxA.wait();
+    }
+    const allowanceB: bigint = await tokenBContract.allowance(wallet.address, PulseXRouter);
+    if (allowanceB < amountBSent) {
+      const approveTxB = await tokenBContract.approve(PulseXRouter, MaxUint256);
+      await approveTxB.wait();
+    }
+
+    const router = new Contract(PulseXRouter, pulsexRouterABI, connectedWallet);
+    const expectedA = applyFeeOnTransferOutput(amountASent, tokenA);
+    const expectedB = applyFeeOnTransferOutput(amountBSent, tokenB);
+    if (amountAMin > expectedA || amountBMin > expectedB) {
+      throw new Error("Slippage minimum exceeds the amount the pair will receive after the transfer fee");
+    }
+    let tx: ContractTransactionResponse;
+    try {
+      tx = await router.addLiquidity(
+        tokenA,
+        tokenB,
+        amountASent,
+        amountBSent,
+        amountAMin,
+        amountBMin,
+        to,
+        deadline,
+        { gasLimit: 500000n }
+      );
+    } catch (error) {
+      if (isFeeOnTransferWrapperFailure(error)) {
+        throw new Error("TransferHelper::transferFrom: transferFrom failed — the transfer-tax deposit did not reach the pair");
+      }
+      throw error;
+    }
+
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error("Transaction receipt is null");
+    }
+    return receipt as ContractTransactionReceipt;
+  }
+
   const contract = getAutomationContract(wallet, contractAddress);
 
   // Approve tokens first
-  const provider = getProvider();
-  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const tokenAContract = new Contract(tokenA, erc20ABI, connectedWallet);
   const tokenBContract = new Contract(tokenB, erc20ABI, connectedWallet);
 
@@ -610,6 +679,10 @@ export async function addLiquidity(
 
 /**
  * Executes add liquidity with PLS operation
+ *
+ * Same fee-on-transfer bypass as addLiquidity: a taxed token deposit goes
+ * straight to the router's addLiquidityETH, with the sent token amount
+ * grossed up so the pair receives exactly amountTokenDesired.
  */
 export async function addLiquidityPLS(
   automationId: string,
@@ -623,11 +696,56 @@ export async function addLiquidityPLS(
   contractAddress?: string
 ): Promise<ContractTransactionReceipt> {
   const wallet = await getWalletFromAutomation(automationId);
+  const provider = getProvider();
+  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
+
+  if (isKnownFeeOnTransferToken(token)) {
+    const tokenContract = new Contract(token, erc20ABI, connectedWallet);
+    const walletBalance: bigint = await tokenContract.balanceOf(wallet.address);
+    const amountTokenSent = addFeeOnTransferInputBuffer(amountTokenDesired, token);
+    if (walletBalance < amountTokenSent) {
+      throw new Error("Wallet has insufficient token balance for this liquidity deposit (including the transfer fee)");
+    }
+
+    const allowance: bigint = await tokenContract.allowance(wallet.address, PulseXRouter);
+    if (allowance < amountTokenSent) {
+      const approveTx = await tokenContract.approve(PulseXRouter, MaxUint256);
+      await approveTx.wait();
+    }
+
+    const router = new Contract(PulseXRouter, pulsexRouterABI, connectedWallet);
+    const expectedToken = applyFeeOnTransferOutput(amountTokenSent, token);
+    if (amountTokenMin > expectedToken) {
+      throw new Error("Slippage minimum exceeds the amount the pair will receive after the transfer fee");
+    }
+    let tx: ContractTransactionResponse;
+    try {
+      tx = await router.addLiquidityETH(
+        token,
+        amountTokenSent,
+        amountTokenMin,
+        amountPLSMin,
+        to,
+        deadline,
+        { value: plsAmount, gasLimit: 500000n }
+      );
+    } catch (error) {
+      if (isFeeOnTransferWrapperFailure(error)) {
+        throw new Error("TransferHelper::transferFrom: transferFrom failed — the transfer-tax deposit did not reach the pair");
+      }
+      throw error;
+    }
+
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error("Transaction receipt is null");
+    }
+    return receipt as ContractTransactionReceipt;
+  }
+
   const contract = getAutomationContract(wallet, contractAddress);
 
   // Approve token first (PLS is native, no approval needed)
-  const provider = getProvider();
-  const connectedWallet = wallet.provider ? wallet : wallet.connect(provider);
   const tokenContract = new Contract(token, erc20ABI, connectedWallet);
 
   const contractAddr = contractAddress || AUTOMATION_CONTRACT_ADDRESS;

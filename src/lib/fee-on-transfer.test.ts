@@ -4,6 +4,8 @@ import { Interface } from "ethers";
 import { nineMMRouter, pulsexRouterABI } from "./abis";
 import {
   addFeeOnTransferInputBuffer,
+  applyFeeOnTransferOutput,
+  feeOnTransferReceivedBps,
   isFeeOnTransferWrapperFailure,
   isKnownFeeOnTransferToken,
 } from "./fee-on-transfer";
@@ -41,6 +43,31 @@ test("adds a separate input buffer for the known one-percent transfer fee", () =
       "0x0000000000000000000000000000000000000001",
     ),
     1_000_000n,
+  );
+});
+
+test("net-of-tax output rounds down and passes unknown tokens through", () => {
+  assert.equal(
+    applyFeeOnTransferOutput(
+      1_010_102n,
+      "0x74a1942613008Aa6Fec06C27F796edE6460259c1",
+    ),
+    1_000_000n,
+  );
+  assert.equal(
+    applyFeeOnTransferOutput(
+      1_000_000n,
+      "0x0000000000000000000000000000000000000001",
+    ),
+    1_000_000n,
+  );
+  assert.equal(
+    feeOnTransferReceivedBps("0x74a1942613008Aa6Fec06C27F796edE6460259c1"),
+    9900n,
+  );
+  assert.equal(
+    feeOnTransferReceivedBps("0x0000000000000000000000000000000000000001"),
+    null,
   );
 });
 

@@ -13,6 +13,32 @@ export function isKnownFeeOnTransferToken(tokenAddress: string): boolean {
   return FEE_ON_TRANSFER_BPS.has(tokenAddress.toLowerCase());
 }
 
+/**
+ * Multiplier (in basis points of the post-fee amount) delivered to the
+ * recipient per unit sent, e.g. 9900n for a 1% tax. Returns null for tokens
+ * without a configured transfer fee.
+ */
+export function feeOnTransferReceivedBps(
+  tokenAddress: string,
+): bigint | null {
+  const feeBps = FEE_ON_TRANSFER_BPS.get(tokenAddress.toLowerCase());
+  if (feeBps === undefined) return null;
+  return BPS_DENOMINATOR - feeBps;
+}
+
+/**
+ * Net amount received after the configured transfer fee, rounded down.
+ * Unknown tokens pass through untouched.
+ */
+export function applyFeeOnTransferOutput(
+  amountSent: bigint,
+  tokenAddress: string,
+): bigint {
+  const receivedBps = feeOnTransferReceivedBps(tokenAddress);
+  if (receivedBps === null || amountSent === 0n) return amountSent;
+  return (amountSent * receivedBps) / BPS_DENOMINATOR;
+}
+
 export function addFeeOnTransferInputBuffer(
   amountIn: bigint,
   tokenAddress: string
