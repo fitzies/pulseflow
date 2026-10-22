@@ -4,6 +4,37 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypt
 const PULSECHAIN_CHAIN_ID = 369;
 
 /**
+ * Encrypted key formats
+ *
+ * v2 (current): "v2:" + hex(iv[12] | authTag[16] | ciphertext)
+ *   AES-256-GCM with the random 32-byte key in WALLET_ENCRYPTION_KEY (64 hex chars).
+ *
+ * legacy: hex(salt[16] | iv[16] | authTag[16] | ciphertext)
+ *   AES-256-GCM with a scrypt key derived from WALLET_ENCRYPTION_PASSWORD, which
+ *   fell back to a default string that is public in this repo. Legacy rows are
+ *   read-only: run scripts/migrate-wallet-encryption.ts to convert them to v2,
+ *   then delete the legacy path below.
+ */
+const V2_PREFIX = "v2:";
+const LEGACY_DEFAULT_PASSWORD = "default-password-change-in-production";
+
+function getEncryptionKey(): Buffer {
+  const hex = process.env.WALLET_ENCRYPTION_KEY?.trim();
+  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new Error("WALLET_ENCRYPTION_KEY must be set to 32 random bytes as 64 hex characters");
+  }
+  return Buffer.from(hex, "hex");
+}
+
+function getLegacyPassword(): string {
+  return process.env.WALLET_ENCRYPTION_PASSWORD || LEGACY_DEFAULT_PASSWORD;
+}
+
+export function isLegacyEncryptedKey(encryptedKey: string): boolean {
+  return !encryptedKey.startsWith(V2_PREFIX);
+}
+
+/**
  * Generates a new PulseChain wallet
  * @returns Object containing wallet address and encrypted private key
  */
@@ -11,107 +42,61 @@ export async function generateWallet(): Promise<{
   address: string;
   encryptedKey: string;
 }> {
-  // Create a new random wallet
   const wallet = Wallet.createRandom();
-
-  // Get the wallet address
-  const address = wallet.address;
-
-  // Encrypt the private key
-  const encryptedKey = await encryptPrivateKey(
-    wallet.privateKey,
-    process.env.WALLET_ENCRYPTION_PASSWORD || "default-password-change-in-production"
-  );
-
   return {
-    address,
-    encryptedKey,
+    address: wallet.address,
+    encryptedKey: encryptPrivateKey(wallet.privateKey),
   };
 }
 
 /**
- * Encrypts a private key using AES-256-GCM
- * @param privateKey - The private key to encrypt
- * @param password - Password for encryption
- * @returns Encrypted private key as hex string
+ * Encrypts a private key in the v2 format. Throws if WALLET_ENCRYPTION_KEY is missing.
  */
-async function encryptPrivateKey(
-  privateKey: string,
-  password: string
-): Promise<string> {
-  // Generate salt and IV
-  const salt = randomBytes(16);
-  const iv = randomBytes(16);
-
-  // Derive key from password using scrypt
-  const key = scryptSync(password, salt, 32);
-
-  // Create cipher
+export function encryptPrivateKey(privateKey: string): string {
+  const key = getEncryptionKey();
+  const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-
-  // Encrypt the private key
-  let encrypted = cipher.update(privateKey, "utf8", "hex");
-  encrypted += cipher.final("hex");
-
-  // Get auth tag for GCM
+  const encrypted = Buffer.concat([cipher.update(privateKey, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
-
-  // Combine salt, iv, authTag, and encrypted data
-  const combined = Buffer.concat([
-    salt,
-    iv,
-    authTag,
-    Buffer.from(encrypted, "hex"),
-  ]);
-
-  return combined.toString("hex");
+  return V2_PREFIX + Buffer.concat([iv, authTag, encrypted]).toString("hex");
 }
 
 /**
- * Decrypts an encrypted private key using AES-256-GCM
- * @param encryptedKey - The encrypted private key as hex string
- * @param password - Password for decryption
- * @returns Decrypted private key
+ * Decrypts a private key stored in either the v2 or the legacy format.
  */
-export function decryptPrivateKey(
-  encryptedKey: string,
-  password: string = process.env.WALLET_ENCRYPTION_PASSWORD || "default-password-change-in-production"
-): string {
-  // Convert hex string to buffer
+export function decryptPrivateKey(encryptedKey: string): string {
+  if (!isLegacyEncryptedKey(encryptedKey)) {
+    const combined = Buffer.from(encryptedKey.slice(V2_PREFIX.length), "hex");
+    const iv = combined.subarray(0, 12);
+    const authTag = combined.subarray(12, 28);
+    const encrypted = combined.subarray(28);
+    const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(), iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+  }
+  return decryptLegacyPrivateKey(encryptedKey, getLegacyPassword());
+}
+
+/**
+ * Legacy format only. Remove once every row has been migrated to v2.
+ */
+export function decryptLegacyPrivateKey(encryptedKey: string, password: string): string {
   const combined = Buffer.from(encryptedKey, "hex");
-
-  // Extract salt, iv, authTag, and encrypted data
-  const salt = combined.slice(0, 16);
-  const iv = combined.slice(16, 32);
-  const authTag = combined.slice(32, 48);
-  const encrypted = combined.slice(48);
-
-  // Derive key from password using scrypt
+  const salt = combined.subarray(0, 16);
+  const iv = combined.subarray(16, 32);
+  const authTag = combined.subarray(32, 48);
+  const encrypted = combined.subarray(48);
   const key = scryptSync(password, salt, 32);
-
-  // Create decipher
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(authTag);
-
-  // Decrypt the private key
-  let decrypted = decipher.update(encrypted, undefined, "utf8");
-  decrypted += decipher.final("utf8");
-
-  return decrypted;
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
 }
 
 /**
  * Gets a Wallet instance from an encrypted private key
- * @param encryptedKey - The encrypted private key
- * @param password - Optional password (defaults to env var)
- * @returns Wallet instance
  */
-export function getWalletFromEncryptedKey(
-  encryptedKey: string,
-  password?: string
-): Wallet {
-  const privateKey = decryptPrivateKey(encryptedKey, password);
-  return new Wallet(privateKey);
+export function getWalletFromEncryptedKey(encryptedKey: string): Wallet {
+  return new Wallet(decryptPrivateKey(encryptedKey));
 }
 
 /**
